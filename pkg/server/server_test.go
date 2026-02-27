@@ -24,7 +24,7 @@ func newTestServer(t *testing.T) (*server.Server, *httptest.Server) {
 	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"})
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	reconciler := proxy.NewReconciler(client, proxy.Options{Namespace: "tentacular-system"}, logger)
+	reconciler := proxy.NewReconciler(client, proxy.Options{Namespace: "tentacular-support"}, logger)
 	srv, err := server.New(client, reconciler, testServerToken, logger)
 	if err != nil {
 		t.Fatalf("server.New: %v", err)

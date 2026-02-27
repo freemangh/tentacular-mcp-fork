@@ -25,7 +25,7 @@ const (
 
 // Options holds configuration for the module proxy.
 type Options struct {
-	// Namespace is the K8s namespace to deploy into (typically tentacular-system).
+	// Namespace is the K8s namespace to deploy into (typically tentacular-support).
 	Namespace string
 
 	// Image is the container image to use. Defaults to DefaultImage if empty.

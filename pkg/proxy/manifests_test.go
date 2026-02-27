@@ -5,12 +5,12 @@ import (
 )
 
 func TestBuildDeployment_DefaultImage(t *testing.T) {
-	dep := BuildDeployment(Options{Namespace: "tentacular-system"})
+	dep := BuildDeployment(Options{Namespace: "tentacular-support"})
 	if dep.Name != DeploymentName {
 		t.Errorf("name: got %q, want %q", dep.Name, DeploymentName)
 	}
-	if dep.Namespace != "tentacular-system" {
-		t.Errorf("namespace: got %q, want %q", dep.Namespace, "tentacular-system")
+	if dep.Namespace != "tentacular-support" {
+		t.Errorf("namespace: got %q, want %q", dep.Namespace, "tentacular-support")
 	}
 	if len(dep.Spec.Template.Spec.Containers) == 0 {
 		t.Fatal("expected at least one container")

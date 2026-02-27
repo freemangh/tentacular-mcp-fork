@@ -44,7 +44,7 @@ func main() {
 		StorageSize: os.Getenv("PROXY_STORAGE_SIZE"),
 	}
 	if proxyOpts.Namespace == "" {
-		proxyOpts.Namespace = "tentacular-system"
+		proxyOpts.Namespace = "tentacular-support"
 	}
 
 	reconciler := proxy.NewReconciler(client, proxyOpts, logger)
