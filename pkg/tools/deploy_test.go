@@ -539,3 +539,106 @@ func TestWorkflowApplyMissingAPIVersion(t *testing.T) {
 		t.Fatal("expected error for manifest missing apiVersion, got nil")
 	}
 }
+
+// newDeployTestClientWithDiscovery returns a test client whose fake discovery
+// is pre-populated with the core v1 resource list so that resolveGVR can find
+// ConfigMap, Service, Secret, and other core resources.
+func newDeployTestClientWithDiscovery() *k8s.Client {
+	scheme := deployScheme()
+	dynClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, deployGVRs)
+	staticClient := kubefake.NewSimpleClientset(managedNs("my-ns"), managedNs("test-ns"))
+
+	// Inject discovery resource lists so resolveGVR can resolve core v1 kinds.
+	staticClient.Resources = []*metav1.APIResourceList{
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "configmaps", Kind: "ConfigMap", Namespaced: true},
+				{Name: "services", Kind: "Service", Namespaced: true},
+				{Name: "secrets", Kind: "Secret", Namespaced: true},
+			},
+		},
+	}
+
+	return &k8s.Client{
+		Clientset: staticClient,
+		Dynamic:   dynClient,
+		Config:    &rest.Config{Host: "https://test-cluster:6443"},
+	}
+}
+
+// TestWorkflowApplyConfigMapLargeDataIntegrity verifies that ConfigMap data keys survive
+// the manifest → unstructured.Unstructured → dynamic client apply path without truncation.
+// This is a regression guard: large string values (~7KB) must not be silently truncated
+// during JSON marshaling or map[string]interface{} conversion.
+func TestWorkflowApplyConfigMapLargeDataIntegrity(t *testing.T) {
+	client := newDeployTestClientWithDiscovery()
+	ctx := context.Background()
+
+	// Build a ~7KB value to stress-test the unstructured conversion path.
+	largeValue := strings.Repeat("x", 7*1024)
+	smallValue1 := "small-value-alpha"
+	smallValue2 := "small-value-beta"
+
+	result, err := handleWorkflowApply(ctx, client, WorkflowApplyParams{
+		Namespace: "my-ns",
+		Name:      "large-data-test",
+		Manifests: []map[string]interface{}{
+			{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata":   map[string]interface{}{"name": "big-config"},
+				"data": map[string]interface{}{
+					"key-small-1": smallValue1,
+					"key-large":   largeValue,
+					"key-small-2": smallValue2,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("handleWorkflowApply: %v", err)
+	}
+	if result.Created != 1 {
+		t.Fatalf("expected 1 created resource, got %d", result.Created)
+	}
+
+	// Retrieve via the dynamic client and verify all keys are intact.
+	cmGVR := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmaps"}
+	stored, err := client.Dynamic.Resource(cmGVR).Namespace("my-ns").Get(ctx, "big-config", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get stored ConfigMap: %v", err)
+	}
+
+	rawData, found := stored.Object["data"]
+	if !found {
+		t.Fatal("ConfigMap data field missing from stored object")
+	}
+	data, ok := rawData.(map[string]interface{})
+	if !ok {
+		t.Fatalf("ConfigMap data is not map[string]interface{}: %T", rawData)
+	}
+
+	checkStringKey := func(key, want string) {
+		t.Helper()
+		v, exists := data[key]
+		if !exists {
+			t.Errorf("key %q missing from stored ConfigMap data", key)
+			return
+		}
+		s, ok := v.(string)
+		if !ok {
+			t.Errorf("key %q is not a string: %T", key, v)
+			return
+		}
+		if len(s) != len(want) {
+			t.Errorf("key %q length mismatch: got %d, want %d (possible truncation)", key, len(s), len(want))
+		} else if s != want {
+			t.Errorf("key %q value does not match (data corruption)", key)
+		}
+	}
+
+	checkStringKey("key-small-1", smallValue1)
+	checkStringKey("key-small-2", smallValue2)
+	checkStringKey("key-large", largeValue)
+}

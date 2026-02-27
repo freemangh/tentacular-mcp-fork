@@ -73,6 +73,8 @@ func RunWorkflowPod(ctx context.Context, client *Client, namespace, name string,
 					SecurityContext: &corev1.SecurityContext{
 						AllowPrivilegeEscalation: boolPtr(false),
 						RunAsNonRoot:             boolPtr(true),
+						RunAsUser:                int64Ptr(65534),
+						ReadOnlyRootFilesystem:   boolPtr(true),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
@@ -84,6 +86,7 @@ func RunWorkflowPod(ctx context.Context, client *Client, namespace, name string,
 			},
 			SecurityContext: &corev1.PodSecurityContext{
 				RunAsNonRoot: boolPtr(true),
+				RunAsUser:    int64Ptr(65534),
 				SeccompProfile: &corev1.SeccompProfile{
 					Type: corev1.SeccompProfileTypeRuntimeDefault,
 				},
@@ -168,4 +171,8 @@ func RunWorkflowPod(ctx context.Context, client *Client, namespace, name string,
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
 }

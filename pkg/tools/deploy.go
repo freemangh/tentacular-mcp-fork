@@ -150,6 +150,14 @@ func resourceKey(gvr schema.GroupVersionResource, name string) string {
 	return fmt.Sprintf("%s/%s/%s", gvr.Group, gvr.Resource, name)
 }
 
+// handleWorkflowApply applies a set of Kubernetes manifests as a named deployment.
+//
+// ConfigMap data integrity note: large string values in ConfigMap data are NOT
+// truncated server-side. The manifest map[string]interface{} is wrapped directly
+// in unstructured.Unstructured and passed to the dynamic client without any JSON
+// round-trip or size limit in this function. If ConfigMap data appears truncated,
+// the cause is client-side (e.g. the LLM generating incomplete manifests), not
+// the MCP server. See TestWorkflowApplyConfigMapLargeDataIntegrity for verification.
 func handleWorkflowApply(ctx context.Context, client *k8s.Client, params WorkflowApplyParams) (WorkflowApplyResult, error) {
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowApplyResult{}, err

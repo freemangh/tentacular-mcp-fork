@@ -78,6 +78,56 @@ func TestRunWorkflowPodCreatesWithCorrectLabels(t *testing.T) {
 	}
 }
 
+// TestRunWorkflowPodRunAsUser verifies that the trigger pod has RunAsUser: 65534 set
+// at the container level for PSA restricted compliance.
+func TestRunWorkflowPodRunAsUser(t *testing.T) {
+	client := newRunTestClient()
+	bgCtx := context.Background()
+
+	client.Clientset.CoreV1().Namespaces().Create(bgCtx, managedNsForRun("run-user-ns"), metav1.CreateOptions{})
+
+	runCtx, runCancel := context.WithTimeout(bgCtx, 5*time.Second)
+	defer runCancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		RunWorkflowPod(runCtx, client, "run-user-ns", "wf", nil)
+	}()
+
+	var foundPod *corev1.Pod
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		pods, _ := client.Clientset.CoreV1().Pods("run-user-ns").List(bgCtx, metav1.ListOptions{})
+		if len(pods.Items) > 0 {
+			foundPod = &pods.Items[0]
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	runCancel()
+	<-done
+
+	if foundPod == nil {
+		t.Fatal("trigger pod was not created in the fake client")
+	}
+
+	if len(foundPod.Spec.Containers) == 0 {
+		t.Fatal("expected at least one container")
+	}
+	csc := foundPod.Spec.Containers[0].SecurityContext
+	if csc == nil {
+		t.Fatal("container security context should not be nil")
+	}
+
+	if csc.RunAsUser == nil {
+		t.Error("RunAsUser should be set (expected 65534)")
+	} else if *csc.RunAsUser != 65534 {
+		t.Errorf("RunAsUser should be 65534 (nobody), got %d", *csc.RunAsUser)
+	}
+}
+
 // TestRunWorkflowPodSecurityContext verifies that the trigger pod has security context set.
 func TestRunWorkflowPodSecurityContext(t *testing.T) {
 	client := newRunTestClient()
@@ -128,6 +178,17 @@ func TestRunWorkflowPodSecurityContext(t *testing.T) {
 	}
 	if csc.RunAsNonRoot == nil || !*csc.RunAsNonRoot {
 		t.Error("RunAsNonRoot should be true")
+	}
+	if csc.RunAsUser == nil || *csc.RunAsUser != 65534 {
+		t.Errorf("RunAsUser should be 65534, got %v", csc.RunAsUser)
+	}
+	if csc.ReadOnlyRootFilesystem == nil || !*csc.ReadOnlyRootFilesystem {
+		t.Error("ReadOnlyRootFilesystem should be true")
+	}
+
+	psc := foundPod.Spec.SecurityContext
+	if psc.RunAsUser == nil || *psc.RunAsUser != 65534 {
+		t.Errorf("pod-level RunAsUser should be 65534, got %v", psc.RunAsUser)
 	}
 }
 
