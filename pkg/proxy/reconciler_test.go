@@ -27,7 +27,7 @@ func newTestReconciler(opts Options) (*Reconciler, *k8s.Client) {
 
 func TestNewReconciler_DefaultNamespace(t *testing.T) {
 	r, _ := newTestReconciler(Options{})
-	if r.Namespace() != "tentacular-system" {
+	if r.Namespace() != "tentacular-support" {
 		t.Errorf("expected tentacular-system, got %q", r.Namespace())
 	}
 }
@@ -40,13 +40,13 @@ func TestNewReconciler_CustomNamespace(t *testing.T) {
 }
 
 func TestReconcileOnce_CreatesDeploymentAndService(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, client := newTestReconciler(opts)
 	ctx := context.Background()
 
 	r.reconcileOnce(ctx)
 
-	dep, err := client.Clientset.AppsV1().Deployments("tentacular-system").Get(ctx, DeploymentName, metav1.GetOptions{})
+	dep, err := client.Clientset.AppsV1().Deployments("tentacular-support").Get(ctx, DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("deployment not created: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestReconcileOnce_CreatesDeploymentAndService(t *testing.T) {
 		t.Errorf("wrong deployment name: %q", dep.Name)
 	}
 
-	svc, err := client.Clientset.CoreV1().Services("tentacular-system").Get(ctx, ServiceName, metav1.GetOptions{})
+	svc, err := client.Clientset.CoreV1().Services("tentacular-support").Get(ctx, ServiceName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("service not created: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestReconcileOnce_CreatesDeploymentAndService(t *testing.T) {
 }
 
 func TestReconcileOnce_Idempotent(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, client := newTestReconciler(opts)
 	ctx := context.Background()
 
@@ -72,7 +72,7 @@ func TestReconcileOnce_Idempotent(t *testing.T) {
 	r.reconcileOnce(ctx)
 	r.reconcileOnce(ctx)
 
-	deps, err := client.Clientset.AppsV1().Deployments("tentacular-system").List(ctx, metav1.ListOptions{})
+	deps, err := client.Clientset.AppsV1().Deployments("tentacular-support").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("list deployments: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestReconcileOnce_Idempotent(t *testing.T) {
 }
 
 func TestGetStatus_NotInstalled(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, _ := newTestReconciler(opts)
 	ctx := context.Background()
 
@@ -93,7 +93,7 @@ func TestGetStatus_NotInstalled(t *testing.T) {
 }
 
 func TestGetStatus_InstalledAfterReconcile(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, _ := newTestReconciler(opts)
 	ctx := context.Background()
 
@@ -109,7 +109,7 @@ func TestGetStatus_InstalledAfterReconcile(t *testing.T) {
 }
 
 func TestGetStatus_DefaultStorageType(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, _ := newTestReconciler(opts)
 	ctx := context.Background()
 
@@ -122,7 +122,7 @@ func TestGetStatus_DefaultStorageType(t *testing.T) {
 }
 
 func TestGetStatus_PVCStorageType(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system", StorageSize: "10Gi"}
+	opts := Options{Namespace: "tentacular-support", StorageSize: "10Gi"}
 	r, _ := newTestReconciler(opts)
 	ctx := context.Background()
 
@@ -135,14 +135,14 @@ func TestGetStatus_PVCStorageType(t *testing.T) {
 }
 
 func TestReconcileDeployment_UpdatesImageWhenChanged(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system", Image: "ghcr.io/esm-dev/esm.sh:v100"}
+	opts := Options{Namespace: "tentacular-support", Image: "ghcr.io/esm-dev/esm.sh:v100"}
 	r, client := newTestReconciler(opts)
 	ctx := context.Background()
 
 	// First reconcile creates with v100
 	r.reconcileOnce(ctx)
 
-	dep, err := client.Clientset.AppsV1().Deployments("tentacular-system").Get(ctx, DeploymentName, metav1.GetOptions{})
+	dep, err := client.Clientset.AppsV1().Deployments("tentacular-support").Get(ctx, DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("deployment not found: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestReconcileDeployment_UpdatesImageWhenChanged(t *testing.T) {
 	r.opts.Image = "ghcr.io/esm-dev/esm.sh:v200"
 	r.reconcileOnce(ctx)
 
-	dep2, err := client.Clientset.AppsV1().Deployments("tentacular-system").Get(ctx, DeploymentName, metav1.GetOptions{})
+	dep2, err := client.Clientset.AppsV1().Deployments("tentacular-support").Get(ctx, DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("deployment not found after update: %v", err)
 	}
@@ -164,21 +164,21 @@ func TestReconcileDeployment_UpdatesImageWhenChanged(t *testing.T) {
 }
 
 func TestReconcileOnce_SameImageNoUpdate(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system", Image: DefaultImage}
+	opts := Options{Namespace: "tentacular-support", Image: DefaultImage}
 	r, client := newTestReconciler(opts)
 	ctx := context.Background()
 
 	r.reconcileOnce(ctx)
 	r.reconcileOnce(ctx) // same image, should be no-op
 
-	deps, _ := client.Clientset.AppsV1().Deployments("tentacular-system").List(ctx, metav1.ListOptions{})
+	deps, _ := client.Clientset.AppsV1().Deployments("tentacular-support").List(ctx, metav1.ListOptions{})
 	if len(deps.Items) != 1 {
 		t.Errorf("expected exactly 1 deployment after idempotent reconcile, got %d", len(deps.Items))
 	}
 }
 
 func TestRun_ExitsOnContextCancel(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, _ := newTestReconciler(opts)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -200,7 +200,7 @@ func TestRun_ExitsOnContextCancel(t *testing.T) {
 }
 
 func TestGetStatus_ReadyField(t *testing.T) {
-	opts := Options{Namespace: "tentacular-system"}
+	opts := Options{Namespace: "tentacular-support"}
 	r, client := newTestReconciler(opts)
 	ctx := context.Background()
 
@@ -219,12 +219,12 @@ func TestGetStatus_ReadyField(t *testing.T) {
 	}
 
 	// Manually set ReadyReplicas=1 and check again
-	dep, err := client.Clientset.AppsV1().Deployments("tentacular-system").Get(ctx, DeploymentName, metav1.GetOptions{})
+	dep, err := client.Clientset.AppsV1().Deployments("tentacular-support").Get(ctx, DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("get deployment: %v", err)
 	}
 	dep.Status.ReadyReplicas = 1
-	client.Clientset.AppsV1().Deployments("tentacular-system").UpdateStatus(ctx, dep, metav1.UpdateOptions{})
+	client.Clientset.AppsV1().Deployments("tentacular-support").UpdateStatus(ctx, dep, metav1.UpdateOptions{})
 
 	st2 := r.GetStatus(ctx)
 	if !st2.Ready {

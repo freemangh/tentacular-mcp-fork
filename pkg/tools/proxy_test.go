@@ -26,7 +26,7 @@ func newProxyTestReconciler(namespace string) *proxy.Reconciler {
 // TestRegisterProxyTools_NoPanic verifies registerProxyTools does not panic.
 func TestRegisterProxyTools_NoPanic(t *testing.T) {
 	srv := newTestServer()
-	reconciler := newProxyTestReconciler("tentacular-system")
+	reconciler := newProxyTestReconciler("tentacular-support")
 	// Should not panic
 	registerProxyTools(srv, reconciler)
 }
@@ -34,7 +34,7 @@ func TestRegisterProxyTools_NoPanic(t *testing.T) {
 // TestProxyStatus_NotInstalled verifies proxy_status returns not installed
 // when the reconciler has not run yet.
 func TestProxyStatus_NotInstalled(t *testing.T) {
-	reconciler := newProxyTestReconciler("tentacular-system")
+	reconciler := newProxyTestReconciler("tentacular-support")
 	ctx := context.Background()
 
 	st := reconciler.GetStatus(ctx)
@@ -49,7 +49,7 @@ func TestProxyStatus_NotInstalled(t *testing.T) {
 	if result.Installed {
 		t.Error("expected installed=false before reconcile")
 	}
-	if result.Namespace != "tentacular-system" {
+	if result.Namespace != "tentacular-support" {
 		t.Errorf("expected namespace=tentacular-system, got %q", result.Namespace)
 	}
 }
@@ -57,7 +57,7 @@ func TestProxyStatus_NotInstalled(t *testing.T) {
 // TestProxyStatus_InstalledAfterReconcile verifies proxy_status reflects
 // installed state after reconciliation.
 func TestProxyStatus_InstalledAfterReconcile(t *testing.T) {
-	reconciler := newProxyTestReconciler("tentacular-system")
+	reconciler := newProxyTestReconciler("tentacular-support")
 	ctx := context.Background()
 
 	// Trigger reconciliation directly
