@@ -38,7 +38,7 @@ func e2eClient(t *testing.T) *k8s.Client {
 	if err != nil {
 		t.Fatalf("create dynamic client: %v", err)
 	}
-	return k8s.NewClientFromConfig(cs, dyn, cfg)
+	return k8s.NewClientFromConfig(cs, dyn, cfg, nil)
 }
 
 func TestE2E_NamespaceLifecycle(t *testing.T) {

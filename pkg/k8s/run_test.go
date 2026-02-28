@@ -3,45 +3,48 @@ package k8s
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
-// TestRunWorkflowUsesServiceProxy verifies that RunWorkflow calls the
-// K8s API service proxy path and returns the response body.
-func TestRunWorkflowUsesServiceProxy(t *testing.T) {
-	// Start a fake API server that captures the proxy request
+// TestRunWorkflowDirectHTTP verifies that RunWorkflow calls the workflow service
+// directly via HTTP and returns the response body.
+func TestRunWorkflowDirectHTTP(t *testing.T) {
 	var capturedPath string
 	var capturedMethod string
 	var capturedBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedPath = r.URL.Path
 		capturedMethod = r.Method
-		capturedBody, _ = readAll(r.Body)
+		capturedBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"result":"ok","stories":10}`))
 	}))
 	defer server.Close()
 
-	clientset, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
-	if err != nil {
-		t.Fatal(err)
+	client := &Client{HTTP: server.Client()}
+
+	// Override the URL by using a custom transport that routes to our test server.
+	// We test the HTTP mechanics; the real URL uses .svc.cluster.local.
+	origHTTP := client.HTTP
+	client.HTTP = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			// Rewrite the cluster-internal URL to our test server
+			req.URL.Scheme = "http"
+			req.URL.Host = server.Listener.Addr().String()
+			return origHTTP.Transport.RoundTrip(req)
+		}),
 	}
-	client := &Client{Clientset: clientset, Config: &rest.Config{Host: server.URL}}
 
 	output, err := RunWorkflow(context.Background(), client, "tent-dev", "hn-digest", json.RawMessage(`{"filter":"ai"}`))
 	if err != nil {
 		t.Fatalf("RunWorkflow error: %v", err)
 	}
 
-	// Verify the proxy path
-	expectedPath := "/api/v1/namespaces/tent-dev/services/hn-digest:8080/proxy/run"
-	if capturedPath != expectedPath {
-		t.Errorf("expected path %q, got %q", expectedPath, capturedPath)
+	if capturedPath != "/run" {
+		t.Errorf("expected path /run, got %q", capturedPath)
 	}
 	if capturedMethod != "POST" {
 		t.Errorf("expected POST, got %s", capturedMethod)
@@ -63,18 +66,22 @@ func TestRunWorkflowUsesServiceProxy(t *testing.T) {
 func TestRunWorkflowDefaultPayload(t *testing.T) {
 	var capturedBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedBody, _ = readAll(r.Body)
+		capturedBody, _ = io.ReadAll(r.Body)
 		w.Write([]byte(`{}`))
 	}))
 	defer server.Close()
 
-	clientset, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
-	if err != nil {
-		t.Fatal(err)
+	client := &Client{
+		HTTP: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				req.URL.Scheme = "http"
+				req.URL.Host = server.Listener.Addr().String()
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		},
 	}
-	client := &Client{Clientset: clientset, Config: &rest.Config{Host: server.URL}}
 
-	_, err = RunWorkflow(context.Background(), client, "ns", "wf", nil)
+	_, err := RunWorkflow(context.Background(), client, "ns", "wf", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow error: %v", err)
 	}
@@ -84,35 +91,25 @@ func TestRunWorkflowDefaultPayload(t *testing.T) {
 	}
 }
 
-// TestRunWorkflowProxyError verifies that API server errors are propagated.
-func TestRunWorkflowProxyError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadGateway)
-		w.Write([]byte(`{"message":"service unavailable"}`))
-	}))
-	defer server.Close()
-
-	clientset, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
-	if err != nil {
-		t.Fatal(err)
+// TestRunWorkflowHTTPError verifies that HTTP errors are propagated.
+func TestRunWorkflowHTTPError(t *testing.T) {
+	client := &Client{
+		HTTP: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return nil, http.ErrServerClosed
+			}),
+		},
 	}
-	client := &Client{Clientset: clientset, Config: &rest.Config{Host: server.URL}}
 
-	_, err = RunWorkflow(context.Background(), client, "ns", "wf", nil)
+	_, err := RunWorkflow(context.Background(), client, "ns", "wf", nil)
 	if err == nil {
-		t.Fatal("expected error for 502 response")
+		t.Fatal("expected error for failed HTTP request")
 	}
 }
 
-func readAll(r interface{ Read([]byte) (int, error) }) ([]byte, error) {
-	var buf []byte
-	tmp := make([]byte, 1024)
-	for {
-		n, err := r.Read(tmp)
-		buf = append(buf, tmp[:n]...)
-		if err != nil {
-			break
-		}
-	}
-	return buf, nil
+// roundTripFunc adapts a function to http.RoundTripper.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

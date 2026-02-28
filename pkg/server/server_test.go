@@ -21,7 +21,7 @@ const testServerToken = "server-test-token-xyz"
 func newTestServer(t *testing.T) (*server.Server, *httptest.Server) {
 	t.Helper()
 	cs := fake.NewSimpleClientset()
-	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"})
+	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"}, nil)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	reconciler := proxy.NewReconciler(client, proxy.Options{Namespace: "tentacular-support"}, logger)

@@ -15,7 +15,7 @@ import (
 
 func newFakeK8sClient() (*fake.Clientset, *k8s.Client) {
 	cs := fake.NewSimpleClientset()
-	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"})
+	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"}, nil)
 	return cs, client
 }
 

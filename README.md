@@ -164,7 +164,7 @@ curl http://localhost:8080/healthz
 
 | Tool | Description |
 |------|-------------|
-| `wf_run` | Trigger a deployed workflow by creating an ephemeral in-cluster curl pod that POSTs to the workflow's `/run` endpoint. Returns the JSON output with execution duration. Timeout configurable (default 120s, max 600s). Pod is auto-cleaned after execution. |
+| `wf_run` | Trigger a deployed workflow by POSTing to the workflow's `/run` endpoint via the Kubernetes API service proxy. Returns the JSON output with execution duration. Timeout configurable (default 120s, max 600s). No ephemeral pods are created. |
 
 ### Module Proxy
 

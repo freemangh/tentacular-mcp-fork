@@ -12,7 +12,7 @@ import (
 func NewFakeClient(objects ...interface{}) *k8s.Client {
 	cs := fake.NewSimpleClientset()
 	_ = objects // objects passed as runtime.Object in typed helpers below
-	return k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake-cluster:6443"})
+	return k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake-cluster:6443"}, nil)
 }
 
 // NewFakeClientset returns a raw fake.Clientset for tests that need direct
@@ -26,6 +26,6 @@ func NewFakeClientset() *fake.Clientset {
 // functions via the client.
 func FakeClientWithK8sClient() (*fake.Clientset, *k8s.Client) {
 	cs := fake.NewSimpleClientset()
-	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake-cluster:6443"})
+	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake-cluster:6443"}, nil)
 	return cs, client
 }

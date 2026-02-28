@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"gopkg.in/yaml.v3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -16,6 +18,10 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	"github.com/randybias/tentacular-mcp/pkg/scheduler"
 )
+
+// defaultProxyNamespace is the namespace where the esm.sh module proxy lives.
+// Can be overridden with the TENTACULAR_PROXY_NAMESPACE environment variable.
+const defaultProxyNamespace = "tentacular-support"
 
 const releaseLabelKey = "tentacular.io/release"
 
@@ -92,8 +98,25 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 			return nil, WorkflowApplyResult{}, err
 		}
 		result, err := handleWorkflowApply(ctx, client, params)
-		if err == nil && sched != nil {
-			syncCronSchedule(ctx, client, sched, params.Namespace, params.Name)
+		if err == nil {
+			if sched != nil {
+				syncCronSchedule(ctx, client, sched, params.Namespace, params.Name)
+			}
+			// Pre-warm module proxy in background (best-effort, non-blocking).
+			// Parse jsr/npm dependencies from the workflow ConfigMap manifest and
+			// trigger esm.sh to build and cache each module before pod startup.
+			if deps := extractModuleDeps(params.Manifests); len(deps) > 0 {
+				proxyNS := os.Getenv("TENTACULAR_PROXY_NAMESPACE")
+				if proxyNS == "" {
+					proxyNS = defaultProxyNamespace
+				}
+				go func() {
+					bgCtx := context.Background()
+					if prewarmErr := k8s.PrewarmModules(bgCtx, client, proxyNS, deps); prewarmErr != nil {
+						slog.Warn("module pre-warm completed with errors", "error", prewarmErr)
+					}
+				}()
+			}
 		}
 		return nil, result, err
 	})
@@ -392,6 +415,65 @@ func resourceReadiness(obj unstructured.Unstructured, resource string) (bool, st
 		// Services, ConfigMaps, Secrets, NetworkPolicies, CronJobs: presence = ready
 		return true, ""
 	}
+}
+
+// workflowYAML is the minimal structure used to parse contract.dependencies from
+// the workflow.yaml stored in a ConfigMap.
+type workflowYAML struct {
+	Contract *contractYAML `yaml:"contract"`
+}
+
+type contractYAML struct {
+	Dependencies map[string]dependencyYAML `yaml:"dependencies"`
+}
+
+type dependencyYAML struct {
+	Protocol string `yaml:"protocol"`
+	Host     string `yaml:"host"`
+	Version  string `yaml:"version"`
+}
+
+// extractModuleDeps inspects the manifests for a ConfigMap containing
+// workflow.yaml and parses jsr/npm entries from contract.dependencies.
+// Returns the unique set of module dependencies to pre-warm.
+func extractModuleDeps(manifests []map[string]interface{}) []k8s.ModuleDep {
+	for _, m := range manifests {
+		obj := &unstructured.Unstructured{Object: m}
+		if obj.GetKind() != "ConfigMap" {
+			continue
+		}
+		data, ok, _ := unstructured.NestedStringMap(obj.Object, "data")
+		if !ok {
+			continue
+		}
+		wfYAML, ok := data["workflow.yaml"]
+		if !ok {
+			continue
+		}
+		var wf workflowYAML
+		if err := yaml.Unmarshal([]byte(wfYAML), &wf); err != nil || wf.Contract == nil {
+			continue
+		}
+		seen := make(map[string]bool)
+		var deps []k8s.ModuleDep
+		for _, dep := range wf.Contract.Dependencies {
+			if dep.Protocol != "jsr" && dep.Protocol != "npm" {
+				continue
+			}
+			key := dep.Protocol + ":" + dep.Host + "@" + dep.Version
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			deps = append(deps, k8s.ModuleDep{
+				Protocol: dep.Protocol,
+				Host:     dep.Host,
+				Version:  dep.Version,
+			})
+		}
+		return deps
+	}
+	return nil
 }
 
 // syncCronSchedule checks the deployed Deployment for a cron schedule annotation
