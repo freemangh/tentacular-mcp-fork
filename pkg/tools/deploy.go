@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
+	"github.com/randybias/tentacular-mcp/pkg/scheduler"
 )
 
 const releaseLabelKey = "tentacular.io/release"
@@ -81,7 +83,7 @@ type WorkflowStatusResult struct {
 	Resources []WorkflowResourceStatus `json:"resources"`
 }
 
-func registerDeployTools(srv *mcp.Server, client *k8s.Client) {
+func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.Scheduler) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "wf_apply",
 		Description: "Apply a set of Kubernetes manifests as a named deployment in a namespace. Uses release labels for tracking and garbage collection.",
@@ -90,6 +92,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client) {
 			return nil, WorkflowApplyResult{}, err
 		}
 		result, err := handleWorkflowApply(ctx, client, params)
+		if err == nil && sched != nil {
+			syncCronSchedule(ctx, client, sched, params.Namespace, params.Name)
+		}
 		return nil, result, err
 	})
 
@@ -99,6 +104,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WorkflowRemoveParams) (*mcp.CallToolResult, WorkflowRemoveResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WorkflowRemoveResult{}, err
+		}
+		if sched != nil {
+			sched.Deregister(params.Namespace, params.Name)
 		}
 		result, err := handleWorkflowRemove(ctx, client, params)
 		return nil, result, err
@@ -383,5 +391,24 @@ func resourceReadiness(obj unstructured.Unstructured, resource string) (bool, st
 	default:
 		// Services, ConfigMaps, Secrets, NetworkPolicies, CronJobs: presence = ready
 		return true, ""
+	}
+}
+
+// syncCronSchedule checks the deployed Deployment for a cron schedule annotation
+// and registers or deregisters it with the scheduler.
+func syncCronSchedule(ctx context.Context, client *k8s.Client, sched *scheduler.Scheduler, namespace, name string) {
+	deploy, err := client.Clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return // deployment may not exist yet (e.g., only ConfigMap applied so far)
+	}
+
+	schedule, ok := deploy.Annotations[scheduler.CronAnnotation]
+	if !ok || schedule == "" {
+		sched.Deregister(namespace, name)
+		return
+	}
+
+	if err := sched.Register(namespace, name, schedule); err != nil {
+		slog.Warn("failed to register cron schedule", "workflow", namespace+"/"+name, "error", err)
 	}
 }
