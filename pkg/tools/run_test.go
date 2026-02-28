@@ -2,12 +2,14 @@ package tools
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
@@ -31,6 +33,30 @@ func newRunToolTestClient(namespaces ...string) *k8s.Client {
 	}
 }
 
+// newRunToolTestClientWithProxy creates a client backed by a real HTTP test
+// server so the K8s API service proxy path works in tests.
+func newRunToolTestClientWithProxy(t *testing.T, handler http.HandlerFunc, namespaces ...string) (*k8s.Client, *httptest.Server) {
+	t.Helper()
+	// Seed managed namespaces into the handler so namespace lookups work
+	mux := http.NewServeMux()
+	for _, name := range namespaces {
+		ns := name // capture
+		mux.HandleFunc("/api/v1/namespaces/"+ns, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"metadata":{"name":"` + ns + `","labels":{"app.kubernetes.io/managed-by":"tentacular"}}}`))
+		})
+	}
+	// Proxy endpoint
+	mux.HandleFunc("/api/v1/namespaces/", handler)
+
+	server := httptest.NewServer(mux)
+	clientset, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &k8s.Client{Clientset: clientset, Config: &rest.Config{Host: server.URL}}, server
+}
+
 // TestHandleWfRun_SystemNamespaceRejected verifies the guard rejects tentacular-system
 // before any K8s API call is made.
 func TestHandleWfRun_SystemNamespaceRejected(t *testing.T) {
@@ -49,7 +75,6 @@ func TestHandleWfRun_SystemNamespaceRejected(t *testing.T) {
 // TestHandleWfRun_UnmanagedNamespaceRejected verifies that an unmanaged namespace
 // is rejected by CheckManagedNamespace before the run starts.
 func TestHandleWfRun_UnmanagedNamespaceRejected(t *testing.T) {
-	// No namespaces pre-seeded, so "unmanaged-ns" does not exist and is unmanaged
 	client := newRunToolTestClient()
 	ctx := context.Background()
 
@@ -62,12 +87,11 @@ func TestHandleWfRun_UnmanagedNamespaceRejected(t *testing.T) {
 	}
 }
 
-// TestWfRunParams_TimeoutDefaults verifies timeout boundary logic via the params struct
-// (unit test of the timeout logic without invoking the full run).
+// TestWfRunParams_TimeoutDefaults verifies timeout boundary logic.
 func TestWfRunParams_TimeoutDefaults(t *testing.T) {
 	cases := []struct {
 		timeoutS int
-		wantCap  bool // true if we expect the 600s cap to apply
+		wantCap  bool
 	}{
 		{0, false},
 		{60, false},
@@ -79,7 +103,6 @@ func TestWfRunParams_TimeoutDefaults(t *testing.T) {
 
 	for _, tc := range cases {
 		params := WfRunParams{TimeoutS: tc.timeoutS}
-		// Replicate the clamping logic from handleWfRun
 		const defaultTimeout = 120
 		const maxTimeout = 600
 		result := defaultTimeout
@@ -102,77 +125,37 @@ func TestWfRunParams_TimeoutDefaults(t *testing.T) {
 }
 
 // TestHandleWfRun_ManagedNamespacePassesGuard verifies that a managed namespace
-// passes the guard check and enters the run (which will fail due to fake client
-// watch limitations, but the namespace guard and managed check pass).
+// passes the guard check and the run completes via the API service proxy.
 func TestHandleWfRun_ManagedNamespacePassesGuard(t *testing.T) {
-	client := newRunToolTestClient("user-ns")
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	client, server := newRunToolTestClientWithProxy(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"result":"ok"}`))
+	}, "user-ns")
+	defer server.Close()
 
-	// This will fail at RunWorkflowPod (watch/log limitation of fake client)
-	// but NOT at the guard or namespace check. Error is expected.
-	_, err := handleWfRun(ctx, client, WfRunParams{
+	ctx := context.Background()
+	result, err := handleWfRun(ctx, client, WfRunParams{
 		Namespace: "user-ns",
 		Name:      "my-wf",
-		TimeoutS:  0, // default
 	})
-	// The managed namespace check passed (no "not managed" error), so we
-	// expect either a context error or a runner pod error — not a guard error.
 	if err != nil {
-		errStr := err.Error()
-		if contains(errStr, "tentacular-system") || contains(errStr, "guard") {
-			t.Errorf("unexpected guard error (namespace check should pass for managed ns): %v", err)
-		}
-		// Any other error (context deadline, fake client limitation) is acceptable
-		t.Logf("expected non-guard error from fake client: %v", err)
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result.Output) != `{"result":"ok"}` {
+		t.Errorf("expected output {\"result\":\"ok\"}, got %s", result.Output)
+	}
+	if result.DurationMs < 0 {
+		t.Errorf("expected positive duration, got %d", result.DurationMs)
 	}
 }
 
-// TestHandleWfRun_TimeoutOverCap verifies that a timeout > 600 is capped at 600s.
-func TestHandleWfRun_TimeoutOverCap(t *testing.T) {
-	client := newRunToolTestClient("cap-ns")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	// TimeoutS > 600 should be capped at 600s (but test will cancel via ctx)
-	_, err := handleWfRun(ctx, client, WfRunParams{
-		Namespace: "cap-ns",
-		Name:      "my-wf",
-		TimeoutS:  9999,
-	})
-	// Error expected (fake client won't complete the pod run)
-	// but it should NOT be a guard error
-	if err != nil && contains(err.Error(), "guard") {
-		t.Errorf("unexpected guard error: %v", err)
-	}
-}
-
-// TestHandleWfRun_ExplicitTimeout verifies an explicit valid timeout is accepted.
-func TestHandleWfRun_ExplicitTimeout(t *testing.T) {
-	client := newRunToolTestClient("timeout-ns")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	_, err := handleWfRun(ctx, client, WfRunParams{
-		Namespace: "timeout-ns",
-		Name:      "my-wf",
-		TimeoutS:  30,
-	})
-	// Error expected from fake client limitations, not from timeout clamping
-	if err != nil {
-		t.Logf("expected error from fake client: %v", err)
-	}
-}
-
-// TestWfRunResult_Fields verifies the WfRunResult struct fields match what
-// handleWfRun sets.
+// TestWfRunResult_Fields verifies the WfRunResult struct fields.
 func TestWfRunResult_Fields(t *testing.T) {
 	result := WfRunResult{
 		Name:       "my-wf",
 		Namespace:  "user-ns",
 		Output:     []byte(`{"ok":true}`),
 		DurationMs: 1234,
-		PodName:    "tntc-run-my-wf-12345",
 	}
 	if result.Name != "my-wf" {
 		t.Errorf("expected name=my-wf, got %q", result.Name)
@@ -183,15 +166,4 @@ func TestWfRunResult_Fields(t *testing.T) {
 	if string(result.Output) != `{"ok":true}` {
 		t.Errorf("unexpected output: %s", result.Output)
 	}
-}
-
-func contains(s, sub string) bool {
-	return len(sub) == 0 || (len(s) >= len(sub) && func() bool {
-		for i := 0; i <= len(s)-len(sub); i++ {
-			if s[i:i+len(sub)] == sub {
-				return true
-			}
-		}
-		return false
-	}())
 }

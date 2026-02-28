@@ -25,13 +25,12 @@ type WfRunResult struct {
 	Namespace  string          `json:"namespace"`
 	Output     json.RawMessage `json:"output"`
 	DurationMs int64           `json:"duration_ms"`
-	PodName    string          `json:"pod_name"`
 }
 
 func registerRunTools(srv *mcp.Server, client *k8s.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "wf_run",
-		Description: "Trigger a deployed workflow by POSTing to its /run endpoint via an ephemeral in-cluster pod. Returns the JSON output from the workflow.",
+		Description: "Trigger a deployed workflow by POSTing to its /run endpoint via the Kubernetes API service proxy. Returns the JSON output from the workflow.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WfRunParams) (*mcp.CallToolResult, WfRunResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WfRunResult{}, err
@@ -57,7 +56,7 @@ func handleWfRun(ctx context.Context, client *k8s.Client, params WfRunParams) (W
 	defer cancel()
 
 	start := time.Now()
-	podName, output, err := k8s.RunWorkflowPod(runCtx, client, params.Namespace, params.Name, params.Input)
+	output, err := k8s.RunWorkflow(runCtx, client, params.Namespace, params.Name, params.Input)
 	if err != nil {
 		return WfRunResult{}, err
 	}
@@ -67,6 +66,5 @@ func handleWfRun(ctx context.Context, client *k8s.Client, params WfRunParams) (W
 		Namespace:  params.Namespace,
 		Output:     output,
 		DurationMs: time.Since(start).Milliseconds(),
-		PodName:    podName,
 	}, nil
 }
