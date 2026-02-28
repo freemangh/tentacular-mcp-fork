@@ -64,6 +64,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/mcp", mcpHandler)
 	mux.HandleFunc("/healthz", s.healthHandler)
 
+	// JSON 404 for OAuth/OIDC discovery probes. MCP clients send
+	// unauthenticated GETs to .well-known paths; the auth middleware
+	// lets them through, and this handler returns a clean JSON 404
+	// so the client knows no OAuth is configured.
+	mux.HandleFunc("/.well-known/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"not_found"}`))
+	})
+
 	return auth.Middleware(s.token, mux)
 }
 

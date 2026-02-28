@@ -22,10 +22,11 @@ func LoadToken(path string) (string, error) {
 }
 
 // Middleware returns an HTTP middleware that validates Bearer token authentication.
-// The /healthz endpoint bypasses authentication.
+// Bypasses auth for /healthz and .well-known discovery paths (OAuth/OIDC probes
+// sent by MCP clients are unauthenticated by design).
 func Middleware(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
+		if r.URL.Path == "/healthz" || strings.Contains(r.URL.Path, ".well-known") {
 			next.ServeHTTP(w, r)
 			return
 		}
