@@ -12,6 +12,7 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/auth"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	"github.com/randybias/tentacular-mcp/pkg/proxy"
+	"github.com/randybias/tentacular-mcp/pkg/scheduler"
 	"github.com/randybias/tentacular-mcp/pkg/server"
 )
 
@@ -49,7 +50,9 @@ func main() {
 
 	reconciler := proxy.NewReconciler(client, proxyOpts, logger)
 
-	srv, err := server.New(client, reconciler, token, logger)
+	sched := scheduler.New(client, logger)
+
+	srv, err := server.New(client, reconciler, sched, token, logger)
 	if err != nil {
 		slog.Error("failed to create MCP server", "error", err)
 		os.Exit(1)
@@ -74,6 +77,14 @@ func main() {
 	// Start module proxy reconciliation loop as a background goroutine
 	go reconciler.Run(ctx)
 
+	// Start cron scheduler and scan for existing workflow schedules
+	sched.Start()
+	go func() {
+		if err := sched.ScanWorkflows(context.Background()); err != nil {
+			slog.Warn("initial cron schedule scan failed", "error", err)
+		}
+	}()
+
 	go func() {
 		slog.Info("starting tentacular-mcp server", "addr", addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -84,6 +95,7 @@ func main() {
 
 	<-ctx.Done()
 	slog.Info("shutting down server")
+	sched.Stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
