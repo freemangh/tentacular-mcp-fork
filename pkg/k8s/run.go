@@ -52,17 +52,14 @@ func RunWorkflowPod(ctx context.Context, client *Client, namespace, name string,
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				{
-					Name:  "curl",
-					Image: "curlimages/curl:latest",
-					Command: []string{
-						"curl", "-sf",
-						"--retry", "5",
-						"--retry-connrefused",
-						"--retry-delay", "1",
-						"-X", "POST",
-						"-H", "Content-Type: application/json",
-						"-d", payload,
-						svcURL,
+					Name:  "trigger",
+					Image: "alpine:3.21",
+					Command: []string{"sh", "-c",
+						`for i in 1 2 3 4 5; do wget -q -O - --post-data "$PAYLOAD" --header 'Content-Type: application/json' "$TARGET_URL" && exit 0; sleep 1; done; exit 1`,
+					},
+					Env: []corev1.EnvVar{
+						{Name: "PAYLOAD", Value: payload},
+						{Name: "TARGET_URL", Value: svcURL},
 					},
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
