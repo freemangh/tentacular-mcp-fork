@@ -64,6 +64,18 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/mcp", mcpHandler)
 	mux.HandleFunc("/healthz", s.healthHandler)
 
+	// MCP clients (protocol 2025-11-25+) probe OAuth/OIDC discovery
+	// endpoints before connecting. Return JSON 404 so the client knows
+	// no OAuth is configured and falls back to static Bearer token auth.
+	// Go's default mux returns text/plain 404 which causes JSON parse errors.
+	jsonNotFound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"not_found"}`))
+	})
+	mux.Handle("/.well-known/", jsonNotFound)
+	mux.Handle("/register", jsonNotFound)
+
 	return auth.Middleware(s.token, mux)
 }
 
