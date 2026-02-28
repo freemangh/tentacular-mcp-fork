@@ -87,5 +87,9 @@ jobs:
           push: ${{ steps.push.outputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
           cache-from: type=registry,ref=ghcr.io/randybias/tentacular-mcp:buildcache
           cache-to: type=registry,ref=ghcr.io/randybias/tentacular-mcp:buildcache,mode=max
