@@ -21,10 +21,10 @@ type WfRunParams struct {
 
 // WfRunResult is the result of wf_run.
 type WfRunResult struct {
-	Name       string          `json:"name"`
-	Namespace  string          `json:"namespace"`
-	Output     json.RawMessage `json:"output"`
-	DurationMs int64           `json:"duration_ms"`
+	Name       string `json:"name"`
+	Namespace  string `json:"namespace"`
+	Output     any    `json:"output"`
+	DurationMs int64  `json:"duration_ms"`
 }
 
 func registerRunTools(srv *mcp.Server, client *k8s.Client) {
@@ -56,9 +56,17 @@ func handleWfRun(ctx context.Context, client *k8s.Client, params WfRunParams) (W
 	defer cancel()
 
 	start := time.Now()
-	output, err := k8s.RunWorkflow(runCtx, client, params.Namespace, params.Name, params.Input)
+	raw, err := k8s.RunWorkflow(runCtx, client, params.Namespace, params.Name, params.Input)
 	if err != nil {
 		return WfRunResult{}, err
+	}
+
+	// Unmarshal raw JSON into any so the MCP schema accepts any JSON type.
+	var output any
+	if len(raw) > 0 {
+		if jsonErr := json.Unmarshal(raw, &output); jsonErr != nil {
+			output = string(raw)
+		}
 	}
 
 	return WfRunResult{

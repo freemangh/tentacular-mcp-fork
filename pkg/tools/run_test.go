@@ -141,8 +141,12 @@ func TestHandleWfRun_ManagedNamespacePassesGuard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if string(result.Output) != `{"result":"ok"}` {
-		t.Errorf("expected output {\"result\":\"ok\"}, got %s", result.Output)
+	outputMap, ok := result.Output.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected output to be map, got %T", result.Output)
+	}
+	if outputMap["result"] != "ok" {
+		t.Errorf("expected result=ok, got %v", outputMap["result"])
 	}
 	if result.DurationMs < 0 {
 		t.Errorf("expected positive duration, got %d", result.DurationMs)
@@ -154,7 +158,7 @@ func TestWfRunResult_Fields(t *testing.T) {
 	result := WfRunResult{
 		Name:       "my-wf",
 		Namespace:  "user-ns",
-		Output:     []byte(`{"ok":true}`),
+		Output:     map[string]interface{}{"ok": true},
 		DurationMs: 1234,
 	}
 	if result.Name != "my-wf" {
@@ -163,7 +167,8 @@ func TestWfRunResult_Fields(t *testing.T) {
 	if result.DurationMs != 1234 {
 		t.Errorf("expected duration=1234, got %d", result.DurationMs)
 	}
-	if string(result.Output) != `{"ok":true}` {
-		t.Errorf("unexpected output: %s", result.Output)
+	outputMap, ok := result.Output.(map[string]interface{})
+	if !ok || outputMap["ok"] != true {
+		t.Errorf("unexpected output: %v", result.Output)
 	}
 }
