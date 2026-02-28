@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/subtle"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -33,6 +34,11 @@ func Middleware(token string, next http.Handler) http.Handler {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
+			slog.Warn("auth rejected: missing authorization header",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"remote", r.RemoteAddr,
+				"headers", fmt.Sprintf("%v", r.Header))
 			writeAuthError(w, "missing authorization header")
 			return
 		}
