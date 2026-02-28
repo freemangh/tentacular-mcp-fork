@@ -16,12 +16,13 @@ import (
 
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
+	"github.com/randybias/tentacular-mcp/pkg/proxy"
 	"github.com/randybias/tentacular-mcp/pkg/scheduler"
 )
 
 // defaultProxyNamespace is the namespace where the esm.sh module proxy lives.
-// Can be overridden with the TENTACULAR_PROXY_NAMESPACE environment variable.
-const defaultProxyNamespace = "tentacular-support"
+// Uses the canonical default from the proxy package.
+var defaultProxyNamespace = proxy.DefaultNamespace
 
 const releaseLabelKey = "tentacular.io/release"
 

@@ -29,7 +29,7 @@ type Reconciler struct {
 // NewReconciler creates a new proxy Reconciler.
 func NewReconciler(client *k8s.Client, opts Options, logger *slog.Logger) *Reconciler {
 	if opts.Namespace == "" {
-		opts.Namespace = "tentacular-support"
+		opts.Namespace = DefaultNamespace
 	}
 	interval := DefaultInterval
 	return &Reconciler{

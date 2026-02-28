@@ -11,6 +11,7 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/proxy"
 	"github.com/randybias/tentacular-mcp/pkg/scheduler"
 	"github.com/randybias/tentacular-mcp/pkg/tools"
+	"github.com/randybias/tentacular-mcp/pkg/version"
 )
 
 // Server wraps the MCP server with K8s client and auth.
@@ -28,7 +29,7 @@ func New(client *k8s.Client, reconciler *proxy.Reconciler, sched *scheduler.Sche
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "tentacular-mcp",
-			Version: "0.1.0",
+			Version: version.Version,
 		},
 		&mcp.ServerOptions{
 			Instructions: "In-cluster MCP server for Kubernetes namespace lifecycle, credential management, workflow introspection, cluster operations, and module proxy management.",

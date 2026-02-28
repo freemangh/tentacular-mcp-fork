@@ -9,6 +9,9 @@ import (
 )
 
 const (
+	// DefaultNamespace is the default namespace for the esm.sh module proxy.
+	DefaultNamespace = "tentacular-support"
+
 	// DefaultImage is the default esm.sh module proxy image.
 	// Pinned to match the CLI's tntc cluster install default (GenerateModuleProxyManifests).
 	DefaultImage = "ghcr.io/esm-dev/esm.sh:v136"
