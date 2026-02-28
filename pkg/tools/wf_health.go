@@ -98,6 +98,10 @@ func registerWfHealthTools(srv *mcp.Server, client *k8s.Client) {
 }
 
 func handleWfHealth(ctx context.Context, client *k8s.Client, params WfHealthParams) (WfHealthResult, error) {
+	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
+		return WfHealthResult{}, err
+	}
+
 	dep, err := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 	if err != nil {
 		return WfHealthResult{}, fmt.Errorf("get deployment %q in namespace %q: %w", params.Name, params.Namespace, err)
@@ -145,6 +149,10 @@ func handleWfHealth(ctx context.Context, client *k8s.Client, params WfHealthPara
 }
 
 func handleWfHealthNs(ctx context.Context, client *k8s.Client, params WfHealthNsParams) (WfHealthNsResult, error) {
+	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
+		return WfHealthNsResult{}, err
+	}
+
 	limit := params.Limit
 	if limit <= 0 {
 		limit = wfHealthDefault
@@ -248,9 +256,12 @@ func probeURL(url string) (string, error) {
 
 // wfHealthResponse is the parsed structure of a workflow health endpoint response.
 // Fields are optional; unknown fields are silently ignored.
+//
+// The engine adds lastRunFailed and inFlight to its /health?detail=1 response
+// to support G/A/R classification.
 type wfHealthResponse struct {
-	LastStatus string `json:"last_status"`
-	InFlight   bool   `json:"in_flight"`
+	LastRunFailed bool `json:"lastRunFailed"`
+	InFlight      int  `json:"inFlight"`
 }
 
 // classifyFromDetail applies G/A/R classification to a health probe response body.
@@ -258,18 +269,18 @@ type wfHealthResponse struct {
 // If the body cannot be parsed as JSON the endpoint is treated as green (reachable = not red).
 //
 // AMBER conditions:
-//   - last_status == "failed": last execution failed
-//   - in_flight == true: execution currently in flight
+//   - lastRunFailed == true: last execution failed (resets on next successful run)
+//   - inFlight > 0: execution currently in flight
 func classifyFromDetail(detail string) (status, reason string) {
 	var resp wfHealthResponse
 	if err := json.Unmarshal([]byte(detail), &resp); err != nil {
 		// Unparseable body but endpoint was reachable: treat as green.
 		return "green", ""
 	}
-	if resp.LastStatus == "failed" {
+	if resp.LastRunFailed {
 		return "amber", "last execution failed"
 	}
-	if resp.InFlight {
+	if resp.InFlight > 0 {
 		return "amber", "execution in flight"
 	}
 	return "green", ""
