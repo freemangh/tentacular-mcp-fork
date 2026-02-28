@@ -190,9 +190,12 @@ func handleWfPods(ctx context.Context, client *k8s.Client, params WfPodsParams) 
 }
 
 func handleWfLogs(ctx context.Context, client *k8s.Client, params WfLogsParams) (WfLogsResult, error) {
+	const maxTailLines = 10_000
 	tailLines := params.TailLines
 	if tailLines <= 0 {
 		tailLines = 100
+	} else if tailLines > maxTailLines {
+		tailLines = maxTailLines
 	}
 
 	opts := &corev1.PodLogOptions{
@@ -209,7 +212,8 @@ func handleWfLogs(ctx context.Context, client *k8s.Client, params WfLogsParams) 
 	}
 	defer stream.Close()
 
-	data, err := io.ReadAll(stream)
+	const maxLogBytes = 1 << 20 // 1MiB
+	data, err := io.ReadAll(io.LimitReader(stream, maxLogBytes))
 	if err != nil {
 		return WfLogsResult{}, fmt.Errorf("read logs for pod %q: %w", params.Pod, err)
 	}

@@ -107,6 +107,33 @@ func TestRunWorkflowHTTPError(t *testing.T) {
 	}
 }
 
+// TestRunWorkflowNonTwoxxStatusReturnsError verifies that 4xx/5xx responses are errors.
+func TestRunWorkflowNonTwoxxStatusReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"something went wrong"}`)) //nolint:errcheck
+	}))
+	defer server.Close()
+
+	client := &Client{
+		HTTP: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				req.URL.Scheme = "http"
+				req.URL.Host = server.Listener.Addr().String()
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		},
+	}
+
+	_, err := RunWorkflow(context.Background(), client, "ns", "wf", nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response, got nil")
+	}
+	if err.Error() == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
 // roundTripFunc adapts a function to http.RoundTripper.
 type roundTripFunc func(*http.Request) (*http.Response, error)
 

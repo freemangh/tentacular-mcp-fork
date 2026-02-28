@@ -38,6 +38,10 @@ func RunWorkflow(ctx context.Context, client *Client, namespace, name string, in
 		return nil, fmt.Errorf("read workflow response: %w", err)
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("workflow %s/%s returned HTTP %d: %s", namespace, name, resp.StatusCode, string(body))
+	}
+
 	if len(body) == 0 {
 		return json.RawMessage(`null`), nil
 	}
