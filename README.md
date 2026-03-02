@@ -191,7 +191,7 @@ curl http://localhost:8080/healthz
 
 | Tool | Description |
 |------|-------------|
-| `audit_rbac` | Scan namespace RBAC for over-permissioned roles (wildcard verbs, escalation paths). |
+| `audit_rbac` | Scan namespace RBAC for over-permissioned roles (wildcard verbs, sensitive resources, escalation paths via bind/escalate/impersonate) with remediation suggestions. |
 | `audit_netpol` | Verify NetworkPolicy coverage: default-deny presence, policy analysis. |
 | `audit_psa` | Validate Pod Security Admission labels against the restricted profile. |
 

@@ -4,11 +4,11 @@
 TBD - created by archiving change in-cluster-mcp-server. Update Purpose after archive.
 ## Requirements
 ### Requirement: Audit RBAC for over-permissions
-The system SHALL scan all Roles and RoleBindings in a given namespace and flag any rules that grant wildcard verbs (`*`), wildcard resources (`*`), or access to sensitive resources (secrets with `list`/`watch`, pods/exec, nodes). The system SHALL return a list of findings, each with the role name, the problematic rule, and a severity level (high/medium/low). The system SHALL reject the operation if the target namespace is `tentacular-system`.
+The system SHALL scan all Roles and RoleBindings in a given namespace and flag any rules that grant wildcard verbs (`*`), wildcard resources (`*`), access to sensitive resources (secrets, serviceaccounts/token, pods/exec, pods/attach), or escalation verbs (`bind`, `escalate`, `impersonate`). The system SHALL return a list of findings, each with the role name, the problematic rule, a severity level (high/medium/low), and a remediation suggestion. The system SHALL reject the operation if the target namespace is `tentacular-system`.
 
 #### Scenario: Namespace with over-permissioned role
 - **WHEN** the `audit_rbac` tool is called with `namespace: "dev-alice"` and a Role grants `*` verbs on secrets
-- **THEN** the system returns a finding with severity `high`, the role name, and the flagged rule
+- **THEN** the system returns a finding with severity `high`, the role name, the flagged rule, and a remediation suggestion
 
 #### Scenario: Namespace with clean RBAC
 - **WHEN** the `audit_rbac` tool is called and all Roles follow least-privilege principles
@@ -17,6 +17,18 @@ The system SHALL scan all Roles and RoleBindings in a given namespace and flag a
 #### Scenario: Also inspect ClusterRoleBindings targeting namespace
 - **WHEN** the `audit_rbac` tool is called and a ClusterRoleBinding grants a ClusterRole to a ServiceAccount in the target namespace
 - **THEN** the system includes any over-permissioned rules from the bound ClusterRole in the findings
+
+#### Scenario: Detect escalation via bind verb
+- **WHEN** the `audit_rbac` tool is called and a Role grants the `bind` verb on roles or clusterroles
+- **THEN** the system returns a finding with severity `high` indicating privilege escalation risk and a remediation to remove the verb
+
+#### Scenario: Detect escalation via escalate verb
+- **WHEN** the `audit_rbac` tool is called and a Role grants the `escalate` verb
+- **THEN** the system returns a finding with severity `high` indicating the role can modify its own permissions
+
+#### Scenario: Detect impersonation capability
+- **WHEN** the `audit_rbac` tool is called and a Role grants the `impersonate` verb on users, groups, or serviceaccounts
+- **THEN** the system returns a finding with severity `high` indicating identity impersonation risk
 
 ### Requirement: Audit network policy coverage
 The system SHALL verify that a namespace has at least a default-deny NetworkPolicy (denying all ingress and egress) and report on all NetworkPolicies present. The system SHALL flag namespaces that allow unrestricted egress or have no NetworkPolicies at all. The system SHALL reject the operation if the target namespace is `tentacular-system`.

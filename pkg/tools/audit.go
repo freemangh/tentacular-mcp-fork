@@ -20,10 +20,11 @@ type AuditRbacParams struct {
 
 // AuditFinding is a single RBAC audit finding.
 type AuditFinding struct {
-	Role     string `json:"role"`
-	Rule     string `json:"rule"`
-	Severity string `json:"severity"`
-	Reason   string `json:"reason"`
+	Role        string `json:"role"`
+	Rule        string `json:"rule"`
+	Severity    string `json:"severity"`
+	Reason      string `json:"reason"`
+	Remediation string `json:"remediation,omitempty"`
 }
 
 // AuditRbacResult is the result of audit_rbac.
@@ -79,7 +80,7 @@ type AuditPsaResult struct {
 func registerAuditTools(srv *mcp.Server, client *k8s.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "audit_rbac",
-		Description: "Audit RBAC in a namespace: scan for wildcard verbs/resources, sensitive access, and ClusterRoleBindings targeting namespace service accounts.",
+		Description: "Audit RBAC in a namespace: scan for wildcard verbs/resources, sensitive access, escalation paths (bind/escalate/impersonate verbs), and ClusterRoleBindings targeting namespace service accounts. Returns findings with remediation suggestions.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params AuditRbacParams) (*mcp.CallToolResult, AuditRbacResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, AuditRbacResult{}, err
@@ -118,6 +119,13 @@ var sensitiveResources = map[string]bool{
 	"pods/attach":           true,
 }
 
+// escalationVerbs are verbs that enable privilege escalation in RBAC.
+var escalationVerbs = map[string]bool{
+	"bind":        true,
+	"escalate":    true,
+	"impersonate": true,
+}
+
 func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacParams) (AuditRbacResult, error) {
 	findings := []AuditFinding{}
 
@@ -128,40 +136,8 @@ func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacPa
 	}
 
 	for _, role := range roles.Items {
-		for _, rule := range role.Rules {
-			ruleDesc := ruleDescription(rule)
-			// Check wildcard verbs
-			for _, verb := range rule.Verbs {
-				if verb == "*" {
-					findings = append(findings, AuditFinding{
-						Role:     fmt.Sprintf("Role/%s", role.Name),
-						Rule:     ruleDesc,
-						Severity: "high",
-						Reason:   "wildcard verb grants all permissions",
-					})
-				}
-			}
-			// Check wildcard resources
-			for _, res := range rule.Resources {
-				if res == "*" {
-					findings = append(findings, AuditFinding{
-						Role:     fmt.Sprintf("Role/%s", role.Name),
-						Rule:     ruleDesc,
-						Severity: "high",
-						Reason:   "wildcard resource grants access to all resource types",
-					})
-				}
-				// Check sensitive resources
-				if sensitiveResources[res] {
-					findings = append(findings, AuditFinding{
-						Role:     fmt.Sprintf("Role/%s", role.Name),
-						Rule:     ruleDesc,
-						Severity: "medium",
-						Reason:   fmt.Sprintf("access to sensitive resource %q", res),
-					})
-				}
-			}
-		}
+		roleName := fmt.Sprintf("Role/%s", role.Name)
+		findings = auditRules(findings, roleName, role.Rules)
 	}
 
 	// Scan RoleBindings for ClusterRole bindings (which may escalate privileges)
@@ -172,10 +148,11 @@ func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacPa
 	for _, rb := range rbs.Items {
 		if rb.RoleRef.Kind == "ClusterRole" {
 			findings = append(findings, AuditFinding{
-				Role:     fmt.Sprintf("RoleBinding/%s", rb.Name),
-				Rule:     fmt.Sprintf("binds ClusterRole/%s", rb.RoleRef.Name),
-				Severity: "low",
-				Reason:   "RoleBinding references a ClusterRole; review cluster-level permissions",
+				Role:        fmt.Sprintf("RoleBinding/%s", rb.Name),
+				Rule:        fmt.Sprintf("binds ClusterRole/%s", rb.RoleRef.Name),
+				Severity:    "low",
+				Reason:      "RoleBinding references a ClusterRole; review cluster-level permissions",
+				Remediation: "Replace with a namespaced Role if the required permissions are namespace-scoped.",
 			})
 		}
 	}
@@ -189,16 +166,73 @@ func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacPa
 		for _, subj := range crb.Subjects {
 			if subj.Kind == "ServiceAccount" && subj.Namespace == params.Namespace {
 				findings = append(findings, AuditFinding{
-					Role:     fmt.Sprintf("ClusterRoleBinding/%s", crb.Name),
-					Rule:     fmt.Sprintf("binds ClusterRole/%s to SA %s/%s", crb.RoleRef.Name, params.Namespace, subj.Name),
-					Severity: "medium",
-					Reason:   "service account in namespace has cluster-wide permissions",
+					Role:        fmt.Sprintf("ClusterRoleBinding/%s", crb.Name),
+					Rule:        fmt.Sprintf("binds ClusterRole/%s to SA %s/%s", crb.RoleRef.Name, params.Namespace, subj.Name),
+					Severity:    "medium",
+					Reason:      "service account in namespace has cluster-wide permissions",
+					Remediation: "Replace with a namespaced RoleBinding unless cluster-wide access is required.",
 				})
 			}
 		}
 	}
 
 	return AuditRbacResult{Findings: findings}, nil
+}
+
+// auditRules checks a set of RBAC policy rules for security issues and appends findings.
+func auditRules(findings []AuditFinding, roleName string, rules []rbacv1.PolicyRule) []AuditFinding {
+	for _, rule := range rules {
+		ruleDesc := ruleDescription(rule)
+
+		// Check wildcard verbs
+		for _, verb := range rule.Verbs {
+			if verb == "*" {
+				findings = append(findings, AuditFinding{
+					Role:        roleName,
+					Rule:        ruleDesc,
+					Severity:    "high",
+					Reason:      "wildcard verb grants all permissions",
+					Remediation: "Replace '*' with explicit verbs (e.g. get, list, watch, create, update, delete).",
+				})
+			}
+		}
+
+		// Check escalation verbs (bind, escalate, impersonate)
+		for _, verb := range rule.Verbs {
+			if escalationVerbs[verb] {
+				findings = append(findings, AuditFinding{
+					Role:        roleName,
+					Rule:        ruleDesc,
+					Severity:    "high",
+					Reason:      fmt.Sprintf("%q verb enables privilege escalation", verb),
+					Remediation: fmt.Sprintf("Remove the %q verb unless this role explicitly needs to grant or assume other identities.", verb),
+				})
+			}
+		}
+
+		// Check wildcard resources and sensitive resources
+		for _, res := range rule.Resources {
+			if res == "*" {
+				findings = append(findings, AuditFinding{
+					Role:        roleName,
+					Rule:        ruleDesc,
+					Severity:    "high",
+					Reason:      "wildcard resource grants access to all resource types",
+					Remediation: "Replace '*' with the specific resources this role needs access to.",
+				})
+			}
+			if sensitiveResources[res] {
+				findings = append(findings, AuditFinding{
+					Role:        roleName,
+					Rule:        ruleDesc,
+					Severity:    "medium",
+					Reason:      fmt.Sprintf("access to sensitive resource %q", res),
+					Remediation: fmt.Sprintf("Restrict %q access to only the verbs required (e.g. get instead of list/watch).", res),
+				})
+			}
+		}
+	}
+	return findings
 }
 
 func ruleDescription(rule rbacv1.PolicyRule) string {

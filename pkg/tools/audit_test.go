@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -172,6 +173,156 @@ func TestAuditRbacRoleBindingToClusterRole(t *testing.T) {
 	}
 	if !hasLow {
 		t.Error("expected low severity finding for RoleBinding referencing ClusterRole")
+	}
+}
+
+func TestAuditRbacEscalationBindVerb(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: "escalator", Namespace: "esc-ns"},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"rbac.authorization.k8s.io"},
+				Resources: []string{"roles"},
+				Verbs:     []string{"bind"},
+			},
+		},
+	}
+	client.Clientset.RbacV1().Roles("esc-ns").Create(ctx, role, metav1.CreateOptions{})
+
+	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "esc-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditRbac: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Severity == "high" && strings.Contains(f.Reason, "bind") {
+			found = true
+			if f.Remediation == "" {
+				t.Error("expected remediation text for bind verb finding")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected high severity finding for bind verb")
+	}
+}
+
+func TestAuditRbacEscalationEscalateVerb(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: "self-escalator", Namespace: "esc2-ns"},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"rbac.authorization.k8s.io"},
+				Resources: []string{"clusterroles"},
+				Verbs:     []string{"escalate"},
+			},
+		},
+	}
+	client.Clientset.RbacV1().Roles("esc2-ns").Create(ctx, role, metav1.CreateOptions{})
+
+	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "esc2-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditRbac: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Severity == "high" && strings.Contains(f.Reason, "escalate") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected high severity finding for escalate verb")
+	}
+}
+
+func TestAuditRbacEscalationImpersonateVerb(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: "impersonator", Namespace: "imp-ns"},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"users"},
+				Verbs:     []string{"impersonate"},
+			},
+		},
+	}
+	client.Clientset.RbacV1().Roles("imp-ns").Create(ctx, role, metav1.CreateOptions{})
+
+	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "imp-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditRbac: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Severity == "high" && strings.Contains(f.Reason, "impersonate") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected high severity finding for impersonate verb")
+	}
+}
+
+func TestAuditRbacRemediationOnWildcard(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: "wildcard-role", Namespace: "rem-ns"},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"*"},
+			},
+		},
+	}
+	client.Clientset.RbacV1().Roles("rem-ns").Create(ctx, role, metav1.CreateOptions{})
+
+	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "rem-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditRbac: %v", err)
+	}
+
+	for _, f := range result.Findings {
+		if f.Remediation == "" {
+			t.Errorf("finding %q missing remediation text", f.Reason)
+		}
+	}
+}
+
+func TestAuditRbacRemediationOnClusterRoleBinding(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	crb := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: "crb-rem"},
+		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "edit"},
+		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "mysa", Namespace: "rem2-ns"}},
+	}
+	client.Clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
+
+	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "rem2-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditRbac: %v", err)
+	}
+
+	for _, f := range result.Findings {
+		if f.Remediation == "" {
+			t.Errorf("finding %q missing remediation text", f.Reason)
+		}
 	}
 }
 
