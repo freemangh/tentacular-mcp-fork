@@ -1,0 +1,110 @@
+# -- Number of pod replicas
+replicaCount: 1
+
+image:
+  # -- Container image registry
+  registry: ghcr.io
+  # -- Container image repository
+  repository: randybias/tentacular-mcp
+  # -- Container image tag
+  tag: "latest"
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Override the release name
+nameOverride: ""
+# -- Override the full release name
+fullnameOverride: ""
+
+namespace:
+  # -- Create the namespace resource
+  create: true
+
+serviceAccount:
+  # -- Create the ServiceAccount
+  create: true
+  # -- Annotations to add to the ServiceAccount
+  annotations: {}
+
+rbac:
+  # -- Create the ClusterRole and ClusterRoleBinding
+  create: true
+
+auth:
+  # -- Name of an existing Secret containing the auth token (key must be "token").
+  # If set, the chart will not create its own Secret.
+  existingSecret: ""
+  # -- Auth token value. Used only when existingSecret is empty.
+  # Generate with: openssl rand -hex 32
+  token: ""
+
+service:
+  # -- Service type (ClusterIP, NodePort, LoadBalancer)
+  type: ClusterIP
+  # -- Service port
+  port: 8080
+  # -- NodePort (only used when type is NodePort)
+  nodePort: ""
+  # -- Additional annotations for the Service
+  annotations: {}
+
+deployment:
+  # -- Deployment strategy
+  strategy:
+    type: RollingUpdate
+  # -- Additional annotations for the Deployment
+  annotations: {}
+  # -- Additional annotations for the pod template
+  podAnnotations: {}
+
+# -- Resource requests and limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# -- Pod-level security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Liveness probe configuration
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+# -- Readiness probe configuration
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+
+# -- Tolerations for pod scheduling
+tolerations: []
+
+# -- Affinity rules for pod scheduling
+affinity: {}

@@ -1,0 +1,34 @@
+tentacular-mcp has been deployed to namespace {{ .Release.Namespace }}.
+
+1. Access the MCP server via port-forward:
+
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "tentacular-mcp.fullname" . }} 8080:{{ .Values.service.port }} &
+
+2. Verify health:
+
+   curl http://localhost:8080/healthz
+{{- if and (not .Values.auth.existingSecret) .Values.auth.token }}
+
+3. Your auth token:
+
+   {{ .Values.auth.token }}
+
+   Use it with:
+
+   curl -H "Authorization: Bearer {{ .Values.auth.token }}" http://localhost:8080/mcp
+{{- else }}
+
+3. Retrieve the auth token:
+
+   kubectl get secret {{ include "tentacular-mcp.authSecretName" . }} -n {{ .Release.Namespace }} \
+     -o jsonpath='{.data.token}' | base64 -d
+{{- end }}
+
+4. Connect an MCP client:
+
+   The server listens on /mcp via Streamable HTTP transport.
+   All requests require: Authorization: Bearer <token>
+
+   With the tentacular CLI:
+
+   tntc cluster check --mcp-url http://localhost:8080
