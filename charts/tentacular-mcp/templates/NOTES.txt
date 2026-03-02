@@ -1,0 +1,32 @@
+tentacular-mcp has been deployed to namespace {{ .Release.Namespace }}.
+
+1. Verify the deployment:
+
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "tentacular-mcp.name" . }},app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Check health:
+{{- if eq .Values.service.type "NodePort" }}
+
+   export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+   export NODE_PORT=$(kubectl get svc {{ include "tentacular-mcp.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[0].nodePort}')
+   curl http://$NODE_IP:$NODE_PORT/healthz
+{{- else if eq .Values.service.type "LoadBalancer" }}
+
+   NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+   export SERVICE_IP=$(kubectl get svc {{ include "tentacular-mcp.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   curl http://$SERVICE_IP:{{ .Values.service.port }}/healthz
+{{- else }}
+
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "tentacular-mcp.fullname" . }} 8080:{{ .Values.service.port }} &
+   curl http://localhost:8080/healthz
+{{- end }}
+
+3. Retrieve the auth token:
+
+   kubectl get secret {{ include "tentacular-mcp.authSecretName" . }} -n {{ .Release.Namespace }} \
+     -o jsonpath='{.data.token}' | base64 -d
+
+4. Connect an MCP client:
+
+   The server listens on /mcp via Streamable HTTP transport.
+   All requests require: Authorization: Bearer <token>

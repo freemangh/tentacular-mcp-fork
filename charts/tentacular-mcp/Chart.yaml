@@ -1,0 +1,20 @@
+apiVersion: v2
+name: tentacular-mcp
+description: An in-cluster MCP server for Kubernetes namespace lifecycle, credential management, workflow introspection, and cluster operations
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/randybias/tentacular-mcp
+sources:
+  - https://github.com/randybias/tentacular-mcp
+maintainers:
+  - name: Randy Bias
+    url: https://github.com/randybias
+  - name: Yevhen Khvastunov
+    url: https://github.com/freemangh
+keywords:
+  - kubernetes
+  - mcp
+  - model-context-protocol
+  - rbac
+  - namespace-management
