@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -372,5 +373,132 @@ func TestWfJobsCronJobSuspended(t *testing.T) {
 	}
 	if !result.CronJobs[0].Suspended {
 		t.Error("expected Suspended=true for suspended cronjob")
+	}
+}
+
+func TestWfRestartSuccess(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	// Create a managed namespace
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "restart-ns",
+			Labels: map[string]string{
+				k8s.ManagedByLabel: k8s.ManagedByValue,
+			},
+		},
+	}
+	_, err := client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: create ns: %v", err)
+	}
+
+	// Create a deployment
+	replicas := int32(1)
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web-app",
+			Namespace: "restart-ns",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "web"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "web"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "web", Image: "nginx:1.25"},
+					},
+				},
+			},
+		},
+	}
+	_, err = client.Clientset.AppsV1().Deployments("restart-ns").Create(ctx, dep, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: create deployment: %v", err)
+	}
+
+	result, err := handleWfRestart(ctx, client, WfRestartParams{
+		Namespace:  "restart-ns",
+		Deployment: "web-app",
+	})
+	if err != nil {
+		t.Fatalf("handleWfRestart: %v", err)
+	}
+	if !result.Restarted {
+		t.Error("expected Restarted=true")
+	}
+	if result.Namespace != "restart-ns" {
+		t.Errorf("namespace: got %q, want %q", result.Namespace, "restart-ns")
+	}
+	if result.Deployment != "web-app" {
+		t.Errorf("deployment: got %q, want %q", result.Deployment, "web-app")
+	}
+
+	// Verify the annotation was set on the pod template
+	updated, err := client.Clientset.AppsV1().Deployments("restart-ns").Get(ctx, "web-app", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get updated deployment: %v", err)
+	}
+	ann := updated.Spec.Template.Annotations
+	if ann == nil {
+		t.Fatal("expected annotations on pod template after restart")
+	}
+	if _, ok := ann["tentacular.io/restartedAt"]; !ok {
+		t.Error("expected tentacular.io/restartedAt annotation on pod template")
+	}
+}
+
+func TestWfRestartUnmanagedNamespace(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	// Create an unmanaged namespace
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "unmanaged-ns"},
+	}
+	_, err := client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: create ns: %v", err)
+	}
+
+	_, err = handleWfRestart(ctx, client, WfRestartParams{
+		Namespace:  "unmanaged-ns",
+		Deployment: "web-app",
+	})
+	if err == nil {
+		t.Fatal("expected error for unmanaged namespace, got nil")
+	}
+}
+
+func TestWfRestartDeploymentNotFound(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	// Create a managed namespace but no deployment
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "empty-restart-ns",
+			Labels: map[string]string{
+				k8s.ManagedByLabel: k8s.ManagedByValue,
+			},
+		},
+	}
+	_, err := client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: create ns: %v", err)
+	}
+
+	_, err = handleWfRestart(ctx, client, WfRestartParams{
+		Namespace:  "empty-restart-ns",
+		Deployment: "nonexistent",
+	})
+	if err == nil {
+		t.Fatal("expected error for nonexistent deployment, got nil")
 	}
 }

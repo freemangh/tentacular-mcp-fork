@@ -24,7 +24,7 @@ Developer workstations holding cluster-wide admin kubeconfig is a security anti-
                             |  |   |  call handler              |  |
                             |  |   |  marshal result            |  |
                             |  |   v                            |  |
-                            |  | pkg/tools/*.go (31 tools)      |  |
+                            |  | pkg/tools/*.go (32 tools)      |  |
                             |  |   |                            |  |
                             |  |   v                            |  |
                             |  | pkg/k8s/* (K8s client layer)   |  |
@@ -109,7 +109,7 @@ curl http://localhost:8080/healthz
 
 ## MCP Tools
 
-31 tools organized across 12 functional groups. All namespace-scoped tools enforce a self-protection guard that rejects operations targeting `tentacular-system`.
+32 tools organized across 12 functional groups. All namespace-scoped tools enforce a self-protection guard that rejects operations targeting `tentacular-system`.
 
 ### Namespace Lifecycle
 
@@ -136,6 +136,7 @@ curl http://localhost:8080/healthz
 | `wf_logs` | Tail pod logs (snapshot, not streaming). Supports container selection and line count. |
 | `wf_events` | List namespace events with type, reason, message, object reference, and count. |
 | `wf_jobs` | List Jobs and CronJobs in a namespace with status, schedule, and duration. |
+| `wf_restart` | Rollout restart a deployment by patching the pod template with a restart timestamp. Useful after ConfigMap/Secret changes, credential rotation, or gVisor enablement. |
 
 ### Cluster Operations
 
@@ -333,7 +334,7 @@ Every created namespace gets:
 
 ### RBAC Scoping
 
-The server's ClusterRole is scoped to exactly the verbs and resources needed by the 31 tools. It is significantly narrower than `cluster-admin`. Key constraints:
+The server's ClusterRole is scoped to exactly the verbs and resources needed by the 32 tools. It is significantly narrower than `cluster-admin`. Key constraints:
 - Read-only access to nodes, storage classes, runtime classes, CRDs
 - Create/delete for pods (gVisor verification only)
 - Namespaced CRUD for resources managed by tool handlers

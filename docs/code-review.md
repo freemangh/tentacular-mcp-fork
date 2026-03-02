@@ -68,6 +68,7 @@ Every namespace-accepting tool correctly calls `guard.CheckNamespace()` before a
 | wf_logs | params.Namespace | YES |
 | wf_events | params.Namespace | YES |
 | wf_jobs | params.Namespace | YES |
+| wf_restart | params.Namespace | YES |
 | cluster_preflight | params.Namespace | YES |
 | cluster_profile | params.Namespace | YES (conditional on non-empty, correct per D10) |
 | gvisor_check | (none) | N/A - cluster-scoped |

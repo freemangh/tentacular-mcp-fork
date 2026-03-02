@@ -51,3 +51,22 @@ The system SHALL list all Jobs and CronJobs in a namespace. For Jobs, return nam
 - **WHEN** the `wf_jobs` tool is called and no Jobs or CronJobs exist
 - **THEN** the system returns empty lists for both Jobs and CronJobs
 
+### Requirement: Rollout restart a deployment
+The system SHALL perform a rollout restart of a Deployment in a managed namespace by patching the pod template with a `tentacular.io/restartedAt` annotation containing the current UTC timestamp. This is the same mechanism as `kubectl rollout restart`. The system SHALL verify the namespace is managed by tentacular and that the deployment exists before patching. The system SHALL reject the operation if the target namespace is `tentacular-system` or if the namespace is not managed by tentacular.
+
+#### Scenario: Successful rollout restart
+- **WHEN** the `wf_restart` tool is called with `namespace: "dev-alice"` and `deployment: "web-app"` and the namespace is managed
+- **THEN** the system patches the deployment's pod template with a `tentacular.io/restartedAt` annotation and returns `restarted: true`
+
+#### Scenario: Reject restart in unmanaged namespace
+- **WHEN** the `wf_restart` tool is called with a namespace that is not managed by tentacular
+- **THEN** the system returns an error indicating the namespace is not managed
+
+#### Scenario: Deployment not found
+- **WHEN** the `wf_restart` tool is called with a deployment name that does not exist in the namespace
+- **THEN** the system returns an error indicating the deployment was not found
+
+#### Scenario: Reject restart in protected namespace
+- **WHEN** the `wf_restart` tool is called with `namespace: "tentacular-system"`
+- **THEN** the system returns an error indicating operations on `tentacular-system` are not allowed
+

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
@@ -102,6 +104,19 @@ type WfJobsResult struct {
 	CronJobs []WfCronJobInfo `json:"cronjobs"`
 }
 
+// WfRestartParams are the parameters for wf_restart.
+type WfRestartParams struct {
+	Namespace  string `json:"namespace" jsonschema:"Namespace containing the deployment"`
+	Deployment string `json:"deployment" jsonschema:"Name of the deployment to restart"`
+}
+
+// WfRestartResult is the result of wf_restart.
+type WfRestartResult struct {
+	Namespace  string `json:"namespace"`
+	Deployment string `json:"deployment"`
+	Restarted  bool   `json:"restarted"`
+}
+
 func registerWorkflowTools(srv *mcp.Server, client *k8s.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "wf_pods",
@@ -144,6 +159,17 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client) {
 			return nil, WfJobsResult{}, err
 		}
 		result, err := handleWfJobs(ctx, client, params)
+		return nil, result, err
+	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "wf_restart",
+		Description: "Rollout restart a deployment in a managed namespace by patching the pod template with a restart timestamp. Useful after ConfigMap/Secret changes, credential rotation, or gVisor enablement.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, params WfRestartParams) (*mcp.CallToolResult, WfRestartResult, error) {
+		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WfRestartResult{}, err
+		}
+		result, err := handleWfRestart(ctx, client, params)
 		return nil, result, err
 	})
 }
@@ -348,4 +374,48 @@ func jobStatus(job batchv1.Job) string {
 		return "Running"
 	}
 	return "Pending"
+}
+
+func handleWfRestart(ctx context.Context, client *k8s.Client, params WfRestartParams) (WfRestartResult, error) {
+	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
+		return WfRestartResult{}, err
+	}
+
+	// Verify the deployment exists.
+	_, err := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Deployment, metav1.GetOptions{})
+	if err != nil {
+		return WfRestartResult{}, fmt.Errorf("get deployment %q in namespace %q: %w", params.Deployment, params.Namespace, err)
+	}
+
+	// Rollout restart: patch the pod template annotation with a timestamp.
+	// This is the same mechanism as `kubectl rollout restart`.
+	restartAnnotation := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"annotations": map[string]interface{}{
+						"tentacular.io/restartedAt": time.Now().UTC().Format(time.RFC3339),
+					},
+				},
+			},
+		},
+	}
+
+	patchBody, err := json.Marshal(restartAnnotation)
+	if err != nil {
+		return WfRestartResult{}, fmt.Errorf("marshal restart patch: %w", err)
+	}
+
+	_, err = client.Clientset.AppsV1().Deployments(params.Namespace).Patch(
+		ctx, params.Deployment, types.MergePatchType, patchBody, metav1.PatchOptions{},
+	)
+	if err != nil {
+		return WfRestartResult{}, fmt.Errorf("patch deployment %q for rollout restart: %w", params.Deployment, err)
+	}
+
+	return WfRestartResult{
+		Namespace:  params.Namespace,
+		Deployment: params.Deployment,
+		Restarted:  true,
+	}, nil
 }
