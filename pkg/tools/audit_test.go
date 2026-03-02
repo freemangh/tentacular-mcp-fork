@@ -427,6 +427,136 @@ func TestAuditNetpolPoliciesListed(t *testing.T) {
 	}
 }
 
+func TestAuditNetpolBroadIngressAllowAll(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	// Policy with an ingress rule that has an empty peer (from: [{}]) — allows all traffic
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress", Namespace: "broad-ns"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{{}},
+				},
+			},
+		},
+	}
+	client.Clientset.NetworkingV1().NetworkPolicies("broad-ns").Create(ctx, policy, metav1.CreateOptions{})
+
+	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "broad-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditNetpol: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Severity == "high" && strings.Contains(f.Message, "allows traffic from all sources") {
+			found = true
+			if f.Remediation == "" {
+				t.Error("expected remediation text for broad ingress finding")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected high severity finding for allow-all ingress rule")
+	}
+}
+
+func TestAuditNetpolBroadEgressAllowAll(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "allow-all-egress", Namespace: "broad-eg-ns"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{{}},
+				},
+			},
+		},
+	}
+	client.Clientset.NetworkingV1().NetworkPolicies("broad-eg-ns").Create(ctx, policy, metav1.CreateOptions{})
+
+	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "broad-eg-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditNetpol: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Severity == "high" && strings.Contains(f.Message, "allows traffic to all destinations") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected high severity finding for allow-all egress rule")
+	}
+}
+
+func TestAuditNetpolCrossNamespaceIngress(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	// Policy with empty namespaceSelector (matches all namespaces)
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "cross-ns", Namespace: "crossns-ns"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{},
+						},
+					},
+				},
+			},
+		},
+	}
+	client.Clientset.NetworkingV1().NetworkPolicies("crossns-ns").Create(ctx, policy, metav1.CreateOptions{})
+
+	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "crossns-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditNetpol: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.Severity == "medium" && strings.Contains(f.Message, "all namespaces") {
+			found = true
+			if f.Remediation == "" {
+				t.Error("expected remediation text for cross-namespace finding")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected medium severity finding for empty namespaceSelector")
+	}
+}
+
+func TestAuditNetpolRemediationOnMissingDefaultDeny(t *testing.T) {
+	client := newAuditTestClient()
+	ctx := context.Background()
+
+	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "no-policy-ns"})
+	if err != nil {
+		t.Fatalf("handleAuditNetpol: %v", err)
+	}
+
+	for _, f := range result.Findings {
+		if f.Remediation == "" {
+			t.Errorf("finding %q missing remediation text", f.Message)
+		}
+	}
+}
+
 func TestAuditPsaCompliant(t *testing.T) {
 	client := newAuditTestClient()
 	ctx := context.Background()

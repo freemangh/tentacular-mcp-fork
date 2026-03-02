@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -46,8 +47,9 @@ type NetpolInfo struct {
 
 // AuditNetpolFinding is a single netpol audit finding.
 type AuditNetpolFinding struct {
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
+	Remediation string `json:"remediation,omitempty"`
 }
 
 // AuditNetpolResult is the result of audit_netpol.
@@ -92,7 +94,7 @@ func registerAuditTools(srv *mcp.Server, client *k8s.Client) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "audit_netpol",
-		Description: "Audit network policies in a namespace: check for default-deny policy, missing egress restrictions, and list all policies.",
+		Description: "Audit network policies in a namespace: check for default-deny policy, missing egress restrictions, overly broad allow rules, cross-namespace ingress via empty namespaceSelector, and list all policies. Returns findings with remediation suggestions.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params AuditNetpolParams) (*mcp.CallToolResult, AuditNetpolResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, AuditNetpolResult{}, err
@@ -288,6 +290,41 @@ func handleAuditNetpol(ctx context.Context, client *k8s.Client, params AuditNetp
 			}
 		}
 
+		// Check for overly broad ingress allow rules
+		for _, ingress := range p.Spec.Ingress {
+			for _, from := range ingress.From {
+				if isAllowAll(from.PodSelector, from.NamespaceSelector, from.IPBlock) {
+					findings = append(findings, AuditNetpolFinding{
+						Severity:    "high",
+						Message:     fmt.Sprintf("NetworkPolicy %q has an ingress rule that allows traffic from all sources, negating default-deny", p.Name),
+						Remediation: "Restrict the ingress rule to specific pod/namespace selectors or CIDR ranges.",
+					})
+				} else if from.NamespaceSelector != nil &&
+					len(from.NamespaceSelector.MatchLabels) == 0 &&
+					len(from.NamespaceSelector.MatchExpressions) == 0 &&
+					from.PodSelector == nil {
+					findings = append(findings, AuditNetpolFinding{
+						Severity:    "medium",
+						Message:     fmt.Sprintf("NetworkPolicy %q allows ingress from all namespaces via empty namespaceSelector", p.Name),
+						Remediation: "Add matchLabels to the namespaceSelector to restrict which namespaces can send traffic.",
+					})
+				}
+			}
+		}
+
+		// Check for overly broad egress allow rules
+		for _, egress := range p.Spec.Egress {
+			for _, to := range egress.To {
+				if isAllowAll(to.PodSelector, to.NamespaceSelector, to.IPBlock) {
+					findings = append(findings, AuditNetpolFinding{
+						Severity:    "high",
+						Message:     fmt.Sprintf("NetworkPolicy %q has an egress rule that allows traffic to all destinations, negating default-deny", p.Name),
+						Remediation: "Restrict the egress rule to specific pod/namespace selectors or CIDR ranges.",
+					})
+				}
+			}
+		}
+
 		selectorStr := "all pods"
 		if len(p.Spec.PodSelector.MatchLabels) > 0 {
 			parts := []string{}
@@ -306,15 +343,17 @@ func handleAuditNetpol(ctx context.Context, client *k8s.Client, params AuditNetp
 
 	if !defaultDeny {
 		findings = append(findings, AuditNetpolFinding{
-			Severity: "high",
-			Message:  "no default-deny NetworkPolicy found; traffic is unrestricted by default",
+			Severity:    "high",
+			Message:     "no default-deny NetworkPolicy found; traffic is unrestricted by default",
+			Remediation: "Create a NetworkPolicy with empty podSelector and both Ingress+Egress policyTypes with no allow rules.",
 		})
 	}
 
 	if !hasEgressRestriction {
 		findings = append(findings, AuditNetpolFinding{
-			Severity: "medium",
-			Message:  "no egress NetworkPolicy found; pods may be able to reach external services",
+			Severity:    "medium",
+			Message:     "no egress NetworkPolicy found; pods may be able to reach external services",
+			Remediation: "Add a NetworkPolicy with policyType Egress to control outbound traffic.",
 		})
 	}
 
@@ -323,6 +362,13 @@ func handleAuditNetpol(ctx context.Context, client *k8s.Client, params AuditNetp
 		Policies:    policyInfos,
 		Findings:    findings,
 	}, nil
+}
+
+// isAllowAll returns true when a NetworkPolicy peer matches all traffic.
+// This happens when all selector/IPBlock fields are nil (the peer is `{}`),
+// which Kubernetes interprets as "allow from/to everywhere".
+func isAllowAll(podSel, nsSel *metav1.LabelSelector, ipBlock *networkingv1.IPBlock) bool {
+	return podSel == nil && nsSel == nil && ipBlock == nil
 }
 
 // psaLevelOrder maps PSA levels to a numeric rank for comparison.

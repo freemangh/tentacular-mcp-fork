@@ -31,7 +31,7 @@ The system SHALL scan all Roles and RoleBindings in a given namespace and flag a
 - **THEN** the system returns a finding with severity `high` indicating identity impersonation risk
 
 ### Requirement: Audit network policy coverage
-The system SHALL verify that a namespace has at least a default-deny NetworkPolicy (denying all ingress and egress) and report on all NetworkPolicies present. The system SHALL flag namespaces that allow unrestricted egress or have no NetworkPolicies at all. The system SHALL reject the operation if the target namespace is `tentacular-system`.
+The system SHALL verify that a namespace has at least a default-deny NetworkPolicy (denying all ingress and egress) and report on all NetworkPolicies present. The system SHALL flag namespaces that allow unrestricted egress, have no NetworkPolicies at all, contain overly broad allow rules that negate default-deny, or allow cross-namespace ingress via empty `namespaceSelector`. The system SHALL return findings with remediation suggestions. The system SHALL reject the operation if the target namespace is `tentacular-system`.
 
 #### Scenario: Namespace with default-deny policy
 - **WHEN** the `audit_netpol` tool is called with `namespace: "dev-alice"` and a default-deny policy exists
@@ -39,11 +39,23 @@ The system SHALL verify that a namespace has at least a default-deny NetworkPoli
 
 #### Scenario: Namespace without network policies
 - **WHEN** the `audit_netpol` tool is called and no NetworkPolicies exist in the namespace
-- **THEN** the system returns `default_deny: false` with a finding flagging the namespace as having unrestricted network access
+- **THEN** the system returns `default_deny: false` with a finding flagging the namespace as having unrestricted network access and a remediation suggestion
 
 #### Scenario: Namespace with partial coverage
 - **WHEN** the `audit_netpol` tool is called and the namespace has ingress policies but no egress restriction
 - **THEN** the system returns `default_deny: false` with a finding noting unrestricted egress
+
+#### Scenario: Overly broad ingress allow rule
+- **WHEN** the `audit_netpol` tool is called and a NetworkPolicy has an ingress rule with an empty peer (`from: [{}]`) that allows traffic from all sources
+- **THEN** the system returns a finding with severity `high` indicating the rule negates default-deny
+
+#### Scenario: Overly broad egress allow rule
+- **WHEN** the `audit_netpol` tool is called and a NetworkPolicy has an egress rule with an empty peer (`to: [{}]`) that allows traffic to all destinations
+- **THEN** the system returns a finding with severity `high` indicating the rule negates default-deny
+
+#### Scenario: Cross-namespace ingress via empty namespaceSelector
+- **WHEN** the `audit_netpol` tool is called and a NetworkPolicy allows ingress from all namespaces via an empty `namespaceSelector`
+- **THEN** the system returns a finding with severity `medium` recommending restricting the selector
 
 ### Requirement: Audit Pod Security Admission labels
 The system SHALL check the Pod Security Admission labels on a namespace and report the enforce, audit, and warn levels. The system SHALL flag namespaces that do not have PSA enforce set to `restricted` or that have no PSA labels at all. The system SHALL treat `privileged` enforce level as high severity (all checks disabled) and `baseline` as medium severity. The system SHALL detect when audit or warn levels are weaker than the enforce level. The system SHALL return findings with remediation suggestions. The system SHALL reject the operation if the target namespace is `tentacular-system`.
