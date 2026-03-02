@@ -61,6 +61,38 @@ func CreateResourceQuota(ctx context.Context, client *Client, namespace, preset 
 	return nil
 }
 
+// UpdateResourceQuota updates the tentacular-quota ResourceQuota in the given
+// namespace to match the named preset.
+func UpdateResourceQuota(ctx context.Context, client *Client, namespace, preset string) error {
+	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	defer cancel()
+
+	p, ok := quotaPresets[preset]
+	if !ok {
+		return fmt.Errorf("unknown quota preset %q (valid: small, medium, large)", preset)
+	}
+
+	quota, err := client.Clientset.CoreV1().ResourceQuotas(namespace).Get(ctx, "tentacular-quota", metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("resource quota not found in namespace %q; use ns_create to initialize", namespace)
+		}
+		return fmt.Errorf("get resource quota in namespace %q: %w", namespace, err)
+	}
+
+	quota.Spec.Hard = corev1.ResourceList{
+		corev1.ResourceLimitsCPU:    resource.MustParse(p.CPU),
+		corev1.ResourceLimitsMemory: resource.MustParse(p.Mem),
+		corev1.ResourcePods:         *resource.NewQuantity(p.Pods, resource.DecimalSI),
+	}
+
+	_, err = client.Clientset.CoreV1().ResourceQuotas(namespace).Update(ctx, quota, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("update resource quota in namespace %q: %w", namespace, err)
+	}
+	return nil
+}
+
 // CreateLimitRange creates a LimitRange in the given namespace with default
 // container resource requests and limits.
 func CreateLimitRange(ctx context.Context, client *Client, namespace string) error {

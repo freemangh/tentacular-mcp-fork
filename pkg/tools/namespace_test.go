@@ -128,3 +128,152 @@ func TestNsList(t *testing.T) {
 		t.Errorf("expected 2 managed namespaces, got %d", len(result.Namespaces))
 	}
 }
+
+// --- ns_update tests ---
+
+func createManagedNsWithQuota(t *testing.T, client *k8s.Client, name string) {
+	t.Helper()
+	ctx := context.Background()
+	_, err := handleNsCreate(ctx, client, NsCreateParams{Name: name, QuotaPreset: "small"})
+	if err != nil {
+		t.Fatalf("setup: create managed ns %q: %v", name, err)
+	}
+}
+
+func TestNsUpdateLabels(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+	createManagedNsWithQuota(t, client, "upd-labels")
+
+	result, err := handleNsUpdate(ctx, client, NsUpdateParams{
+		Name:   "upd-labels",
+		Labels: map[string]string{"env": "staging"},
+	})
+	if err != nil {
+		t.Fatalf("handleNsUpdate: %v", err)
+	}
+	if len(result.Updated) != 1 || result.Updated[0] != "labels" {
+		t.Errorf("expected updated=[labels], got %v", result.Updated)
+	}
+
+	// Verify label was applied.
+	ns, _ := k8s.GetNamespace(ctx, client, "upd-labels")
+	if ns.Labels["env"] != "staging" {
+		t.Errorf("expected label env=staging, got %q", ns.Labels["env"])
+	}
+	// Managed-by label must still be present.
+	if ns.Labels[k8s.ManagedByLabel] != k8s.ManagedByValue {
+		t.Error("managed-by label was lost after update")
+	}
+}
+
+func TestNsUpdateAnnotations(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+	createManagedNsWithQuota(t, client, "upd-annot")
+
+	result, err := handleNsUpdate(ctx, client, NsUpdateParams{
+		Name:        "upd-annot",
+		Annotations: map[string]string{"team": "platform"},
+	})
+	if err != nil {
+		t.Fatalf("handleNsUpdate: %v", err)
+	}
+	if len(result.Updated) != 1 || result.Updated[0] != "annotations" {
+		t.Errorf("expected updated=[annotations], got %v", result.Updated)
+	}
+
+	ns, _ := k8s.GetNamespace(ctx, client, "upd-annot")
+	if ns.Annotations["team"] != "platform" {
+		t.Errorf("expected annotation team=platform, got %q", ns.Annotations["team"])
+	}
+}
+
+func TestNsUpdateQuota(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+	createManagedNsWithQuota(t, client, "upd-quota")
+
+	result, err := handleNsUpdate(ctx, client, NsUpdateParams{
+		Name:        "upd-quota",
+		QuotaPreset: "large",
+	})
+	if err != nil {
+		t.Fatalf("handleNsUpdate: %v", err)
+	}
+	if len(result.Updated) != 1 || result.Updated[0] != "quota" {
+		t.Errorf("expected updated=[quota], got %v", result.Updated)
+	}
+
+	// Verify quota was updated to large preset (CPU=8).
+	quotas, _ := client.Clientset.CoreV1().ResourceQuotas("upd-quota").List(ctx, metav1.ListOptions{})
+	if len(quotas.Items) == 0 {
+		t.Fatal("no resource quota found")
+	}
+	cpu := quotas.Items[0].Spec.Hard[corev1.ResourceLimitsCPU]
+	if cpu.String() != "8" {
+		t.Errorf("expected CPU limit=8, got %q", cpu.String())
+	}
+}
+
+func TestNsUpdateAllFields(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+	createManagedNsWithQuota(t, client, "upd-all")
+
+	result, err := handleNsUpdate(ctx, client, NsUpdateParams{
+		Name:        "upd-all",
+		Labels:      map[string]string{"env": "prod"},
+		Annotations: map[string]string{"owner": "alice"},
+		QuotaPreset: "medium",
+	})
+	if err != nil {
+		t.Fatalf("handleNsUpdate: %v", err)
+	}
+	if len(result.Updated) != 3 {
+		t.Errorf("expected 3 updated items, got %v", result.Updated)
+	}
+}
+
+func TestNsUpdateRejectsUnmanaged(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "foreign-ns"},
+	}
+	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+
+	_, err := handleNsUpdate(ctx, client, NsUpdateParams{
+		Name:   "foreign-ns",
+		Labels: map[string]string{"env": "test"},
+	})
+	if err == nil {
+		t.Fatal("expected error for unmanaged namespace, got nil")
+	}
+}
+
+func TestNsUpdateRejectsEmptyParams(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+	createManagedNsWithQuota(t, client, "upd-empty")
+
+	_, err := handleNsUpdate(ctx, client, NsUpdateParams{Name: "upd-empty"})
+	if err == nil {
+		t.Fatal("expected error when no update fields provided, got nil")
+	}
+}
+
+func TestNsUpdateRejectsManagedByLabelChange(t *testing.T) {
+	client := newNsTestClient()
+	ctx := context.Background()
+	createManagedNsWithQuota(t, client, "upd-protect")
+
+	_, err := handleNsUpdate(ctx, client, NsUpdateParams{
+		Name:   "upd-protect",
+		Labels: map[string]string{k8s.ManagedByLabel: "someone-else"},
+	})
+	if err == nil {
+		t.Fatal("expected error when trying to change managed-by label, got nil")
+	}
+}
