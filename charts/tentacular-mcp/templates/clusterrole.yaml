@@ -25,7 +25,7 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings"]
     verbs: ["get", "list", "watch"]
-  # Network policies and ingresses (module_apply + profiling)
+  # Network policies and ingresses (wf_apply + profiling)
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies", "ingresses"]
     verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
@@ -33,7 +33,7 @@ rules:
   - apiGroups: [""]
     resources: ["resourcequotas", "limitranges"]
     verbs: ["create", "get", "list", "watch", "update", "delete"]
-  # Deployments (module_apply + workflow)
+  # Deployments (wf_apply + workflow)
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["create", "update", "delete", "patch", "get", "list", "watch"]
@@ -41,11 +41,11 @@ rules:
   - apiGroups: ["apps"]
     resources: ["replicasets", "daemonsets", "statefulsets"]
     verbs: ["get", "list", "watch"]
-  # Core resources (module_apply + workflow)
+  # Core resources (wf_apply + workflow)
   - apiGroups: [""]
     resources: ["services", "configmaps", "secrets"]
     verbs: ["create", "update", "delete", "patch", "get", "list", "watch"]
-  # Batch resources (module_apply + workflow)
+  # Batch resources (wf_apply + workflow)
   - apiGroups: ["batch"]
     resources: ["cronjobs", "jobs"]
     verbs: ["create", "update", "delete", "patch", "get", "list", "watch"]

@@ -3,7 +3,7 @@ name: tentacular-mcp
 description: An in-cluster MCP server for Kubernetes namespace lifecycle, credential management, workflow introspection, and cluster operations
 type: application
 version: 0.1.0
-appVersion: "0.1.0"
+appVersion: "0.2.0"
 home: https://github.com/randybias/tentacular-mcp
 sources:
   - https://github.com/randybias/tentacular-mcp
