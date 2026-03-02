@@ -4,15 +4,15 @@
 The system SHALL annotate a managed namespace to indicate gVisor sandboxing is desired by adding the annotation `tentacular.io/runtime-class: gvisor`. This annotation signals to workflow deployments that pods SHOULD use the gVisor RuntimeClass. The system SHALL verify the namespace is managed by tentacular and SHALL reject the operation if the target namespace is in the protected set (`tentacular-system`, `kube-system`, `kube-public`, `kube-node-lease`, `default`) or is not managed by tentacular.
 
 #### Scenario: Apply gVisor annotation to managed namespace
-- **WHEN** the `gvisor_apply` tool is called with `namespace: "dev-alice"` and the namespace is managed
+- **WHEN** the `gvisor_annotate_ns` tool is called with `namespace: "dev-alice"` and the namespace is managed
 - **THEN** the system adds the `tentacular.io/runtime-class: gvisor` annotation to the namespace
 
 #### Scenario: Reject for unmanaged namespace
-- **WHEN** the `gvisor_apply` tool is called for a namespace without the managed-by label
+- **WHEN** the `gvisor_annotate_ns` tool is called for a namespace without the managed-by label
 - **THEN** the system returns an error indicating the namespace is not managed by tentacular and includes the kubectl label command to adopt it
 
 #### Scenario: gVisor not available in cluster
-- **WHEN** the `gvisor_apply` tool is called and no gVisor RuntimeClass exists
+- **WHEN** the `gvisor_annotate_ns` tool is called and no gVisor RuntimeClass exists
 - **THEN** the system returns an error indicating gVisor is not available in the cluster
 
 ### Requirement: Verify gVisor sandbox

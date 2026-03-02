@@ -149,7 +149,7 @@ curl http://localhost:8080/healthz
 | Tool | Description |
 |------|-------------|
 | `gvisor_check` | Check if a gVisor RuntimeClass is available in the cluster. |
-| `gvisor_apply` | Apply gVisor annotation to a namespace. |
+| `gvisor_annotate_ns` | Annotate a managed namespace with the gVisor runtime class. |
 | `gvisor_verify` | Run a verification pod to confirm gVisor sandbox isolation is functional. |
 
 ### Deploy Lifecycle

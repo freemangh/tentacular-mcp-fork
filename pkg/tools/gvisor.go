@@ -27,13 +27,13 @@ type GVisorCheckResult struct {
 	Guidance     string `json:"guidance,omitempty"`
 }
 
-// GVisorApplyParams are the parameters for gvisor_apply.
-type GVisorApplyParams struct {
+// GVisorAnnotateNsParams are the parameters for gvisor_annotate_ns.
+type GVisorAnnotateNsParams struct {
 	Namespace string `json:"namespace" jsonschema:"Namespace to apply gVisor runtime class annotation to"`
 }
 
-// GVisorApplyResult is the result of gvisor_apply.
-type GVisorApplyResult struct {
+// GVisorAnnotateNsResult is the result of gvisor_annotate_ns.
+type GVisorAnnotateNsResult struct {
 	Namespace  string `json:"namespace"`
 	Annotation string `json:"annotation"`
 	Applied    bool   `json:"applied"`
@@ -61,13 +61,13 @@ func registerGVisorTools(srv *mcp.Server, client *k8s.Client) {
 	})
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "gvisor_apply",
-		Description: "Apply the gVisor runtime class annotation to a managed namespace.",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, params GVisorApplyParams) (*mcp.CallToolResult, GVisorApplyResult, error) {
+		Name:        "gvisor_annotate_ns",
+		Description: "Annotate a managed namespace with the gVisor runtime class so new pods use gVisor sandboxing.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, params GVisorAnnotateNsParams) (*mcp.CallToolResult, GVisorAnnotateNsResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
-			return nil, GVisorApplyResult{}, err
+			return nil, GVisorAnnotateNsResult{}, err
 		}
-		result, err := handleGVisorApply(ctx, client, params)
+		result, err := handleGVisorAnnotateNs(ctx, client, params)
 		return nil, result, err
 	})
 
@@ -106,18 +106,18 @@ func handleGVisorCheck(ctx context.Context, client *k8s.Client) (GVisorCheckResu
 	}, nil
 }
 
-func handleGVisorApply(ctx context.Context, client *k8s.Client, params GVisorApplyParams) (GVisorApplyResult, error) {
+func handleGVisorAnnotateNs(ctx context.Context, client *k8s.Client, params GVisorAnnotateNsParams) (GVisorAnnotateNsResult, error) {
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
-		return GVisorApplyResult{}, err
+		return GVisorAnnotateNsResult{}, err
 	}
 
 	// Verify gVisor RuntimeClass exists
 	checkResult, err := handleGVisorCheck(ctx, client)
 	if err != nil {
-		return GVisorApplyResult{}, fmt.Errorf("check gVisor availability: %w", err)
+		return GVisorAnnotateNsResult{}, fmt.Errorf("check gVisor availability: %w", err)
 	}
 	if !checkResult.Available {
-		return GVisorApplyResult{}, fmt.Errorf("gVisor RuntimeClass not found in cluster; install gVisor before applying")
+		return GVisorAnnotateNsResult{}, fmt.Errorf("gVisor RuntimeClass not found in cluster; install gVisor before applying")
 	}
 
 	// Patch namespace annotation
@@ -133,10 +133,10 @@ func handleGVisorApply(ctx context.Context, client *k8s.Client, params GVisorApp
 		metav1.PatchOptions{},
 	)
 	if err != nil {
-		return GVisorApplyResult{}, fmt.Errorf("patch namespace %q with gVisor annotation: %w", params.Namespace, err)
+		return GVisorAnnotateNsResult{}, fmt.Errorf("patch namespace %q with gVisor annotation: %w", params.Namespace, err)
 	}
 
-	return GVisorApplyResult{
+	return GVisorAnnotateNsResult{
 		Namespace:  params.Namespace,
 		Annotation: annotationKey + "=" + annotationValue,
 		Applied:    true,

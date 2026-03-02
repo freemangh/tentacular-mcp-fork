@@ -17,7 +17,7 @@
 
 ## 4. Apply Managed-Namespace Check to gVisor Tools
 
-- [x] 4.1 Refactor `handleGVisorApply` in `pkg/tools/gvisor.go` to use `k8s.CheckManagedNamespace` (replacing the inline `IsManagedNamespace` check)
+- [x] 4.1 Refactor `handleGVisorAnnotateNs` in `pkg/tools/gvisor.go` to use `k8s.CheckManagedNamespace` (replacing the inline `IsManagedNamespace` check)
 - [x] 4.2 Add `k8s.CheckManagedNamespace` call at the top of `handleGVisorVerify` in `pkg/tools/gvisor.go`
 
 ## 5. Apply Managed-Namespace Check to Module Tools

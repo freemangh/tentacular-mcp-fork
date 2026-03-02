@@ -102,7 +102,7 @@ func TestGVisorCheckNotAvailableNonGVisorHandler(t *testing.T) {
 	}
 }
 
-func TestGVisorApplyUnmanagedNamespaceFails(t *testing.T) {
+func TestGVisorAnnotateNsUnmanagedNamespaceFails(t *testing.T) {
 	client := newGVisorTestClient()
 	ctx := context.Background()
 
@@ -115,13 +115,13 @@ func TestGVisorApplyUnmanagedNamespaceFails(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	_, err = handleGVisorApply(ctx, client, GVisorApplyParams{Namespace: "unmanaged"})
+	_, err = handleGVisorAnnotateNs(ctx, client, GVisorAnnotateNsParams{Namespace: "unmanaged"})
 	if err == nil {
 		t.Fatal("expected error for unmanaged namespace, got nil")
 	}
 }
 
-func TestGVisorApplyNoRuntimeClassFails(t *testing.T) {
+func TestGVisorAnnotateNsNoRuntimeClassFails(t *testing.T) {
 	client := newGVisorTestClient()
 	ctx := context.Background()
 
@@ -134,13 +134,13 @@ func TestGVisorApplyNoRuntimeClassFails(t *testing.T) {
 	}
 	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
-	_, err := handleGVisorApply(ctx, client, GVisorApplyParams{Namespace: "managed-ns"})
+	_, err := handleGVisorAnnotateNs(ctx, client, GVisorAnnotateNsParams{Namespace: "managed-ns"})
 	if err == nil {
 		t.Fatal("expected error when no gVisor RuntimeClass exists, got nil")
 	}
 }
 
-func TestGVisorApplySuccess(t *testing.T) {
+func TestGVisorAnnotateNsSuccess(t *testing.T) {
 	client := newGVisorTestClient()
 	ctx := context.Background()
 
@@ -160,9 +160,9 @@ func TestGVisorApplySuccess(t *testing.T) {
 	}
 	client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
 
-	result, err := handleGVisorApply(ctx, client, GVisorApplyParams{Namespace: "gv-ns"})
+	result, err := handleGVisorAnnotateNs(ctx, client, GVisorAnnotateNsParams{Namespace: "gv-ns"})
 	if err != nil {
-		t.Fatalf("handleGVisorApply: %v", err)
+		t.Fatalf("handleGVisorAnnotateNs: %v", err)
 	}
 	if !result.Applied {
 		t.Error("expected Applied=true")
@@ -175,11 +175,11 @@ func TestGVisorApplySuccess(t *testing.T) {
 	}
 }
 
-func TestGVisorApplyNonExistentNamespaceFails(t *testing.T) {
+func TestGVisorAnnotateNsNonExistentNamespaceFails(t *testing.T) {
 	client := newGVisorTestClient()
 	ctx := context.Background()
 
-	_, err := handleGVisorApply(ctx, client, GVisorApplyParams{Namespace: "ghost-ns"})
+	_, err := handleGVisorAnnotateNs(ctx, client, GVisorAnnotateNsParams{Namespace: "ghost-ns"})
 	if err == nil {
 		t.Fatal("expected error for non-existent namespace, got nil")
 	}
