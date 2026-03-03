@@ -2,12 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
@@ -52,6 +54,20 @@ type NsGetResult struct {
 	Managed     bool              `json:"managed"`
 	Quota       *k8s.QuotaSummary      `json:"quota,omitempty"`
 	LimitRange  *k8s.LimitRangeSummary `json:"limitRange,omitempty"`
+}
+
+// NsUpdateParams are the parameters for ns_update.
+type NsUpdateParams struct {
+	Name        string            `json:"name" jsonschema:"Name of the namespace to update"`
+	Labels      map[string]string `json:"labels,omitempty" jsonschema:"Labels to add or update (existing labels not listed are preserved)"`
+	Annotations map[string]string `json:"annotations,omitempty" jsonschema:"Annotations to add or update (existing annotations not listed are preserved)"`
+	QuotaPreset string            `json:"quota_preset,omitempty" jsonschema:"New resource quota preset: small, medium, or large"`
+}
+
+// NsUpdateResult is the result of ns_update.
+type NsUpdateResult struct {
+	Name            string   `json:"name"`
+	Updated         []string `json:"updated"`
 }
 
 // NsListParams are the parameters for ns_list (empty).
@@ -109,6 +125,17 @@ func registerNamespaceTools(srv *mcp.Server, client *k8s.Client) {
 		Description: "List all namespaces managed by tentacular.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params NsListParams) (*mcp.CallToolResult, NsListResult, error) {
 		result, err := handleNsList(ctx, client)
+		return nil, result, err
+	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "ns_update",
+		Description: "Update labels, annotations, or resource quota preset on a managed namespace.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, params NsUpdateParams) (*mcp.CallToolResult, NsUpdateResult, error) {
+		if err := guard.CheckNamespace(params.Name); err != nil {
+			return nil, NsUpdateResult{}, err
+		}
+		result, err := handleNsUpdate(ctx, client, params)
 		return nil, result, err
 	})
 }
@@ -246,6 +273,65 @@ func handleNsGet(ctx context.Context, client *k8s.Client, params NsGetParams) (N
 	}
 
 	return result, nil
+}
+
+func handleNsUpdate(ctx context.Context, client *k8s.Client, params NsUpdateParams) (NsUpdateResult, error) {
+	if err := k8s.CheckManagedNamespace(ctx, client, params.Name); err != nil {
+		return NsUpdateResult{}, err
+	}
+
+	if len(params.Labels) == 0 && len(params.Annotations) == 0 && params.QuotaPreset == "" {
+		return NsUpdateResult{}, fmt.Errorf("at least one of labels, annotations, or quota_preset must be provided")
+	}
+
+	updated := []string{}
+
+	// Patch labels and/or annotations on the namespace via merge patch.
+	if len(params.Labels) > 0 || len(params.Annotations) > 0 {
+		// Prevent overwriting the managed-by label.
+		if v, ok := params.Labels[k8s.ManagedByLabel]; ok && v != k8s.ManagedByValue {
+			return NsUpdateResult{}, fmt.Errorf("cannot change the %s label", k8s.ManagedByLabel)
+		}
+
+		patchMeta := map[string]interface{}{}
+		if len(params.Labels) > 0 {
+			patchMeta["labels"] = params.Labels
+		}
+		if len(params.Annotations) > 0 {
+			patchMeta["annotations"] = params.Annotations
+		}
+		patchBody, err := json.Marshal(map[string]interface{}{"metadata": patchMeta})
+		if err != nil {
+			return NsUpdateResult{}, fmt.Errorf("marshal patch: %w", err)
+		}
+
+		_, err = client.Clientset.CoreV1().Namespaces().Patch(
+			ctx, params.Name, types.MergePatchType, patchBody, metav1.PatchOptions{},
+		)
+		if err != nil {
+			return NsUpdateResult{}, fmt.Errorf("patch namespace %q metadata: %w", params.Name, err)
+		}
+
+		if len(params.Labels) > 0 {
+			updated = append(updated, "labels")
+		}
+		if len(params.Annotations) > 0 {
+			updated = append(updated, "annotations")
+		}
+	}
+
+	// Update resource quota if requested.
+	if params.QuotaPreset != "" {
+		if err := k8s.UpdateResourceQuota(ctx, client, params.Name, params.QuotaPreset); err != nil {
+			return NsUpdateResult{}, err
+		}
+		updated = append(updated, "quota")
+	}
+
+	return NsUpdateResult{
+		Name:    params.Name,
+		Updated: updated,
+	}, nil
 }
 
 func handleNsList(ctx context.Context, client *k8s.Client) (NsListResult, error) {

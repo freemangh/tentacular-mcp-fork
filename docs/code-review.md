@@ -61,6 +61,7 @@ Every namespace-accepting tool correctly calls `guard.CheckNamespace()` before a
 | ns_delete | params.Name | YES |
 | ns_get | params.Name | YES |
 | ns_list | (none) | N/A - cluster-scoped |
+| ns_update | params.Name | YES |
 | cred_issue_token | params.Namespace | YES |
 | cred_kubeconfig | params.Namespace | YES |
 | cred_rotate | params.Namespace | YES |

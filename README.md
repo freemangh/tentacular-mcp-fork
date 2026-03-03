@@ -119,6 +119,7 @@ curl http://localhost:8080/healthz
 | `ns_delete` | Delete a managed namespace and all child resources. |
 | `ns_get` | Get namespace details including labels, annotations, quota summary, and limit range. |
 | `ns_list` | List all tentacular-managed namespaces. |
+| `ns_update` | Update labels, annotations, or resource quota preset on a managed namespace. |
 
 ### Credential Management
 

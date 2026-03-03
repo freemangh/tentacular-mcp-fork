@@ -55,3 +55,26 @@ The system SHALL list all namespaces with the `app.kubernetes.io/managed-by: ten
 - **WHEN** the `ns_list` tool is called and no managed namespaces exist
 - **THEN** the system returns an empty list
 
+### Requirement: Update managed namespace
+The system SHALL update labels, annotations, and/or resource quota preset on a managed namespace. At least one update field must be provided. The system SHALL reject the operation if the namespace is not managed by tentacular, if the target namespace is in the protected set, or if the caller attempts to change the `app.kubernetes.io/managed-by` label. Label and annotation updates are additive (existing keys not listed are preserved).
+
+#### Scenario: Update labels on managed namespace
+- **WHEN** the `ns_update` tool is called with `name: "dev-alice"` and `labels: {"env": "staging"}`
+- **THEN** the system adds the `env=staging` label while preserving existing labels including `managed-by`
+
+#### Scenario: Update quota preset on managed namespace
+- **WHEN** the `ns_update` tool is called with `name: "dev-alice"` and `quota_preset: "large"`
+- **THEN** the system updates the `tentacular-quota` ResourceQuota to the `large` preset (CPU=8, Mem=16Gi, Pods=50)
+
+#### Scenario: Reject update on unmanaged namespace
+- **WHEN** the `ns_update` tool is called with a namespace that lacks the managed-by label
+- **THEN** the system returns an error indicating the namespace is not managed by tentacular
+
+#### Scenario: Reject when no update fields provided
+- **WHEN** the `ns_update` tool is called with only `name` and no labels, annotations, or quota_preset
+- **THEN** the system returns an error indicating at least one update field is required
+
+#### Scenario: Reject managed-by label change
+- **WHEN** the `ns_update` tool is called with `labels: {"app.kubernetes.io/managed-by": "other"}`
+- **THEN** the system returns an error indicating the managed-by label cannot be changed
+
