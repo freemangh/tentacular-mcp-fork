@@ -3,7 +3,7 @@
 The guard system in tentacular-mcp has two layers:
 
 1. **Static blocklist** (`pkg/guard/guard.go`): Pure string check, no K8s dependency. Runs synchronously before any tool handler. Previously only blocked `tentacular-system`.
-2. **Managed-namespace check**: K8s API call to verify `app.kubernetes.io/managed-by: tentacular` label. Previously implemented inline in `handleModuleApply` and `handleGVisorApply`, absent from all credential tools and `module_remove`/`module_status`/`gvisor_verify`.
+2. **Managed-namespace check**: K8s API call to verify `app.kubernetes.io/managed-by: tentacular` label. Previously implemented inline in `handleModuleApply` and `handleGVisorAnnotateNs`, absent from all credential tools and `module_remove`/`module_status`/`gvisor_verify`.
 
 All 25 tools call `guard.CheckNamespace()` for namespace-scoped operations. The managed-namespace check was inconsistent — some tools had it, most did not.
 

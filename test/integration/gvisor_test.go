@@ -30,7 +30,7 @@ func TestIntegration_GVisorCheckNoRuntime(t *testing.T) {
 	t.Log("confirmed: no gvisor/runsc RuntimeClass on kind cluster")
 }
 
-func TestIntegration_GVisorApplyRejectsUnmanaged(t *testing.T) {
+func TestIntegration_GVisorAnnotateNsRejectsUnmanaged(t *testing.T) {
 	client := integrationClient(t)
 	ctx := context.Background()
 

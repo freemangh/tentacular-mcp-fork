@@ -71,7 +71,7 @@ Every namespace-accepting tool correctly calls `guard.CheckNamespace()` before a
 | cluster_preflight | params.Namespace | YES |
 | cluster_profile | params.Namespace | YES (conditional on non-empty, correct per D10) |
 | gvisor_check | (none) | N/A - cluster-scoped |
-| gvisor_apply | params.Namespace | YES |
+| gvisor_annotate_ns | params.Namespace | YES |
 | gvisor_verify | params.Namespace | YES |
 | wf_apply | params.Namespace | YES |
 | wf_remove | params.Namespace | YES |

@@ -90,7 +90,7 @@ The server's ClusterRole (in `deploy/manifests/serviceaccount.yaml`) is scoped t
 
 - `rbac.authorization.k8s.io` / `clusterroles` / `get,list` -- for `audit_rbac` to inspect ClusterRoles referenced by ClusterRoleBindings
 - `rbac.authorization.k8s.io` / `clusterrolebindings` / `get,list` -- for `audit_rbac` to find ClusterRoleBindings targeting namespace SAs
-- `""` / `namespaces` / `patch` -- for `gvisor_apply` to add annotations
+- `""` / `namespaces` / `patch` -- for `gvisor_annotate_ns` to add annotations
 - `""` / `pods` / `create,delete` -- for `gvisor_verify` ephemeral pod
 - `""` / `serviceaccounts` / `patch,update` -- for writing `imagePullSecrets` on workflow SAs
 - `""` / `pods,events` / `watch` -- for streaming pod status and event tailing in `wf_pods` and `wf_events`
@@ -207,7 +207,7 @@ Structured error responses include:
 | Tool | Input | Output |
 |------|-------|--------|
 | `gvisor_check` | `{}` | `{available: bool, runtime_class?: string, handler?: string, guidance?: string}` |
-| `gvisor_apply` | `{namespace: string}` | `{namespace, annotation: string, applied: true}` |
+| `gvisor_annotate_ns` | `{namespace: string}` | `{namespace, annotation: string, applied: true}` |
 | `gvisor_verify` | `{namespace: string}` | `{verified: bool, output: string, runtime_class: string}` |
 
 ### Group 6: Module Proxy

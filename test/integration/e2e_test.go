@@ -457,7 +457,7 @@ func TestE2E_GVisorCheckAndApply(t *testing.T) {
 	}
 	t.Logf("gvisor_check: available=%v", checkResult.Available)
 
-	// gvisor_apply on a managed namespace
+	// gvisor_annotate_ns on a managed namespace
 	nsName := "tnt-e2e-gvisor"
 	cleanupNs(t, client, nsName)
 
@@ -467,13 +467,13 @@ func TestE2E_GVisorCheckAndApply(t *testing.T) {
 	})
 
 	if checkResult.Available {
-		// Cluster has gVisor — apply should succeed.
-		applyText := callTool(t, session, "gvisor_apply", map[string]any{"namespace": nsName})
-		t.Logf("gvisor_apply succeeded (gVisor available): %s", applyText)
+		// Cluster has gVisor — annotate should succeed.
+		applyText := callTool(t, session, "gvisor_annotate_ns", map[string]any{"namespace": nsName})
+		t.Logf("gvisor_annotate_ns succeeded (gVisor available): %s", applyText)
 	} else {
-		// No gVisor runtime — apply should fail.
-		errText := callToolExpectError(t, session, "gvisor_apply", map[string]any{"namespace": nsName})
-		t.Logf("gvisor_apply error (expected, no gVisor): %s", errText)
+		// No gVisor runtime — annotate should fail.
+		errText := callToolExpectError(t, session, "gvisor_annotate_ns", map[string]any{"namespace": nsName})
+		t.Logf("gvisor_annotate_ns error (expected, no gVisor): %s", errText)
 	}
 }
 

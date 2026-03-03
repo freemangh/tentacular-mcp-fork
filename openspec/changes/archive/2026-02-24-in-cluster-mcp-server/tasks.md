@@ -44,9 +44,9 @@
 
 ## 6. gVisor Sandbox Tools
 
-- [x] 6.1 Create `pkg/tools/gvisor.go` with param/result types for `gvisor_check`, `gvisor_apply`, `gvisor_verify`
+- [x] 6.1 Create `pkg/tools/gvisor.go` with param/result types for `gvisor_check`, `gvisor_annotate_ns`, `gvisor_verify`
 - [x] 6.2 Implement `gvisor_check` handler listing RuntimeClasses and checking for gvisor/runsc handler (cluster-scoped, no namespace guard)
-- [x] 6.3 Implement `gvisor_apply` handler: verify namespace is managed, verify gVisor RuntimeClass exists, patch namespace with `tentacular.io/runtime-class: gvisor` annotation
+- [x] 6.3 Implement `gvisor_annotate_ns` handler: verify namespace is managed, verify gVisor RuntimeClass exists, patch namespace with `tentacular.io/runtime-class: gvisor` annotation
 - [x] 6.4 Implement `gvisor_verify` handler: create busybox pod with gVisor RuntimeClass, wait up to 60s for completion, read logs, check for gVisor/runsc markers, cleanup pod in defer
 - [x] 6.5 Register all 3 gVisor tools in `register.go` with MCP schema definitions
 - [x] 6.6 Add unit tests for gVisor handlers using fake clientset
@@ -82,7 +82,7 @@
 ## 10. ClusterRole RBAC Updates
 
 - [x] 10.1 Update ClusterRole in `deploy/manifests/serviceaccount.yaml` to add `clusterroles` and `clusterrolebindings` get/list for audit_rbac
-- [x] 10.2 Add `namespaces/patch` verb to ClusterRole for gvisor_apply
+- [x] 10.2 Add `namespaces/patch` verb to ClusterRole for gvisor_annotate_ns
 - [x] 10.3 Add `pods/create,delete` verbs to ClusterRole for gvisor_verify
 - [x] 10.4 Elevate `apps/deployments`, `core/services,configmaps,secrets`, `batch/cronjobs,jobs`, `networking.k8s.io/networkpolicies` to include `create,update,delete,patch` verbs for module_apply
 - [x] 10.5 Add `patch` and `update` verbs to `serviceaccounts` in ClusterRole for imagePullSecrets management on the default SA
