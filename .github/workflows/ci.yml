@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: golangci/golangci-lint-action@v7
+
+      - name: go vet
+        run: go vet ./...
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests
+        run: go test ./pkg/... -v -count=1 -race
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: helm/kind-action@v1
+        with:
+          install_only: true
+
+      - name: Create kind cluster
+        run: test/integration/setup_kind.sh
+
+      - name: Run integration tests
+        run: go test -tags=integration ./test/integration/... -v -timeout 300s -count=1
+
+      - name: Teardown kind cluster
+        if: always()
+        run: test/integration/teardown_kind.sh
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: tentacular-e2e
+
+      - name: Run E2E tests
+        run: |
+          mkdir -p "${{ runner.temp }}/kube"
+          kind get kubeconfig --name tentacular-e2e > "${{ runner.temp }}/kube/config"
+          TENTACULAR_E2E_KUBECONFIG="${{ runner.temp }}/kube/config" \
+            go test -tags=e2e ./test/e2e/... -v -timeout 300s -count=1
+
+      - name: Teardown kind cluster
+        if: always()
+        run: kind delete cluster --name tentacular-e2e
