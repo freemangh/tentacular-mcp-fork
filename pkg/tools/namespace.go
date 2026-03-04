@@ -239,10 +239,10 @@ func handleNsGet(ctx context.Context, client *k8s.Client, params NsGetParams) (N
 			qs.CPULimit = v.String()
 		}
 		if v, ok := q.Spec.Hard[corev1.ResourceLimitsMemory]; ok {
-			qs.MemLimit = v.String()
+			qs.MemoryLimit = v.String()
 		}
 		if v, ok := q.Spec.Hard[corev1.ResourcePods]; ok {
-			qs.PodLimit = int(v.Value())
+			qs.MaxPods = int(v.Value())
 		}
 		result.Quota = qs
 	}
@@ -258,13 +258,13 @@ func handleNsGet(ctx context.Context, client *k8s.Client, params NsGetParams) (N
 					lrs.DefaultCPURequest = v.String()
 				}
 				if v, ok := item.DefaultRequest[corev1.ResourceMemory]; ok {
-					lrs.DefaultMemRequest = v.String()
+					lrs.DefaultMemoryRequest = v.String()
 				}
 				if v, ok := item.Default[corev1.ResourceCPU]; ok {
 					lrs.DefaultCPULimit = v.String()
 				}
 				if v, ok := item.Default[corev1.ResourceMemory]; ok {
-					lrs.DefaultMemLimit = v.String()
+					lrs.DefaultMemoryLimit = v.String()
 				}
 				result.LimitRange = lrs
 				break

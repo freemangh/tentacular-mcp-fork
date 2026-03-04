@@ -142,8 +142,8 @@ func TestClusterProfileReturnsProfile(t *testing.T) {
 	}
 }
 
-// TestClusterProfileExtensionsMap verifies the Extensions map is initialized.
-func TestClusterProfileExtensionsMap(t *testing.T) {
+// TestClusterProfileExtensionsSet verifies the Extensions struct is populated.
+func TestClusterProfileExtensionsSet(t *testing.T) {
 	client := newClusterOpsTestClient()
 	ctx := context.Background()
 
@@ -151,8 +151,10 @@ func TestClusterProfileExtensionsMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handleClusterProfile: %v", err)
 	}
-	if result.Extensions == nil {
-		t.Error("expected Extensions map to be initialized")
+	// Extensions is a struct (not a map); verify it is present and zero extensions are detected
+	// against an empty fake cluster.
+	if result.Extensions.Istio || result.Extensions.CertManager || result.Extensions.ArgoCD {
+		t.Error("expected no well-known extensions in empty fake cluster")
 	}
 }
 

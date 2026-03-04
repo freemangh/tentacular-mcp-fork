@@ -71,11 +71,11 @@ func TestIntegration_ClusterProfileWithNamespace(t *testing.T) {
 		if profile.Quota.CPULimit != "4" {
 			t.Errorf("expected quota CPU limit 4, got %s", profile.Quota.CPULimit)
 		}
-		if profile.Quota.MemLimit != "8Gi" {
-			t.Errorf("expected quota mem limit 8Gi, got %s", profile.Quota.MemLimit)
+		if profile.Quota.MemoryLimit != "8Gi" {
+			t.Errorf("expected quota mem limit 8Gi, got %s", profile.Quota.MemoryLimit)
 		}
-		if profile.Quota.PodLimit != 20 {
-			t.Errorf("expected quota pod limit 20, got %d", profile.Quota.PodLimit)
+		if profile.Quota.MaxPods != 20 {
+			t.Errorf("expected quota pod limit 20, got %d", profile.Quota.MaxPods)
 		}
 	}
 	if profile.LimitRange == nil {
