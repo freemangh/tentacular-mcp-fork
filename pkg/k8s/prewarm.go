@@ -82,7 +82,7 @@ func PrewarmModules(ctx context.Context, client *Client, proxyNamespace string, 
 				mu.Unlock()
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			slog.Info("module pre-warmed", "host", dep.Host, "protocol", dep.Protocol)
 		}()

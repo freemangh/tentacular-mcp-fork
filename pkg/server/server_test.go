@@ -20,7 +20,7 @@ const testServerToken = "server-test-token-xyz"
 
 func newTestServer(t *testing.T) (*server.Server, *httptest.Server) {
 	t.Helper()
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"}, nil)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -42,7 +42,7 @@ func TestHealthEndpoint_Returns200(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /healthz: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -56,7 +56,7 @@ func TestHealthEndpoint_JSONBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /healthz: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var body map[string]string
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
@@ -76,7 +76,7 @@ func TestMCPEndpoint_RequiresAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /mcp: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 for unauthenticated /mcp, got %d", resp.StatusCode)
@@ -94,7 +94,7 @@ func TestMCPEndpoint_WithValidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /mcp: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// With valid auth, should not be 401.
 	if resp.StatusCode == http.StatusUnauthorized {

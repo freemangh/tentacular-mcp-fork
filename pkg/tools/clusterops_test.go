@@ -15,7 +15,7 @@ import (
 
 func newClusterOpsTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -91,7 +91,7 @@ func TestClusterPreflightNamespaceExists(t *testing.T) {
 	client := newClusterOpsTestClient()
 	ctx := context.Background()
 
-	client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "existing-ns"},
 	}, metav1.CreateOptions{})
 
@@ -163,7 +163,7 @@ func TestClusterProfileWithNamespace(t *testing.T) {
 	client := newClusterOpsTestClient()
 	ctx := context.Background()
 
-	client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "profiled-ns",
 			Labels: map[string]string{
@@ -193,7 +193,7 @@ func TestClusterProfileGVisorDetected(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "gvisor"},
 		Handler:    "runsc",
 	}
-	client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
+	_, _ = client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
 
 	result, err := handleClusterProfile(ctx, client, ClusterProfileParams{})
 	if err != nil {

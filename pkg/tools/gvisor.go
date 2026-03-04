@@ -237,7 +237,7 @@ func handleGVisorVerify(ctx context.Context, client *k8s.Client, params GVisorVe
 			RuntimeClass: runtimeClassName,
 		}, nil
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	data, err := io.ReadAll(stream)
 	if err != nil {

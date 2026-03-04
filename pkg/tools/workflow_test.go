@@ -16,7 +16,7 @@ import (
 
 func newWfTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -70,7 +70,7 @@ func TestWfPodsReportsImages(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Pods("img-ns").Create(ctx, pod, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Pods("img-ns").Create(ctx, pod, metav1.CreateOptions{})
 
 	result, err := handleWfPods(ctx, client, WfPodsParams{Namespace: "img-ns"})
 	if err != nil {
@@ -97,7 +97,7 @@ func TestWfPodsReportsRestarts(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Pods("rst-ns").Create(ctx, pod, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Pods("rst-ns").Create(ctx, pod, metav1.CreateOptions{})
 
 	result, err := handleWfPods(ctx, client, WfPodsParams{Namespace: "rst-ns"})
 	if err != nil {
@@ -124,7 +124,7 @@ func TestWfPodsReadyFlag(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Pods("ready-ns").Create(ctx, pod, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Pods("ready-ns").Create(ctx, pod, metav1.CreateOptions{})
 
 	result, err := handleWfPods(ctx, client, WfPodsParams{Namespace: "ready-ns"})
 	if err != nil {
@@ -190,7 +190,7 @@ func TestWfEventsObjectFormat(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	client.Clientset.CoreV1().Events("fmt-ns").Create(ctx, &corev1.Event{
+	_, _ = client.Clientset.CoreV1().Events("fmt-ns").Create(ctx, &corev1.Event{
 		ObjectMeta:     metav1.ObjectMeta{Name: "e1", Namespace: "fmt-ns"},
 		Type:           "Normal",
 		Reason:         "Started",
@@ -292,7 +292,7 @@ func TestWfJobsFailedStatus(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.BatchV1().Jobs("fail-ns").Create(ctx, job, metav1.CreateOptions{})
+	_, _ = client.Clientset.BatchV1().Jobs("fail-ns").Create(ctx, job, metav1.CreateOptions{})
 
 	result, err := handleWfJobs(ctx, client, WfJobsParams{Namespace: "fail-ns"})
 	if err != nil {
@@ -314,7 +314,7 @@ func TestWfJobsRunningStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "running-job", Namespace: "run-ns"},
 		Status:     batchv1.JobStatus{Active: 1},
 	}
-	client.Clientset.BatchV1().Jobs("run-ns").Create(ctx, job, metav1.CreateOptions{})
+	_, _ = client.Clientset.BatchV1().Jobs("run-ns").Create(ctx, job, metav1.CreateOptions{})
 
 	result, err := handleWfJobs(ctx, client, WfJobsParams{Namespace: "run-ns"})
 	if err != nil {
@@ -336,7 +336,7 @@ func TestWfJobsPendingStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "pending-job", Namespace: "pend-ns"},
 		Status:     batchv1.JobStatus{},
 	}
-	client.Clientset.BatchV1().Jobs("pend-ns").Create(ctx, job, metav1.CreateOptions{})
+	_, _ = client.Clientset.BatchV1().Jobs("pend-ns").Create(ctx, job, metav1.CreateOptions{})
 
 	result, err := handleWfJobs(ctx, client, WfJobsParams{Namespace: "pend-ns"})
 	if err != nil {
@@ -362,7 +362,7 @@ func TestWfJobsCronJobSuspended(t *testing.T) {
 			Suspend:  &suspended,
 		},
 	}
-	client.Clientset.BatchV1().CronJobs("susp-ns").Create(ctx, cj, metav1.CreateOptions{})
+	_, _ = client.Clientset.BatchV1().CronJobs("susp-ns").Create(ctx, cj, metav1.CreateOptions{})
 
 	result, err := handleWfJobs(ctx, client, WfJobsParams{Namespace: "susp-ns"})
 	if err != nil {

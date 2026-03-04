@@ -23,7 +23,7 @@ func newCredTestClient() *k8s.Client {
 		}
 	}
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(
+		Clientset: fake.NewClientset(
 			mkNs("test-ns"), mkNs("my-ns"), mkNs("rotate-ns"), mkNs("fresh-ns"),
 		),
 		Config: &rest.Config{
@@ -156,7 +156,7 @@ func TestCredRotateMessageContent(t *testing.T) {
 			Namespace: "rotate-ns",
 		},
 	}
-	client.Clientset.CoreV1().ServiceAccounts("rotate-ns").Create(ctx, sa, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().ServiceAccounts("rotate-ns").Create(ctx, sa, metav1.CreateOptions{})
 
 	result, err := handleCredRotate(ctx, client, CredRotateParams{Namespace: "rotate-ns"})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestCredIssueTokenUnmanagedNamespace(t *testing.T) {
 
 	// Create the namespace without the managed-by label so CheckManagedNamespace
 	// returns "not managed by tentacular" (not a "not found" error).
-	client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "unmanaged-ns"},
 	}, metav1.CreateOptions{})
 
@@ -195,7 +195,7 @@ func TestCredRotateUnmanagedNamespace(t *testing.T) {
 
 	// Create the namespace without the managed-by label so CheckManagedNamespace
 	// returns "not managed by tentacular" (not a "not found" error).
-	client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "unmanaged-ns"},
 	}, metav1.CreateOptions{})
 

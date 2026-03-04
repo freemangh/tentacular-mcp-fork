@@ -15,7 +15,7 @@ import (
 
 func newHealthTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -86,7 +86,7 @@ func TestHealthNodesNotReady(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 
 	result, err := handleHealthNodes(ctx, client)
 	if err != nil {
@@ -117,7 +117,7 @@ func TestHealthNodesCapacityAndAllocatable(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 
 	result, err := handleHealthNodes(ctx, client)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestHealthNsUsageWithQuota(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().ResourceQuotas("quota-ns").Create(ctx, quota, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().ResourceQuotas("quota-ns").Create(ctx, quota, metav1.CreateOptions{})
 
 	result, err := handleHealthNsUsage(ctx, client, HealthNsUsageParams{Namespace: "quota-ns"})
 	if err != nil {
@@ -241,7 +241,7 @@ func TestHealthClusterSummaryWithNodes(t *testing.T) {
 				},
 			},
 		}
-		client.Clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
+		_, _ = client.Clientset.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 	}
 
 	result, err := handleHealthClusterSummary(ctx, client)

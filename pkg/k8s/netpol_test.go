@@ -44,7 +44,7 @@ func TestCreateDefaultDenyPolicy_AlreadyExists(t *testing.T) {
 	_, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateDefaultDenyPolicy(ctx, client, "test-ns")
+	_ = k8s.CreateDefaultDenyPolicy(ctx, client, "test-ns")
 	err := k8s.CreateDefaultDenyPolicy(ctx, client, "test-ns")
 	if err == nil {
 		t.Error("expected error for duplicate default-deny policy, got nil")
@@ -73,7 +73,7 @@ func TestCreateDNSAllowPolicy_TargetsKubeDNS(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateDNSAllowPolicy(ctx, client, "test-ns")
+	_ = k8s.CreateDNSAllowPolicy(ctx, client, "test-ns")
 	pol, err := cs.NetworkingV1().NetworkPolicies("test-ns").Get(ctx, "allow-dns", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get NetworkPolicy: %v", err)
@@ -105,7 +105,7 @@ func TestCreateDNSAllowPolicy_Port53(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateDNSAllowPolicy(ctx, client, "test-ns")
+	_ = k8s.CreateDNSAllowPolicy(ctx, client, "test-ns")
 	pol, _ := cs.NetworkingV1().NetworkPolicies("test-ns").Get(ctx, "allow-dns", metav1.GetOptions{})
 
 	if len(pol.Spec.Egress) == 0 || len(pol.Spec.Egress[0].Ports) == 0 {

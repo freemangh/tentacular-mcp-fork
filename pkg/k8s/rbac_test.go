@@ -30,7 +30,7 @@ func TestCreateWorkflowServiceAccount_AlreadyExists(t *testing.T) {
 	_, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateWorkflowServiceAccount(ctx, client, "test-ns")
+	_ = k8s.CreateWorkflowServiceAccount(ctx, client, "test-ns")
 	err := k8s.CreateWorkflowServiceAccount(ctx, client, "test-ns")
 	if err == nil {
 		t.Error("expected error for duplicate SA, got nil")
@@ -78,7 +78,7 @@ func TestCreateWorkflowRole_ContainsDeployments(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateWorkflowRole(ctx, client, "test-ns")
+	_ = k8s.CreateWorkflowRole(ctx, client, "test-ns")
 	role, err := cs.RbacV1().Roles("test-ns").Get(ctx, "tentacular-workflow", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get Role: %v", err)
@@ -128,7 +128,7 @@ func TestCreateWorkflowRoleBinding_AlreadyExists(t *testing.T) {
 	_, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateWorkflowRoleBinding(ctx, client, "test-ns")
+	_ = k8s.CreateWorkflowRoleBinding(ctx, client, "test-ns")
 	err := k8s.CreateWorkflowRoleBinding(ctx, client, "test-ns")
 	if err == nil {
 		t.Error("expected error for duplicate RoleBinding, got nil")

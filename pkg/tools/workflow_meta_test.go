@@ -108,7 +108,7 @@ func TestWfListFiltersByManagedByLabel(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.AppsV1().Deployments("mixed-ns").Create(ctx, otherDep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("mixed-ns").Create(ctx, otherDep, metav1.CreateOptions{})
 
 	// handleWfList uses label selector "app.kubernetes.io/managed-by=tentacular"
 	// The fake client supports label selector filtering
@@ -131,7 +131,7 @@ func TestWfListReturnsOwnerFromAnnotations(t *testing.T) {
 		"tentacular.dev/owner": "platform-team",
 		"tentacular.dev/team":  "infra",
 	})
-	client.Clientset.AppsV1().Deployments("annot-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("annot-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfList(ctx, client, WfListParams{Namespace: "annot-ns"})
 	if err != nil {
@@ -154,7 +154,7 @@ func TestWfListReturnsVersionFromLabel(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("version-wf", "ver-ns", nil)
-	client.Clientset.AppsV1().Deployments("ver-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("ver-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfList(ctx, client, WfListParams{Namespace: "ver-ns"})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestWfListEnvironmentFromAnnotations(t *testing.T) {
 	dep := makeTestDeployment("env-wf", "env-ns", map[string]string{
 		"tentacular.dev/environment": "production",
 	})
-	client.Clientset.AppsV1().Deployments("env-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("env-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfList(ctx, client, WfListParams{Namespace: "env-ns"})
 	if err != nil {
@@ -196,7 +196,7 @@ func TestWfListMultipleWorkflows(t *testing.T) {
 	names := []string{"wf-alpha", "wf-beta", "wf-gamma"}
 	for _, name := range names {
 		dep := makeTestDeployment(name, "multi-ns", nil)
-		client.Clientset.AppsV1().Deployments("multi-ns").Create(ctx, dep, metav1.CreateOptions{})
+		_, _ = client.Clientset.AppsV1().Deployments("multi-ns").Create(ctx, dep, metav1.CreateOptions{})
 	}
 
 	result, err := handleWfList(ctx, client, WfListParams{Namespace: "multi-ns"})
@@ -213,7 +213,7 @@ func TestWfListNoAnnotationsNoOwner(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("bare-wf", "bare-ns", nil)
-	client.Clientset.AppsV1().Deployments("bare-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("bare-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfList(ctx, client, WfListParams{Namespace: "bare-ns"})
 	if err != nil {
@@ -241,7 +241,7 @@ func TestWfDescribeBasic(t *testing.T) {
 	dep := makeTestDeployment("described-wf", "desc-ns", map[string]string{
 		"tentacular.dev/owner": "ops-team",
 	})
-	client.Clientset.AppsV1().Deployments("desc-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("desc-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "desc-ns",
@@ -266,7 +266,7 @@ func TestWfDescribeVersionFromLabel(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("ver-describe-wf", "vd-ns", nil)
-	client.Clientset.AppsV1().Deployments("vd-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("vd-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "vd-ns",
@@ -287,7 +287,7 @@ func TestWfDescribeTagsSplit(t *testing.T) {
 	dep := makeTestDeployment("tags-describe-wf", "td-ns", map[string]string{
 		"tentacular.dev/tags": "etl,daily,reporting",
 	})
-	client.Clientset.AppsV1().Deployments("td-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("td-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "td-ns",
@@ -312,7 +312,7 @@ func TestWfDescribeNoTagsAnnotation(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("no-tags-wf", "nt-ns", nil)
-	client.Clientset.AppsV1().Deployments("nt-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("nt-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "nt-ns",
@@ -350,7 +350,7 @@ func TestWfDescribeAnnotationsMapOnlyTentacular(t *testing.T) {
 		"kubectl.kubernetes.io/last-applied": "{}",
 		"deployment.kubernetes.io/revision": "1",
 	})
-	client.Clientset.AppsV1().Deployments("ann-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("ann-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "ann-ns",
@@ -381,7 +381,7 @@ func TestWfDescribeNoAnnotationsNilAnnotationsMap(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("no-ann-wf", "na-ns", nil)
-	client.Clientset.AppsV1().Deployments("na-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("na-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "na-ns",
@@ -402,7 +402,7 @@ func TestWfDescribeReplicasFromSpec(t *testing.T) {
 
 	dep := makeTestDeployment("replicas-wf", "rep-ns", nil)
 	// makeTestDeployment sets Replicas to 1 via int32Ptr(1)
-	client.Clientset.AppsV1().Deployments("rep-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("rep-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "rep-ns",
@@ -422,7 +422,7 @@ func TestWfDescribeReadyFalseWhenNoReadyReplicas(t *testing.T) {
 
 	dep := makeTestDeployment("not-ready-wf", "nr-ns", nil)
 	// Status.ReadyReplicas defaults to 0 in fake client
-	client.Clientset.AppsV1().Deployments("nr-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("nr-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "nr-ns",
@@ -447,7 +447,7 @@ func TestWfDescribeAllMetadataFields(t *testing.T) {
 		"tentacular.dev/tags":        "etl,daily",
 		"tentacular.dev/environment": "production",
 	})
-	client.Clientset.AppsV1().Deployments("full-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("full-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfDescribe(ctx, client, WfDescribeParams{
 		Namespace: "full-ns",

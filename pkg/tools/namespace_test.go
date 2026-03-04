@@ -14,7 +14,7 @@ import (
 
 func newNsTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -242,7 +242,7 @@ func TestNsUpdateRejectsUnmanaged(t *testing.T) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "foreign-ns"},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	_, err := handleNsUpdate(ctx, client, NsUpdateParams{
 		Name:   "foreign-ns",

@@ -57,7 +57,7 @@ func managedNs(name string) *corev1.Namespace {
 func newDeployTestClient() *k8s.Client {
 	scheme := deployScheme()
 	dynClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, deployGVRs)
-	staticClient := kubefake.NewSimpleClientset(managedNs("my-ns"), managedNs("test-ns"))
+	staticClient := kubefake.NewClientset(managedNs("my-ns"), managedNs("test-ns"))
 
 	return &k8s.Client{
 		Clientset: staticClient,
@@ -69,7 +69,7 @@ func newDeployTestClient() *k8s.Client {
 func newManagedNsClient() *k8s.Client {
 	scheme := deployScheme()
 	dynClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, deployGVRs)
-	staticClient := kubefake.NewSimpleClientset(managedNs("my-ns"), managedNs("test-ns"))
+	staticClient := kubefake.NewClientset(managedNs("my-ns"), managedNs("test-ns"))
 
 	return &k8s.Client{
 		Clientset: staticClient,
@@ -204,7 +204,7 @@ func TestDeployToolNamesRegistered(t *testing.T) {
 		t.Fatalf("POST initialize: %v", err)
 	}
 	sessionID := initResp.Header.Get("Mcp-Session-Id")
-	initResp.Body.Close()
+	_ = initResp.Body.Close()
 
 	// Send initialized notification so the server transitions out of init state.
 	notifyBody := `{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}`
@@ -218,7 +218,7 @@ func TestDeployToolNamesRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST notifications/initialized: %v", err)
 	}
-	notifyResp.Body.Close()
+	_ = notifyResp.Body.Close()
 
 	// Call tools/list.
 	listBody := `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`
@@ -232,7 +232,7 @@ func TestDeployToolNamesRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST tools/list: %v", err)
 	}
-	defer listResp.Body.Close()
+	defer func() { _ = listResp.Body.Close() }()
 
 	var result struct {
 		Result struct {
@@ -546,7 +546,7 @@ func TestWorkflowApplyMissingAPIVersion(t *testing.T) {
 func newDeployTestClientWithDiscovery() *k8s.Client {
 	scheme := deployScheme()
 	dynClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, deployGVRs)
-	staticClient := kubefake.NewSimpleClientset(managedNs("my-ns"), managedNs("test-ns"))
+	staticClient := kubefake.NewClientset(managedNs("my-ns"), managedNs("test-ns"))
 
 	// Inject discovery resource lists so resolveGVR can resolve core v1 kinds.
 	staticClient.Resources = []*metav1.APIResourceList{

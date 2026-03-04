@@ -14,7 +14,7 @@ import (
 )
 
 func newProxyTestReconciler(namespace string) *proxy.Reconciler {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	client := &k8s.Client{
 		Clientset: cs,
 		Config:    &rest.Config{Host: "https://test:6443"},

@@ -31,7 +31,7 @@ func RunWorkflow(ctx context.Context, client *Client, namespace, name string, in
 	if err != nil {
 		return nil, fmt.Errorf("trigger workflow %s/%s: %w", namespace, name, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

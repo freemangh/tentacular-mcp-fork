@@ -28,7 +28,7 @@ func newRunToolTestClient(namespaces ...string) *k8s.Client {
 		objs = append(objs, ns)
 	}
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(objs...),
+		Clientset: fake.NewClientset(objs...),
 		Config:    &rest.Config{Host: "https://test:6443"},
 	}
 }
@@ -44,7 +44,7 @@ func newRunToolTestClientWithProxy(t *testing.T, handler http.HandlerFunc, names
 		ns := name // capture
 		mux.HandleFunc("/api/v1/namespaces/"+ns, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"metadata":{"name":"` + ns + `","labels":{"app.kubernetes.io/managed-by":"tentacular"}}}`))
+			_, _ = w.Write([]byte(`{"metadata":{"name":"` + ns + `","labels":{"app.kubernetes.io/managed-by":"tentacular"}}}`))
 		})
 	}
 	// Workflow /run endpoint (direct HTTP)
@@ -149,7 +149,7 @@ func TestWfRunParams_TimeoutDefaults(t *testing.T) {
 func TestHandleWfRun_ManagedNamespacePassesGuard(t *testing.T) {
 	client, server := newRunToolTestClientWithProxy(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"result":"ok"}`))
+		_, _ = w.Write([]byte(`{"result":"ok"}`))
 	}, "user-ns")
 	defer server.Close()
 

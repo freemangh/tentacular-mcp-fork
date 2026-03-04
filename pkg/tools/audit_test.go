@@ -17,7 +17,7 @@ import (
 
 func newAuditTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -92,7 +92,7 @@ func TestAuditRbacSensitiveResourceDetected(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.RbacV1().Roles("sec-ns").Create(ctx, role, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().Roles("sec-ns").Create(ctx, role, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "sec-ns"})
 	if err != nil {
@@ -125,7 +125,7 @@ func TestAuditRbacClusterRoleBindingForNamespaceSA(t *testing.T) {
 			{Kind: "ServiceAccount", Name: "mysa", Namespace: "target-ns"},
 		},
 	}
-	client.Clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "target-ns"})
 	if err != nil {
@@ -158,7 +158,7 @@ func TestAuditRbacRoleBindingToClusterRole(t *testing.T) {
 			{Kind: "ServiceAccount", Name: "viewer", Namespace: "rb-ns"},
 		},
 	}
-	client.Clientset.RbacV1().RoleBindings("rb-ns").Create(ctx, rb, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().RoleBindings("rb-ns").Create(ctx, rb, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "rb-ns"})
 	if err != nil {
@@ -190,7 +190,7 @@ func TestAuditRbacEscalationBindVerb(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.RbacV1().Roles("esc-ns").Create(ctx, role, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().Roles("esc-ns").Create(ctx, role, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "esc-ns"})
 	if err != nil {
@@ -225,7 +225,7 @@ func TestAuditRbacEscalationEscalateVerb(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.RbacV1().Roles("esc2-ns").Create(ctx, role, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().Roles("esc2-ns").Create(ctx, role, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "esc2-ns"})
 	if err != nil {
@@ -257,7 +257,7 @@ func TestAuditRbacEscalationImpersonateVerb(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.RbacV1().Roles("imp-ns").Create(ctx, role, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().Roles("imp-ns").Create(ctx, role, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "imp-ns"})
 	if err != nil {
@@ -289,7 +289,7 @@ func TestAuditRbacRemediationOnWildcard(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.RbacV1().Roles("rem-ns").Create(ctx, role, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().Roles("rem-ns").Create(ctx, role, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "rem-ns"})
 	if err != nil {
@@ -312,7 +312,7 @@ func TestAuditRbacRemediationOnClusterRoleBinding(t *testing.T) {
 		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "edit"},
 		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: "mysa", Namespace: "rem2-ns"}},
 	}
-	client.Clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
+	_, _ = client.Clientset.RbacV1().ClusterRoleBindings().Create(ctx, crb, metav1.CreateOptions{})
 
 	result, err := handleAuditRbac(ctx, client, AuditRbacParams{Namespace: "rem2-ns"})
 	if err != nil {
@@ -385,7 +385,7 @@ func TestAuditNetpolNoEgressFinding(t *testing.T) {
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 		},
 	}
-	client.Clientset.NetworkingV1().NetworkPolicies("ing-ns").Create(ctx, policy, metav1.CreateOptions{})
+	_, _ = client.Clientset.NetworkingV1().NetworkPolicies("ing-ns").Create(ctx, policy, metav1.CreateOptions{})
 
 	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "ing-ns"})
 	if err != nil {
@@ -407,7 +407,7 @@ func TestAuditNetpolPoliciesListed(t *testing.T) {
 	client := newAuditTestClient()
 	ctx := context.Background()
 
-	client.Clientset.NetworkingV1().NetworkPolicies("list-ns").Create(ctx, &networkingv1.NetworkPolicy{
+	_, _ = client.Clientset.NetworkingV1().NetworkPolicies("list-ns").Create(ctx, &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-policy", Namespace: "list-ns"},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
@@ -444,7 +444,7 @@ func TestAuditNetpolBroadIngressAllowAll(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.NetworkingV1().NetworkPolicies("broad-ns").Create(ctx, policy, metav1.CreateOptions{})
+	_, _ = client.Clientset.NetworkingV1().NetworkPolicies("broad-ns").Create(ctx, policy, metav1.CreateOptions{})
 
 	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "broad-ns"})
 	if err != nil {
@@ -481,7 +481,7 @@ func TestAuditNetpolBroadEgressAllowAll(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.NetworkingV1().NetworkPolicies("broad-eg-ns").Create(ctx, policy, metav1.CreateOptions{})
+	_, _ = client.Clientset.NetworkingV1().NetworkPolicies("broad-eg-ns").Create(ctx, policy, metav1.CreateOptions{})
 
 	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "broad-eg-ns"})
 	if err != nil {
@@ -520,7 +520,7 @@ func TestAuditNetpolCrossNamespaceIngress(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.NetworkingV1().NetworkPolicies("crossns-ns").Create(ctx, policy, metav1.CreateOptions{})
+	_, _ = client.Clientset.NetworkingV1().NetworkPolicies("crossns-ns").Create(ctx, policy, metav1.CreateOptions{})
 
 	result, err := handleAuditNetpol(ctx, client, AuditNetpolParams{Namespace: "crossns-ns"})
 	if err != nil {
@@ -623,7 +623,7 @@ func TestAuditPsaNonRestrictedLevel(t *testing.T) {
 			Labels: map[string]string{"pod-security.kubernetes.io/enforce": "baseline"},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	result, err := handleAuditPsa(ctx, client, AuditPsaParams{Namespace: "baseline-ns"})
 	if err != nil {
@@ -657,7 +657,7 @@ func TestAuditPsaPrivilegedIsHighSeverity(t *testing.T) {
 			Labels: map[string]string{"pod-security.kubernetes.io/enforce": "privileged"},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	result, err := handleAuditPsa(ctx, client, AuditPsaParams{Namespace: "priv-ns"})
 	if err != nil {
@@ -692,7 +692,7 @@ func TestAuditPsaAuditLevelMismatch(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	result, err := handleAuditPsa(ctx, client, AuditPsaParams{Namespace: "mismatch-audit-ns"})
 	if err != nil {
@@ -727,7 +727,7 @@ func TestAuditPsaWarnLevelMismatch(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	result, err := handleAuditPsa(ctx, client, AuditPsaParams{Namespace: "mismatch-warn-ns"})
 	if err != nil {
@@ -759,7 +759,7 @@ func TestAuditPsaNoMismatchWhenAllRestricted(t *testing.T) {
 			},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	result, err := handleAuditPsa(ctx, client, AuditPsaParams{Namespace: "all-restricted-ns"})
 	if err != nil {
@@ -780,7 +780,7 @@ func TestAuditPsaRemediationPresent(t *testing.T) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "rem-psa-ns"},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	result, err := handleAuditPsa(ctx, client, AuditPsaParams{Namespace: "rem-psa-ns"})
 	if err != nil {

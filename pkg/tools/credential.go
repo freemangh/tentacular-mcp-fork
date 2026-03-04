@@ -116,7 +116,7 @@ func handleCredKubeconfig(ctx context.Context, client *k8s.Client, params CredKu
 	}
 
 	clusterURL := client.Config.Host
-	caCert := string(client.Config.TLSClientConfig.CAData)
+	caCert := string(client.Config.CAData)
 
 	kubeconfig, err := k8s.GenerateKubeconfig(clusterURL, caCert, token, params.Namespace)
 	if err != nil {

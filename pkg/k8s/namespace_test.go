@@ -14,7 +14,7 @@ import (
 )
 
 func newFakeK8sClient() (*fake.Clientset, *k8s.Client) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"}, nil)
 	return cs, client
 }
@@ -85,8 +85,8 @@ func TestListManagedNamespaces_OnlyManaged(t *testing.T) {
 	unmanaged := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "unmanaged-ns"},
 	}
-	cs.CoreV1().Namespaces().Create(ctx, managed, metav1.CreateOptions{})
-	cs.CoreV1().Namespaces().Create(ctx, unmanaged, metav1.CreateOptions{})
+	_, _ = cs.CoreV1().Namespaces().Create(ctx, managed, metav1.CreateOptions{})
+	_, _ = cs.CoreV1().Namespaces().Create(ctx, unmanaged, metav1.CreateOptions{})
 
 	// NOTE: fake client label selector support may return all; we test IsManagedNamespace logic.
 	list, err := k8s.ListManagedNamespaces(ctx, client)
@@ -128,7 +128,7 @@ func TestDeleteNamespace_Success(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "del-ns"},
 	}, metav1.CreateOptions{})
 
@@ -149,7 +149,7 @@ func TestCheckManagedNamespace_Managed(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "managed-ns",
 			Labels: map[string]string{k8s.ManagedByLabel: k8s.ManagedByValue},
@@ -165,7 +165,7 @@ func TestCheckManagedNamespace_Unmanaged(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, _ = cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "unmanaged-ns"},
 	}, metav1.CreateOptions{})
 

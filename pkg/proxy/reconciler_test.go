@@ -15,7 +15,7 @@ import (
 )
 
 func newTestReconciler(opts Options) (*Reconciler, *k8s.Client) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	client := &k8s.Client{
 		Clientset: cs,
 		Config:    &rest.Config{Host: "https://test:6443"},
@@ -224,7 +224,7 @@ func TestGetStatus_ReadyField(t *testing.T) {
 		t.Fatalf("get deployment: %v", err)
 	}
 	dep.Status.ReadyReplicas = 1
-	client.Clientset.AppsV1().Deployments("tentacular-support").UpdateStatus(ctx, dep, metav1.UpdateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("tentacular-support").UpdateStatus(ctx, dep, metav1.UpdateOptions{})
 
 	st2 := r.GetStatus(ctx)
 	if !st2.Ready {

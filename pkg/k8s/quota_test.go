@@ -41,7 +41,7 @@ func TestCreateResourceQuota_MediumPreset(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateResourceQuota(ctx, client, "test-ns", "medium")
+	_ = k8s.CreateResourceQuota(ctx, client, "test-ns", "medium")
 	quota, err := cs.CoreV1().ResourceQuotas("test-ns").Get(ctx, "tentacular-quota", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get ResourceQuota: %v", err)
@@ -61,7 +61,7 @@ func TestCreateResourceQuota_LargePreset(t *testing.T) {
 	cs, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateResourceQuota(ctx, client, "test-ns", "large")
+	_ = k8s.CreateResourceQuota(ctx, client, "test-ns", "large")
 	quota, err := cs.CoreV1().ResourceQuotas("test-ns").Get(ctx, "tentacular-quota", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Get ResourceQuota: %v", err)
@@ -89,7 +89,7 @@ func TestCreateResourceQuota_AlreadyExists(t *testing.T) {
 	_, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateResourceQuota(ctx, client, "test-ns", "small")
+	_ = k8s.CreateResourceQuota(ctx, client, "test-ns", "small")
 	err := k8s.CreateResourceQuota(ctx, client, "test-ns", "small")
 	if err == nil {
 		t.Error("expected error for duplicate ResourceQuota, got nil")
@@ -140,7 +140,7 @@ func TestCreateLimitRange_AlreadyExists(t *testing.T) {
 	_, client := newFakeK8sClient()
 	ctx := context.Background()
 
-	k8s.CreateLimitRange(ctx, client, "test-ns")
+	_ = k8s.CreateLimitRange(ctx, client, "test-ns")
 	err := k8s.CreateLimitRange(ctx, client, "test-ns")
 	if err == nil {
 		t.Error("expected error for duplicate LimitRange, got nil")

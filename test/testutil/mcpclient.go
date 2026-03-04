@@ -59,7 +59,7 @@ func (c *MCPTestClient) PostJSON(path string, body interface{}) (*http.Response,
 
 // ReadBody reads and returns the response body as a string, closing the body.
 func ReadBody(resp *http.Response) (string, error) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err

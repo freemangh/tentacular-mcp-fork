@@ -15,7 +15,7 @@ import (
 
 func newGVisorTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -69,7 +69,7 @@ func TestGVisorCheckAvailableGVisorHandler(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "sandbox"},
 		Handler:    "gvisor",
 	}
-	client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
+	_, _ = client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
 
 	result, err := handleGVisorCheck(ctx, client)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestGVisorCheckNotAvailableNonGVisorHandler(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "kata"},
 		Handler:    "kata-containers",
 	}
-	client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
+	_, _ = client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
 
 	result, err := handleGVisorCheck(ctx, client)
 	if err != nil {
@@ -132,7 +132,7 @@ func TestGVisorAnnotateNsNoRuntimeClassFails(t *testing.T) {
 			Labels: map[string]string{k8s.ManagedByLabel: k8s.ManagedByValue},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	_, err := handleGVisorAnnotateNs(ctx, client, GVisorAnnotateNsParams{Namespace: "managed-ns"})
 	if err == nil {
@@ -151,14 +151,14 @@ func TestGVisorAnnotateNsSuccess(t *testing.T) {
 			Labels: map[string]string{k8s.ManagedByLabel: k8s.ManagedByValue},
 		},
 	}
-	client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 
 	// Create gVisor RuntimeClass
 	rc := &nodev1.RuntimeClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "gvisor"},
 		Handler:    "runsc",
 	}
-	client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
+	_, _ = client.Clientset.NodeV1().RuntimeClasses().Create(ctx, rc, metav1.CreateOptions{})
 
 	result, err := handleGVisorAnnotateNs(ctx, client, GVisorAnnotateNsParams{Namespace: "gv-ns"})
 	if err != nil {

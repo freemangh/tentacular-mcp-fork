@@ -69,9 +69,9 @@ func TestMultipleWorkflows(t *testing.T) {
 	s.Start()
 	defer s.Stop()
 
-	s.Register("ns1", "wf1", "*/5 * * * *")
-	s.Register("ns1", "wf2", "0 * * * *")
-	s.Register("ns2", "wf1", "30 2 * * *")
+	_ = s.Register("ns1", "wf1", "*/5 * * * *")
+	_ = s.Register("ns1", "wf2", "0 * * * *")
+	_ = s.Register("ns2", "wf1", "30 2 * * *")
 
 	if s.Entries() != 3 {
 		t.Errorf("expected 3 entries, got %d", s.Entries())

@@ -236,7 +236,7 @@ func handleWfLogs(ctx context.Context, client *k8s.Client, params WfLogsParams) 
 	if err != nil {
 		return WfLogsResult{}, fmt.Errorf("get logs for pod %q in namespace %q: %w", params.Pod, params.Namespace, err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	const maxLogBytes = 1 << 20 // 1MiB
 	data, err := io.ReadAll(io.LimitReader(stream, maxLogBytes))

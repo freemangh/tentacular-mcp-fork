@@ -20,7 +20,7 @@ import (
 // newWfHealthTestClient returns a fake k8s client for wf_health tests.
 func newWfHealthTestClient() *k8s.Client {
 	return &k8s.Client{
-		Clientset: fake.NewSimpleClientset(),
+		Clientset: fake.NewClientset(),
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
 	}
 }
@@ -120,7 +120,7 @@ func TestWfHealth_ZeroReplicas_Red(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 0)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	result, err := handleWfHealth(ctx, client, WfHealthParams{
 		Namespace: "user-ns",
@@ -146,7 +146,7 @@ func TestWfHealth_HealthEndpointUnreachable_Red(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return "", fmt.Errorf("connection refused")
@@ -173,7 +173,7 @@ func TestWfHealth_HealthyEndpoint_Green(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"healthy":true}`, nil
@@ -200,7 +200,7 @@ func TestWfHealth_LastExecutionFailed_Amber(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"lastRunFailed":true}`, nil
@@ -224,7 +224,7 @@ func TestWfHealth_InFlight_Amber(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"inFlight":1}`, nil
@@ -248,7 +248,7 @@ func TestWfHealth_DetailNotIncludedByDefault(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"healthy":true}`, nil
@@ -273,7 +273,7 @@ func TestWfHealth_DetailIncludedWhenRequested(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"healthy":true}`, nil
@@ -331,7 +331,7 @@ func TestWfHealthNs_AllGreen(t *testing.T) {
 
 	for _, name := range []string{"wf-a", "wf-b"} {
 		dep := makeManagedDeployment(name, "user-ns", 1)
-		client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+		_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 	}
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
@@ -360,13 +360,13 @@ func TestWfHealthNs_MixedStatuses(t *testing.T) {
 
 	// wf-red: 0 ready replicas
 	depRed := makeManagedDeployment("wf-red", "user-ns", 0)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depRed, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depRed, metav1.CreateOptions{})
 	// wf-amber: ready but lastRunFailed=true
 	depAmber := makeManagedDeployment("wf-amber", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depAmber, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depAmber, metav1.CreateOptions{})
 	// wf-green: ready and healthy
 	depGreen := makeManagedDeployment("wf-green", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depGreen, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depGreen, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		if name == "wf-amber" {
@@ -398,7 +398,7 @@ func TestWfHealthNs_TruncatesAtLimit(t *testing.T) {
 	// Create 5 deployments but limit to 3
 	for i := 0; i < 5; i++ {
 		dep := makeManagedDeployment(fmt.Sprintf("wf-%d", i), "user-ns", 1)
-		client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+		_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 	}
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
@@ -428,7 +428,7 @@ func TestWfHealthNs_DefaultLimit(t *testing.T) {
 	// Create 5 deployments, no limit specified - should default to 20
 	for i := 0; i < 5; i++ {
 		dep := makeManagedDeployment(fmt.Sprintf("wf-%d", i), "user-ns", 1)
-		client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+		_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 	}
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
@@ -457,7 +457,7 @@ func TestWfHealthNs_NotTruncatedWhenExactlyAtLimit(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		dep := makeManagedDeployment(fmt.Sprintf("wf-%d", i), "user-ns", 1)
-		client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+		_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 	}
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
@@ -480,7 +480,7 @@ func TestWfHealthNs_OnlyListsManagedDeployments(t *testing.T) {
 
 	// Create one managed and one unmanaged deployment
 	managed := makeManagedDeployment("managed-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, managed, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, managed, metav1.CreateOptions{})
 
 	unmanaged := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -490,7 +490,7 @@ func TestWfHealthNs_OnlyListsManagedDeployments(t *testing.T) {
 		},
 		Spec: appsv1.DeploymentSpec{Replicas: int32Ptr(1)},
 	}
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, unmanaged, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, unmanaged, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"healthy":true}`, nil
@@ -646,7 +646,7 @@ func TestWfHealth_ResultFieldsPopulated(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"healthy":true}`, nil
@@ -673,7 +673,7 @@ func TestWfHealth_DetailFlagPassedToProbe(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("my-wf", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	var probeDetailFlag bool
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
@@ -702,7 +702,7 @@ func TestWfHealthNs_ProbeUnreachableCountsAsRed(t *testing.T) {
 	createManagedNamespace(ctx, client, "user-ns")
 
 	dep := makeManagedDeployment("wf-up", "user-ns", 1)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return "", fmt.Errorf("connection refused")
@@ -728,10 +728,10 @@ func TestWfHealthNs_SummaryTotalsMatchWorkflowCount(t *testing.T) {
 	// 2 green (ready, healthy), 1 red (no replicas)
 	for _, name := range []string{"wf-a", "wf-b"} {
 		dep := makeManagedDeployment(name, "user-ns", 1)
-		client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
+		_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, dep, metav1.CreateOptions{})
 	}
 	depRed := makeManagedDeployment("wf-c", "user-ns", 0)
-	client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depRed, metav1.CreateOptions{})
+	_, _ = client.Clientset.AppsV1().Deployments("user-ns").Create(ctx, depRed, metav1.CreateOptions{})
 
 	withFakeProbe(t, func(name, namespace string, detail bool) (string, error) {
 		return `{"healthy":true}`, nil

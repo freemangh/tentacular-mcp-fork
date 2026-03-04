@@ -20,7 +20,7 @@ func TestRunWorkflowDirectHTTP(t *testing.T) {
 		capturedMethod = r.Method
 		capturedBody, _ = io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"result":"ok","stories":10}`))
+		_, _ = w.Write([]byte(`{"result":"ok","stories":10}`))
 	}))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestRunWorkflowDefaultPayload(t *testing.T) {
 	var capturedBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedBody, _ = io.ReadAll(r.Body)
-		w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(`{}`))
 	}))
 	defer server.Close()
 
