@@ -85,3 +85,51 @@ jobs:
       - name: Teardown kind cluster
         if: always()
         run: kind delete cluster --name tentacular-e2e
+
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint charts/tentacular-mcp/
+
+      - name: Template with token
+        run: |
+          helm template test charts/tentacular-mcp/ \
+            --namespace tentacular-system \
+            --set auth.token=ci-test-token
+
+      - name: Template with existing secret
+        run: |
+          helm template test charts/tentacular-mcp/ \
+            --namespace tentacular-system \
+            --set auth.existingSecret=my-secret
+
+      - name: Fail without auth
+        run: |
+          ! helm template test charts/tentacular-mcp/ \
+            --namespace tentacular-system 2>&1
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test ./pkg/... -count=1 -race -coverprofile=coverage.out -covermode=atomic
+
+      - uses: codecov/codecov-action@v5
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+          # Tokenless mode for public repos. To switch to token-based:
+          # token: ${{ secrets.CODECOV_TOKEN }}
