@@ -2,10 +2,10 @@
 
 > **Note:** This is the original design document. The final implementation
 > differs in key ways: MCP is no longer opt-in with per-command `--mcp-url`
-> flags. Instead, `tntc cluster install` bootstraps the MCP server and saves
-> config automatically. All cluster commands (except `cluster install`) route
-> through MCP by default. See the tentacular-skill SKILL.md and cli.md for
-> the current behavior.
+> flags. The MCP server is installed via Helm, and MCP connection details are
+> configured per-environment in `~/.tentacular/config.yaml`. The CLI has no
+> direct K8s API access; all cluster commands route through MCP. See the
+> tentacular-skill SKILL.md and cli.md for the current behavior.
 
 This document specifies the changes required in the **tentacular** CLI repository
 (`/Users/rbias/code/tentacular`) to integrate with the in-cluster MCP server

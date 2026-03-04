@@ -57,17 +57,29 @@ Developer workstations holding cluster-wide admin kubeconfig is a security anti-
 
 ## Quick Start
 
-### Deploy via tntc CLI (Recommended)
+### Deploy via Helm (Recommended)
 
-The easiest way to deploy tentacular-mcp is through the
-`tntc` CLI bootstrap command:
+The easiest way to deploy tentacular-mcp is via the Helm chart:
 
 ```bash
-tntc cluster install
+# Generate a token
+TOKEN=$(openssl rand -hex 32)
+
+# Install
+helm install tentacular-mcp ./charts/tentacular-mcp \
+  --namespace tentacular-system \
+  --create-namespace \
+  --set auth.token="${TOKEN}"
 ```
 
-This auto-generates a token, deploys the server, and
-saves the MCP config to `~/.tentacular/config.yaml`.
+After deployment, save the endpoint and token to your CLI config at
+`~/.tentacular/config.yaml`:
+
+```yaml
+mcp:
+  endpoint: http://<cluster-internal-address>:8080/mcp
+  token: <TOKEN>
+```
 
 ### Build from Source
 
@@ -81,7 +93,7 @@ make docker-build
 
 ### Manual Deploy (Kustomize)
 
-For manual deployment without the tntc CLI:
+Alternatively, deploy using Kustomize directly:
 
 ```bash
 kubectl apply -k deploy/manifests/
@@ -93,6 +105,47 @@ This creates:
 - Auth Secret
 - Deployment (single replica, distroless container, non-root)
 - ClusterIP Service on port 8080
+
+### Helm Values
+
+Key values for customizing the deployment:
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `image.repository` | `ghcr.io/randybias/tentacular-mcp` | Container image |
+| `image.tag` | `latest` | Image tag |
+| `image.pullPolicy` | `IfNotPresent` | Pull policy |
+| `auth.token` | `""` | Bearer token (generate with `openssl rand -hex 32`) |
+| `auth.existingSecret` | `""` | Use an existing Secret instead of creating one |
+| `namespace.create` | `true` | Create the `tentacular-system` namespace |
+| `service.type` | `ClusterIP` | Service type |
+| `service.port` | `8080` | Service port |
+| `resources.requests.memory` | `64Mi` | Memory request |
+| `resources.limits.memory` | `256Mi` | Memory limit |
+
+### CLI Configuration
+
+After deploying, configure the tentacular CLI to connect to the MCP server:
+
+```bash
+# Option 1: interactive setup
+tntc configure
+
+# Option 2: manual config (~/.tentacular/config.yaml)
+```
+
+```yaml
+mcp:
+  endpoint: http://tentacular-mcp.tentacular-system.svc.cluster.local:8080/mcp
+  token_path: ~/.tentacular/mcp-token
+```
+
+Store the token:
+
+```bash
+echo "<TOKEN>" > ~/.tentacular/mcp-token
+chmod 600 ~/.tentacular/mcp-token
+```
 
 ### Connect
 
@@ -210,8 +263,8 @@ The server loads its expected token from the `TENTACULAR_MCP_TOKEN` environment 
 openssl rand -hex 32
 ```
 
-When deployed via `tntc cluster install`, the token is
-auto-generated and saved to `~/.tentacular/mcp-token`.
+When deployed via Helm, pass the token with `--set auth.token=<token>`.
+The token is stored in the `tentacular-mcp-token` Kubernetes Secret.
 
 ### Retrieving a Deployed Token
 
@@ -357,23 +410,23 @@ The Deployment runs with:
 
 ## CLI Integration
 
-The tentacular CLI (`tntc`) routes all cluster operations
-through this MCP server. After `tntc cluster install`
-bootstraps the server, the MCP endpoint and token are
-saved to `~/.tentacular/config.yaml`. All subsequent
-CLI commands automatically use the MCP server -- no
+The tentacular CLI (`tntc`) delegates all cluster operations
+to this MCP server. MCP connection details are configured
+per-environment in `~/.tentacular/config.yaml` or via
+`TNTC_MCP_ENDPOINT` / `TNTC_MCP_TOKEN` environment variables.
+All CLI commands automatically use the MCP server -- no
 per-command flags needed.
 
-`tntc cluster install` is the **only** CLI command that
-communicates directly with the Kubernetes API. All other
-cluster-facing commands (deploy, run, list, status, logs,
-undeploy, audit, cluster check) route through MCP.
+The CLI has no direct Kubernetes API access. All cluster-facing
+commands (deploy, run, list, status, logs, undeploy, audit,
+cluster check, cluster profile) route through MCP.
 
 ### MCP Tools Used by CLI
 
 | CLI Command | MCP Tool(s) |
 |-------------|-------------|
 | `cluster check` | `cluster_preflight` |
+| `cluster profile` | `cluster_profile` |
 | `deploy` | `wf_apply`, `ns_create` |
 | `run` | `wf_run` |
 | `list` | `wf_list` |
