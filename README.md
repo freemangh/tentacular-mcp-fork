@@ -12,6 +12,7 @@ Developer workstations holding cluster-wide admin kubeconfig is a security anti-
 |------------|---------|
 | [tentacular](https://github.com/randybias/tentacular) | Go CLI + Deno workflow engine |
 | [tentacular-skill](https://github.com/randybias/tentacular-skill) | Agent skill definition for AI assistants |
+| [tentacular-catalog](https://github.com/randybias/tentacular-catalog) | Workflow template catalog |
 
 ## Architecture
 
