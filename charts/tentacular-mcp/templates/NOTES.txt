@@ -7,22 +7,11 @@ tentacular-mcp has been deployed to namespace {{ .Release.Namespace }}.
 2. Verify health:
 
    curl http://localhost:8080/healthz
-{{- if and (not .Values.auth.existingSecret) .Values.auth.token }}
-
-3. Your auth token:
-
-   {{ .Values.auth.token }}
-
-   Use it with:
-
-   curl -H "Authorization: Bearer {{ .Values.auth.token }}" http://localhost:8080/mcp
-{{- else }}
 
 3. Retrieve the auth token:
 
    kubectl get secret {{ include "tentacular-mcp.authSecretName" . }} -n {{ .Release.Namespace }} \
      -o jsonpath='{.data.token}' | base64 -d
-{{- end }}
 
 4. Connect an MCP client:
 
