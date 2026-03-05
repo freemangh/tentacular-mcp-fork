@@ -16,7 +16,8 @@ type ClusterPreflightParams struct {
 
 // ClusterPreflightResult is the result of cluster_preflight.
 type ClusterPreflightResult struct {
-	Checks []k8s.CheckResult `json:"checks"`
+	Checks  []k8s.CheckResult `json:"checks"`
+	AllPass bool               `json:"allPass"`
 }
 
 // ClusterProfileParams are the parameters for cluster_profile.
@@ -55,7 +56,14 @@ func handleClusterPreflight(ctx context.Context, client *k8s.Client, params Clus
 	if err != nil {
 		return ClusterPreflightResult{}, err
 	}
-	return ClusterPreflightResult{Checks: checks}, nil
+	allPass := true
+	for _, c := range checks {
+		if !c.Passed {
+			allPass = false
+			break
+		}
+	}
+	return ClusterPreflightResult{Checks: checks, AllPass: allPass}, nil
 }
 
 func handleClusterProfile(ctx context.Context, client *k8s.Client, params ClusterProfileParams) (*k8s.ClusterProfile, error) {
