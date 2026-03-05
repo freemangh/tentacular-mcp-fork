@@ -9,6 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -73,6 +74,7 @@ type WorkflowRemoveResult struct {
 type WorkflowStatusParams struct {
 	Namespace string `json:"namespace" jsonschema:"Namespace containing the workflow resources"`
 	Name      string `json:"name" jsonschema:"Deployment name to check status for"`
+	Detail    bool   `json:"detail,omitempty" jsonschema:"Include pods and events in the response"`
 }
 
 // WorkflowResourceStatus is the status of a single resource in a workflow deployment.
@@ -83,11 +85,33 @@ type WorkflowResourceStatus struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// WorkflowPodInfo is a single pod in the status response.
+type WorkflowPodInfo struct {
+	Name     string `json:"name"`
+	Phase    string `json:"phase"`
+	Ready    bool   `json:"ready"`
+	NodeName string `json:"nodeName,omitempty"`
+}
+
+// WorkflowEventInfo is a single event in the status response.
+type WorkflowEventInfo struct {
+	Type    string `json:"type"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+	Count   int32  `json:"count"`
+}
+
 // WorkflowStatusResult is the result of wf_status.
 type WorkflowStatusResult struct {
 	Name      string                   `json:"name"`
 	Namespace string                   `json:"namespace"`
+	Version   string                   `json:"version,omitempty"`
+	Ready     bool                     `json:"ready"`
+	Replicas  int32                    `json:"replicas"`
+	Available int32                    `json:"available"`
 	Resources []WorkflowResourceStatus `json:"resources"`
+	Pods      []WorkflowPodInfo        `json:"pods,omitempty"`
+	Events    []WorkflowEventInfo      `json:"events,omitempty"`
 }
 
 func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.Scheduler) {
@@ -377,11 +401,62 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 		}
 	}
 
-	return WorkflowStatusResult{
+	result := WorkflowStatusResult{
 		Name:      params.Name,
 		Namespace: params.Namespace,
 		Resources: resources,
-	}, nil
+	}
+
+	// Get deployment replicas and version from the typed API for accurate status
+	deploy, err := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
+	if err == nil {
+		result.Replicas = *deploy.Spec.Replicas
+		result.Available = deploy.Status.AvailableReplicas
+		result.Ready = deploy.Status.AvailableReplicas >= *deploy.Spec.Replicas && *deploy.Spec.Replicas > 0
+		if v, ok := deploy.Labels["app.kubernetes.io/version"]; ok {
+			result.Version = v
+		}
+	}
+
+	// Optionally include pods and events
+	if params.Detail {
+		podList, err := client.Clientset.CoreV1().Pods(params.Namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+		if err == nil {
+			for _, pod := range podList.Items {
+				ready := false
+				for _, cond := range pod.Status.Conditions {
+					if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+						ready = true
+						break
+					}
+				}
+				result.Pods = append(result.Pods, WorkflowPodInfo{
+					Name:     pod.Name,
+					Phase:    string(pod.Status.Phase),
+					Ready:    ready,
+					NodeName: pod.Spec.NodeName,
+				})
+			}
+		}
+
+		eventList, err := client.Clientset.CoreV1().Events(params.Namespace).List(ctx, metav1.ListOptions{
+			FieldSelector: fmt.Sprintf("involvedObject.name=%s", params.Name),
+		})
+		if err == nil {
+			for _, e := range eventList.Items {
+				result.Events = append(result.Events, WorkflowEventInfo{
+					Type:    e.Type,
+					Reason:  e.Reason,
+					Message: e.Message,
+					Count:   e.Count,
+				})
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // resourceReadiness determines readiness from an unstructured resource.
