@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -500,5 +501,116 @@ func TestWfRestartDeploymentNotFound(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for nonexistent deployment, got nil")
+	}
+}
+
+// --- handleWfEvents (additional coverage) ---
+
+func TestWfEventsTimestampFormatting(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	now := metav1.Now()
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-event-1",
+			Namespace: "my-ns",
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind: "Pod",
+			Name: "worker-1",
+		},
+		Type:          "Normal",
+		Reason:        "Scheduled",
+		Message:       "Successfully assigned pod",
+		Count:         1,
+		LastTimestamp:  now,
+	}
+	_, err := client.Clientset.CoreV1().Events("my-ns").Create(ctx, event, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	result, err := handleWfEvents(ctx, client, WfEventsParams{Namespace: "my-ns"})
+	if err != nil {
+		t.Fatalf("handleWfEvents: %v", err)
+	}
+	if len(result.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(result.Events))
+	}
+	ev := result.Events[0]
+	if ev.Type != "Normal" {
+		t.Errorf("Type: got %q, want %q", ev.Type, "Normal")
+	}
+	if ev.Reason != "Scheduled" {
+		t.Errorf("Reason: got %q, want %q", ev.Reason, "Scheduled")
+	}
+	if ev.Object != "Pod/worker-1" {
+		t.Errorf("Object: got %q, want %q", ev.Object, "Pod/worker-1")
+	}
+	if ev.Count != 1 {
+		t.Errorf("Count: got %d, want 1", ev.Count)
+	}
+	if ev.LastSeen == "" {
+		t.Error("expected LastSeen to be set")
+	}
+}
+
+func TestWfEventsDefaultLimit(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	// Create 3 events
+	for i := 0; i < 3; i++ {
+		event := &corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("event-%d", i),
+				Namespace: "my-ns",
+			},
+			InvolvedObject: corev1.ObjectReference{Kind: "Pod", Name: "worker"},
+			Type:           "Normal",
+			Reason:         "Pulled",
+			Message:        fmt.Sprintf("Event %d", i),
+		}
+		_, _ = client.Clientset.CoreV1().Events("my-ns").Create(ctx, event, metav1.CreateOptions{})
+	}
+
+	// Limit=0 should default to 100 (no truncation for 3 events)
+	result, err := handleWfEvents(ctx, client, WfEventsParams{Namespace: "my-ns", Limit: 0})
+	if err != nil {
+		t.Fatalf("handleWfEvents: %v", err)
+	}
+	if len(result.Events) != 3 {
+		t.Errorf("expected 3 events with default limit, got %d", len(result.Events))
+	}
+}
+
+func TestWfEventsZeroTimestamp(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "no-ts-event",
+			Namespace: "my-ns",
+		},
+		InvolvedObject: corev1.ObjectReference{Kind: "Deployment", Name: "my-dep"},
+		Type:           "Warning",
+		Reason:         "FailedScheduling",
+		Message:        "No nodes available",
+		// LastTimestamp is zero
+	}
+	_, _ = client.Clientset.CoreV1().Events("my-ns").Create(ctx, event, metav1.CreateOptions{})
+
+	result, err := handleWfEvents(ctx, client, WfEventsParams{Namespace: "my-ns"})
+	if err != nil {
+		t.Fatalf("handleWfEvents: %v", err)
+	}
+	if len(result.Events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(result.Events))
+	}
+	// Zero timestamp should produce empty string
+	if result.Events[0].LastSeen != "" {
+		t.Errorf("expected empty LastSeen for zero timestamp, got %q", result.Events[0].LastSeen)
 	}
 }
