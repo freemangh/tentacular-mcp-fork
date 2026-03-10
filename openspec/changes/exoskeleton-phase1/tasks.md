@@ -74,3 +74,19 @@
 - [x] Add `TENTACULAR_NATS_SPIFFE_ENABLED`, `TENTACULAR_NATS_AUTHZ_CONFIGMAP`, `TENTACULAR_NATS_AUTHZ_NAMESPACE` env vars
 - [x] Update config loader and Helm chart values
 - [x] Update `exo_status` to report `spire_available` and `nats_spiffe_enabled`
+
+## Step 15: Google SSO Domain Restriction
+- [x] Configure Keycloak Google IdP `hostedDomain` to restrict authentication to allowed domain
+- [x] Verify only allowed-domain Google accounts can authenticate
+
+## Step 16: SPIRE ClusterRole Fix
+- [x] Add `spire.spiffe.io/clusterspiffeids` permissions to MCP service account ClusterRole
+- [x] Patch live cluster ClusterRole to match chart definition
+- [x] Verify ClusterSPIFFEID creation succeeds with updated permissions
+
+## Step 17: Full Workspace E2E Validation
+- [x] Postgres: CREATE TABLE, INSERT, SELECT in scoped schema
+- [x] RustFS: PUT/GET inside prefix succeeds, PUT outside prefix denied by IAM policy
+- [x] NATS: Publish to scoped subject (token mode)
+- [x] SPIRE: ClusterSPIFFEID created, workload identity registered
+- [x] Deployer annotation verified

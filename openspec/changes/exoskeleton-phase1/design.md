@@ -116,6 +116,14 @@ TENTACULAR_NATS_AUTHZ_NAMESPACE     - ConfigMap namespace (default: tentacular-e
 
 `exo_status` now reports `spire_available` and `nats_spiffe_enabled` fields.
 
+## Google SSO Domain Restriction
+
+Keycloak's Google identity provider uses the `hostedDomain` parameter to restrict authentication to a single Google Workspace domain. This is configured in the Keycloak admin console under Identity Providers > Google > Hosted Domain.
+
+## SPIRE ClusterRole Requirement
+
+The MCP service account's ClusterRole must include permissions for `spire.spiffe.io` API group resources (specifically `clusterspiffeids`). The Helm chart includes this in the default ClusterRole. On existing clusters, the ClusterRole may need manual patching if it was deployed before this permission was added.
+
 ## New Dependencies
 - github.com/jackc/pgx/v5
 - github.com/nats-io/nats.go
