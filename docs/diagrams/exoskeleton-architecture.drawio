@@ -1,165 +1,139 @@
-<mxfile host="Claude" agent="Claude Code" version="1.0">
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
   <diagram id="exo-arch" name="Exoskeleton Architecture">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+    <mxGraphModel dx="1080" dy="890" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-
-        <!-- External Clients -->
-        <mxCell id="ext" value="External" style="swimlane;startSize=28;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" vertex="1" parent="1">
-          <mxGeometry x="20" y="30" width="180" height="280" as="geometry" />
+        <mxCell id="ext" parent="1" style="swimlane;startSize=28;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" value="External" vertex="1">
+          <mxGeometry height="280" width="180" x="20" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="cli" value="tntc CLI" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="ext">
-          <mxGeometry x="30" y="40" width="120" height="40" as="geometry" />
+        <mxCell id="cli" parent="ext" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="tntc CLI" vertex="1">
+          <mxGeometry height="40" width="120" x="30" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="mcpclient" value="MCP clients" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=10;" vertex="1" parent="ext">
-          <mxGeometry x="30" y="95" width="120" height="35" as="geometry" />
+        <mxCell id="mcpclient" parent="ext" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=10;" value="MCP clients" vertex="1">
+          <mxGeometry height="35" width="120" x="30" y="95" as="geometry" />
         </mxCell>
-        <mxCell id="google" value="Google SSO" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;" vertex="1" parent="ext">
-          <mxGeometry x="30" y="225" width="120" height="35" as="geometry" />
+        <mxCell id="google" parent="ext" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;" value="Google SSO" vertex="1">
+          <mxGeometry height="35" width="120" x="30" y="225" as="geometry" />
         </mxCell>
-
-        <!-- tentacular-system namespace -->
-        <mxCell id="sys" value="tentacular-system" style="swimlane;startSize=28;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" vertex="1" parent="1">
-          <mxGeometry x="240" y="30" width="560" height="520" as="geometry" />
+        <mxCell id="sys" parent="1" style="swimlane;startSize=28;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" value="tentacular-system" vertex="1">
+          <mxGeometry height="520" width="560" x="240" y="30" as="geometry" />
         </mxCell>
-
-        <!-- MCP Server -->
-        <mxCell id="mcp" value="MCP Server (:8080/mcp)" style="swimlane;startSize=26;fillColor=#e6ffe6;strokeColor=#82b366;fontFamily=Helvetica;fontStyle=1;fontSize=11;rounded=1;" vertex="1" parent="sys">
-          <mxGeometry x="20" y="40" width="520" height="310" as="geometry" />
+        <mxCell id="mcp" parent="sys" style="swimlane;startSize=26;fillColor=#e6ffe6;strokeColor=#82b366;fontFamily=Helvetica;fontStyle=1;fontSize=11;rounded=1;" value="MCP Server (:8080/mcp)" vertex="1">
+          <mxGeometry height="310" width="520" x="20" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="auth" value="Dual Auth&#xa;Bearer + OIDC" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="mcp">
-          <mxGeometry x="15" y="35" width="100" height="45" as="geometry" />
+        <mxCell id="auth" parent="mcp" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" value="Dual Auth&#xa;Bearer + OIDC" vertex="1">
+          <mxGeometry height="45" width="100" x="15" y="35" as="geometry" />
         </mxCell>
-        <mxCell id="tools" value="35 MCP Tools" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;fontStyle=1;" vertex="1" parent="mcp">
-          <mxGeometry x="130" y="35" width="100" height="45" as="geometry" />
+        <mxCell id="tools" parent="mcp" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;fontStyle=1;" value="35 MCP Tools" vertex="1">
+          <mxGeometry height="45" width="100" x="130" y="35" as="geometry" />
         </mxCell>
-
-        <!-- Exoskeleton Controller -->
-        <mxCell id="exoctrl" value="Exoskeleton Controller" style="swimlane;startSize=22;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontStyle=1;fontSize=10;rounded=1;" vertex="1" parent="mcp">
-          <mxGeometry x="15" y="95" width="490" height="120" as="geometry" />
+        <mxCell id="exoctrl" parent="mcp" style="swimlane;startSize=22;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontStyle=1;fontSize=10;rounded=1;" value="Exoskeleton Controller" vertex="1">
+          <mxGeometry height="120" width="490" x="15" y="95" as="geometry" />
         </mxCell>
-        <mxCell id="identity" value="Identity&#xa;Compiler" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="exoctrl">
-          <mxGeometry x="10" y="30" width="80" height="40" as="geometry" />
+        <mxCell id="identity" parent="exoctrl" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" value="Identity&#xa;Compiler" vertex="1">
+          <mxGeometry height="40" width="80" x="10" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="reg_pg" value="Postgres&#xa;Registrar" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="exoctrl">
-          <mxGeometry x="100" y="30" width="80" height="40" as="geometry" />
+        <mxCell id="reg_pg" parent="exoctrl" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" value="Postgres&#xa;Registrar" vertex="1">
+          <mxGeometry height="40" width="80" x="100" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="reg_nats" value="NATS&#xa;Registrar" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="exoctrl">
-          <mxGeometry x="190" y="30" width="80" height="40" as="geometry" />
+        <mxCell id="reg_nats" parent="exoctrl" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" value="NATS&#xa;Registrar" vertex="1">
+          <mxGeometry height="40" width="80" x="190" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="reg_rustfs" value="RustFS&#xa;Registrar" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="exoctrl">
-          <mxGeometry x="280" y="30" width="80" height="40" as="geometry" />
+        <mxCell id="reg_rustfs" parent="exoctrl" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" value="RustFS&#xa;Registrar" vertex="1">
+          <mxGeometry height="40" width="80" x="280" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="reg_spire" value="SPIRE&#xa;Registrar" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="exoctrl">
-          <mxGeometry x="370" y="30" width="80" height="40" as="geometry" />
+        <mxCell id="reg_spire" parent="exoctrl" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;" value="SPIRE&#xa;Registrar" vertex="1">
+          <mxGeometry height="40" width="80" x="370" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="enrichlbl" value="Contract enrichment + credential injection" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" vertex="1" parent="exoctrl">
-          <mxGeometry x="10" y="80" width="460" height="20" as="geometry" />
+        <mxCell id="enrichlbl" parent="exoctrl" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" value="Contract enrichment + credential injection" vertex="1">
+          <mxGeometry height="20" width="460" x="10" y="80" as="geometry" />
         </mxCell>
-
-        <!-- Deployer provenance -->
-        <mxCell id="prov" value="Deployer Provenance&#xa;(annotations)" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="mcp">
-          <mxGeometry x="250" y="35" width="120" height="45" as="geometry" />
+        <mxCell id="prov" parent="mcp" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" value="Deployer Provenance&#xa;(annotations)" vertex="1">
+          <mxGeometry height="45" width="120" x="250" y="35" as="geometry" />
         </mxCell>
-        <mxCell id="injector" value="Credential&#xa;Injector" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="mcp">
-          <mxGeometry x="390" y="35" width="100" height="45" as="geometry" />
+        <mxCell id="injector" parent="mcp" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" value="Credential&#xa;Injector" vertex="1">
+          <mxGeometry height="45" width="100" x="390" y="35" as="geometry" />
         </mxCell>
-        <mxCell id="cron" value="Cron Scheduler" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="mcp">
-          <mxGeometry x="15" y="230" width="130" height="35" as="geometry" />
+        <mxCell id="cron" parent="mcp" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" value="Cron Scheduler" vertex="1">
+          <mxGeometry height="35" width="130" x="15" y="230" as="geometry" />
         </mxCell>
-        <mxCell id="proxy" value="Proxy Reconciler" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="mcp">
-          <mxGeometry x="160" y="230" width="130" height="35" as="geometry" />
+        <mxCell id="proxy" parent="mcp" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" value="Proxy Reconciler" vertex="1">
+          <mxGeometry height="35" width="130" x="160" y="230" as="geometry" />
         </mxCell>
-
-        <!-- SPIRE -->
-        <mxCell id="spire_server" value="SPIRE Server" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="sys">
-          <mxGeometry x="20" y="370" width="160" height="45" as="geometry" />
+        <mxCell id="spire_server" parent="sys" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="SPIRE Server" vertex="1">
+          <mxGeometry height="45" width="160" x="20" y="370" as="geometry" />
         </mxCell>
-        <mxCell id="spire_agent" value="SPIRE Agent (DaemonSet)" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;" vertex="1" parent="sys">
-          <mxGeometry x="20" y="430" width="210" height="40" as="geometry" />
+        <mxCell id="spire_agent" parent="sys" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;" value="SPIRE Agent (DaemonSet)" vertex="1">
+          <mxGeometry height="40" width="210" x="20" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="spirelbl" value="Trust domain: tentacular" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;" vertex="1" parent="sys">
-          <mxGeometry x="200" y="380" width="150" height="15" as="geometry" />
+        <mxCell id="spirelbl" parent="sys" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;" value="Trust domain: tentacular" vertex="1">
+          <mxGeometry height="15" width="150" x="200" y="380" as="geometry" />
         </mxCell>
-
-        <!-- tentacular-exoskeleton namespace -->
-        <mxCell id="exons" value="tentacular-exoskeleton" style="swimlane;startSize=28;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" vertex="1" parent="1">
-          <mxGeometry x="840" y="30" width="220" height="350" as="geometry" />
+        <mxCell id="exons" parent="1" style="swimlane;startSize=28;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" value="tentacular-exoskeleton" vertex="1">
+          <mxGeometry height="350" width="220" x="840" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="postgres" value="Postgres" style="shape=cylinder3;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;size=10;" vertex="1" parent="exons">
-          <mxGeometry x="50" y="40" width="120" height="50" as="geometry" />
+        <mxCell id="postgres" parent="exons" style="shape=cylinder3;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;size=10;" value="Postgres" vertex="1">
+          <mxGeometry height="50" width="120" x="50" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="pglbl" value="role + schema per tentacle" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" vertex="1" parent="exons">
-          <mxGeometry x="20" y="90" width="180" height="15" as="geometry" />
+        <mxCell id="pglbl" parent="exons" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" value="role + schema per tentacle" vertex="1">
+          <mxGeometry height="15" width="180" x="20" y="90" as="geometry" />
         </mxCell>
-        <mxCell id="nats" value="NATS" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="exons">
-          <mxGeometry x="50" y="115" width="120" height="40" as="geometry" />
+        <mxCell id="nats" parent="exons" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="NATS" vertex="1">
+          <mxGeometry height="40" width="120" x="50" y="115" as="geometry" />
         </mxCell>
-        <mxCell id="natslbl" value="shared token (Phase 1)" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" vertex="1" parent="exons">
-          <mxGeometry x="20" y="155" width="180" height="15" as="geometry" />
+        <mxCell id="natslbl" parent="exons" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" value="shared token (Phase 1)" vertex="1">
+          <mxGeometry height="15" width="180" x="20" y="155" as="geometry" />
         </mxCell>
-        <mxCell id="rustfs" value="RustFS" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="exons">
-          <mxGeometry x="50" y="180" width="120" height="40" as="geometry" />
+        <mxCell id="rustfs" parent="exons" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="RustFS" vertex="1">
+          <mxGeometry height="40" width="120" x="50" y="180" as="geometry" />
         </mxCell>
-        <mxCell id="rfslbl" value="IAM user + prefix policy" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" vertex="1" parent="exons">
-          <mxGeometry x="20" y="220" width="180" height="15" as="geometry" />
+        <mxCell id="rfslbl" parent="exons" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" value="IAM user + prefix policy" vertex="1">
+          <mxGeometry height="15" width="180" x="20" y="220" as="geometry" />
         </mxCell>
-        <mxCell id="keycloak" value="Keycloak" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="exons">
-          <mxGeometry x="50" y="250" width="120" height="40" as="geometry" />
+        <mxCell id="keycloak" parent="exons" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="Keycloak" vertex="1">
+          <mxGeometry height="40" width="120" x="50" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="kclbl" value="OIDC IdP (Google SSO)" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" vertex="1" parent="exons">
-          <mxGeometry x="20" y="290" width="180" height="15" as="geometry" />
+        <mxCell id="kclbl" parent="exons" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" value="OIDC IdP (Google SSO)" vertex="1">
+          <mxGeometry height="15" width="180" x="20" y="290" as="geometry" />
         </mxCell>
-
-        <!-- K8s API -->
-        <mxCell id="k8sapi" value="K8s API Server" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="50" width="150" height="45" as="geometry" />
+        <mxCell id="k8sapi" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="K8s API Server" vertex="1">
+          <mxGeometry height="45" width="150" x="1100" y="50" as="geometry" />
         </mxCell>
-
-        <!-- Workflow namespace -->
-        <mxCell id="wfns" value="tent-* (workflow namespaces)" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" vertex="1" parent="1">
-          <mxGeometry x="240" y="590" width="820" height="200" as="geometry" />
+        <mxCell id="wfns" parent="1" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontStyle=1;fontSize=12;fontColor=#333333;rounded=1;" value="tent-* (workflow namespaces)" vertex="1">
+          <mxGeometry height="200" width="820" x="240" y="590" as="geometry" />
         </mxCell>
-        <mxCell id="engine" value="Engine Pod (Deno)" style="swimlane;startSize=22;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontStyle=1;fontSize=10;rounded=1;" vertex="1" parent="wfns">
-          <mxGeometry x="30" y="40" width="340" height="140" as="geometry" />
+        <mxCell id="engine" parent="wfns" style="swimlane;startSize=22;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontStyle=1;fontSize=10;rounded=1;" value="Engine Pod (Deno)" vertex="1">
+          <mxGeometry height="140" width="340" x="30" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="wfyaml" value="workflow.yaml&#xa;(enriched contract)" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="engine">
-          <mxGeometry x="10" y="30" width="130" height="40" as="geometry" />
+        <mxCell id="wfyaml" parent="engine" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=9;" value="workflow.yaml&#xa;(enriched contract)" vertex="1">
+          <mxGeometry height="40" width="130" x="10" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="secrets" value="/app/secrets&#xa;mount" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="engine">
-          <mxGeometry x="10" y="80" width="100" height="40" as="geometry" />
+        <mxCell id="secrets" parent="engine" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=9;" value="/app/secrets&#xa;mount" vertex="1">
+          <mxGeometry height="40" width="100" x="10" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="svid" value="SPIRE SVID&#xa;(X.509)" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="engine">
-          <mxGeometry x="150" y="30" width="100" height="40" as="geometry" />
+        <mxCell id="svid" parent="engine" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=9;" value="SPIRE SVID&#xa;(X.509)" vertex="1">
+          <mxGeometry height="40" width="100" x="150" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="ctxdep" value="ctx.dependency()&#xa;resolves all services" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=9;" vertex="1" parent="engine">
-          <mxGeometry x="150" y="80" width="140" height="40" as="geometry" />
+        <mxCell id="ctxdep" parent="engine" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=9;" value="ctx.dependency()&#xa;resolves all services" vertex="1">
+          <mxGeometry height="40" width="140" x="150" y="80" as="geometry" />
         </mxCell>
-
-        <mxCell id="exosecret" value="Exoskeleton Secret" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=11;fontStyle=1;" vertex="1" parent="wfns">
-          <mxGeometry x="430" y="55" width="170" height="45" as="geometry" />
+        <mxCell id="exosecret" parent="wfns" style="rounded=1;whiteSpace=wrap;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=11;fontStyle=1;" value="Exoskeleton Secret" vertex="1">
+          <mxGeometry height="45" width="170" x="430" y="55" as="geometry" />
         </mxCell>
-        <mxCell id="seclbl" value="&lt;dep&gt;.&lt;field&gt; flat keys&#xa;(password, host, port, etc.)" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" vertex="1" parent="wfns">
-          <mxGeometry x="420" y="100" width="190" height="25" as="geometry" />
+        <mxCell id="seclbl" parent="wfns" style="text;fontFamily=Helvetica;fontSize=8;fontColor=#666666;align=center;" value="&lt;dep&gt;.&lt;field&gt; flat keys&#xa;(password, host, port, etc.)" vertex="1">
+          <mxGeometry height="25" width="190" x="420" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="cspiffeid" value="ClusterSPIFFEID" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;" vertex="1" parent="wfns">
-          <mxGeometry x="430" y="140" width="170" height="35" as="geometry" />
+        <mxCell id="cspiffeid" parent="wfns" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;" value="ClusterSPIFFEID" vertex="1">
+          <mxGeometry height="35" width="170" x="430" y="140" as="geometry" />
         </mxCell>
-
-        <!-- EDGES -->
-        <!-- CLI to MCP -->
-        <mxCell id="e1" value="OIDC / Bearer&#xa;JSON-RPC 2.0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;fontFamily=Helvetica;fontSize=9;fontColor=#333333;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="cli" target="mcp">
+        <mxCell id="e1" edge="1" parent="1" source="cli" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;fontFamily=Helvetica;fontSize=9;fontColor=#333333;labelBackgroundColor=#ffffff;" target="mcp" value="OIDC / Bearer&#xa;JSON-RPC 2.0">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- CLI to Google SSO -->
-        <mxCell id="e2" value="device auth" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=8;fontColor=#999999;dashed=1;" edge="1" parent="1" source="cli" target="google">
+        <mxCell id="e2" edge="1" parent="1" source="cli" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=8;fontColor=#999999;dashed=1;" target="google" value="device auth">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- Google to Keycloak -->
-        <mxCell id="e3" value="IdP broker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=8;fontColor=#999999;dashed=1;" edge="1" parent="1" source="google" target="keycloak">
+        <mxCell id="e3" edge="1" parent="1" source="google" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=8;fontColor=#999999;dashed=1;" target="keycloak" value="IdP broker">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="90" y="420" />
@@ -168,9 +142,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- MCP to K8s API -->
-        <mxCell id="e4" value="K8s API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;fontFamily=Helvetica;fontSize=9;fontColor=#333333;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="mcp" target="k8sapi">
+        <mxCell id="e4" edge="1" parent="1" source="mcp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;fontFamily=Helvetica;fontSize=9;fontColor=#333333;labelBackgroundColor=#ffffff;" target="k8sapi" value="K8s API">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="810" y="120" />
@@ -178,9 +150,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- Registrar to Postgres -->
-        <mxCell id="e5" value="pgx (DDL)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=8;fontColor=#9673a6;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="reg_pg" target="postgres">
+        <mxCell id="e5" edge="1" parent="1" source="reg_pg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=8;fontColor=#9673a6;labelBackgroundColor=#ffffff;" target="postgres" value="pgx (DDL)">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="810" y="200" />
@@ -188,9 +158,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- Registrar to NATS -->
-        <mxCell id="e6" value="token check" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=8;fontColor=#9673a6;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="reg_nats" target="nats">
+        <mxCell id="e6" edge="1" parent="1" source="reg_nats" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=8;fontColor=#9673a6;labelBackgroundColor=#ffffff;" target="nats" value="token check">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="820" y="210" />
@@ -198,9 +166,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- Registrar to RustFS -->
-        <mxCell id="e7" value="/rustfs/admin/v3/" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=8;fontColor=#9673a6;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="reg_rustfs" target="rustfs">
+        <mxCell id="e7" edge="1" parent="1" source="reg_rustfs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=8;fontColor=#9673a6;labelBackgroundColor=#ffffff;" target="rustfs" value="/rustfs/admin/v3/">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="830" y="220" />
@@ -208,9 +174,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- SPIRE Registrar to ClusterSPIFFEID -->
-        <mxCell id="e8" value="ClusterSPIFFEID&#xa;CRD" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;fontFamily=Helvetica;fontSize=8;fontColor=#b85450;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="reg_spire" target="cspiffeid">
+        <mxCell id="e8" edge="1" parent="1" source="reg_spire" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;fontFamily=Helvetica;fontSize=8;fontColor=#b85450;labelBackgroundColor=#ffffff;" target="cspiffeid" value="ClusterSPIFFEID&#xa;CRD">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="720" y="230" />
@@ -220,9 +184,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- MCP to Exoskeleton Secret -->
-        <mxCell id="e9" value="creates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;fontColor=#9673a6;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="injector" target="exosecret">
+        <mxCell id="e9" edge="1" parent="1" source="injector" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=9;fontColor=#9673a6;labelBackgroundColor=#ffffff;" target="exosecret" value="creates">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="700" y="105" />
@@ -232,29 +194,27 @@
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- Secret to Engine -->
-        <mxCell id="e10" value="volume mount" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=8;fontColor=#6c8ebf;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="exosecret" target="secrets">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- SPIRE Agent to Engine SVID -->
-        <mxCell id="e11" value="Workload API&#xa;(SVID)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;fontFamily=Helvetica;fontSize=8;fontColor=#b85450;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="spire_agent" target="svid">
+        <mxCell id="e10" edge="1" parent="1" source="exosecret" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=8;fontColor=#6c8ebf;labelBackgroundColor=#ffffff;" target="secrets" value="volume mount">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="365" y="500" />
-              <mxPoint x="365" y="570" />
-              <mxPoint x="540" y="570" />
-              <mxPoint x="540" y="660" />
+              <mxPoint x="650" y="668" />
+              <mxPoint x="650" y="760" />
+              <mxPoint x="330" y="760" />
             </Array>
           </mxGeometry>
         </mxCell>
-
-        <!-- SPIRE Server to Agent -->
-        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;dashed=1;" edge="1" parent="1" source="spire_server" target="spire_agent">
+        <mxCell id="e11" edge="1" parent="1" source="spire_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;fontFamily=Helvetica;fontSize=8;fontColor=#b85450;labelBackgroundColor=#ffffff;" target="svid" value="Workload API&#xa;(SVID)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="365" y="570" />
+              <mxPoint x="540" y="570" />
+              <mxPoint x="540" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="spire_server" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;dashed=1;" target="spire_agent" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
       </root>
     </mxGraphModel>
   </diagram>
