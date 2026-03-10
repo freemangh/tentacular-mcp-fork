@@ -346,6 +346,11 @@ func (c *Controller) CleanupOnUndeploy() bool {
 	return c.cfg.CleanupOnUndeploy
 }
 
+// NATSSpiffeEnabled returns true if NATS is configured to use SPIFFE mTLS.
+func (c *Controller) NATSSpiffeEnabled() bool {
+	return c.cfg.NATS.SPIFFEEnabled
+}
+
 // AuthEnabled returns true if OIDC authentication is enabled.
 func (c *Controller) AuthEnabled() bool {
 	return c.cfg.AuthEnabled()
