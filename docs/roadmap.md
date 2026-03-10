@@ -28,7 +28,7 @@ Items planned but not yet scheduled.
 
 | Item | Description | Dependencies |
 |------|-------------|--------------|
-| Cluster security posture validation | MCP server tool that validates all exoskeleton security controls are correctly configured: NetworkPolicies between namespaces, RBAC scoping, PSA labels, SPIRE registration entries match deployed tentacles, TLS certificates valid and not expiring, ingress/egress rules in place, ServiceAccount token mount disabled on data-plane pods. Runs on-demand via MCP tool and optionally on a schedule with alerts for drift. | Exoskeleton Phase 1, SPIRE |
+| Cluster security posture validation | Internal MCP server background process (not exposed as a tool) that periodically validates all exoskeleton security controls: NetworkPolicies between namespaces, RBAC scoping, PSA labels, SPIRE registration entries match deployed tentacles, TLS certificates valid and not expiring, ingress/egress rules in place, ServiceAccount token mount disabled on data-plane pods. Runs on a configurable schedule. Notifies administrators via a TBD mechanism (webhook, Slack, cluster events, or logging/alerting integration) when violations or drift are detected. | Exoskeleton Phase 1, SPIRE |
 | Istio ambient mode compatibility | SPIFFE IDs become the service mesh identity layer. Zero-config mTLS for all tentacle-to-service traffic. | SPIRE, NATS SPIFFE mode |
 | Per-service enable/disable flags | Explicit `TENTACULAR_EXOSKELETON_<SERVICE>_ENABLED` flags for cases where admin credentials are configured but the service should not be offered to tentacles. | None |
 | NATS config auto-reload | Automatically reload NATS server configuration when registration changes occur (authorization ConfigMap updates). | NATS SPIFFE mode |
