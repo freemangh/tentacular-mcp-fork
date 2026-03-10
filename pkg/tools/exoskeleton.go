@@ -22,6 +22,7 @@ type ExoStatusResult struct {
 	PostgresAvailable bool   `json:"postgres_available"`
 	NATSAvailable     bool   `json:"nats_available"`
 	RustFSAvailable   bool   `json:"rustfs_available"`
+	SPIREAvailable    bool   `json:"spire_available"`
 	AuthEnabled       bool   `json:"auth_enabled"`
 	AuthIssuer        string `json:"auth_issuer,omitempty"`
 }
@@ -54,6 +55,7 @@ func registerExoskeletonTools(srv *mcp.Server, client *k8s.Client, ctrl *exoskel
 			PostgresAvailable: ctrl.PostgresAvailable(),
 			NATSAvailable:     ctrl.NATSAvailable(),
 			RustFSAvailable:   ctrl.RustFSAvailable(),
+			SPIREAvailable:    ctrl.SPIREAvailable(),
 			AuthEnabled:       ctrl.AuthEnabled(),
 			AuthIssuer:        ctrl.AuthIssuer(),
 		}, nil

@@ -7,7 +7,11 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/randybias/tentacular-mcp/pkg/k8s"
 )
 
 // Controller orchestrates exoskeleton registration and cleanup across
@@ -17,11 +21,14 @@ type Controller struct {
 	pg     *PostgresRegistrar
 	nats   *NATSRegistrar
 	rustfs *RustFSRegistrar
+	spire  *SPIRERegistrar
 }
 
 // NewController initializes registrars for all enabled services. If the
-// exoskeleton is disabled, returns a no-op controller.
-func NewController(cfg *Config) (*Controller, error) {
+// exoskeleton is disabled, returns a no-op controller. The k8sClient
+// parameter may be nil when running without a Kubernetes cluster (e.g.,
+// in tests); SPIRE registration will be skipped in that case.
+func NewController(cfg *Config, k8sClient *k8s.Client) (*Controller, error) {
 	c := &Controller{cfg: cfg}
 
 	if !cfg.Enabled {
@@ -58,12 +65,39 @@ func NewController(cfg *Config) (*Controller, error) {
 		slog.Info("exoskeleton: rustfs registrar initialized")
 	}
 
+	if cfg.SPIREEnabled() && k8sClient != nil && k8sClient.Dynamic != nil {
+		if hasCRD := checkClusterSPIFFEIDCRD(ctx, k8sClient); hasCRD {
+			c.spire = NewSPIRERegistrar(k8sClient.Dynamic, cfg.SPIRE.ClassName)
+			slog.Info("exoskeleton: spire registrar initialized", "className", cfg.SPIRE.ClassName)
+		} else {
+			slog.Warn("exoskeleton: SPIRE enabled but ClusterSPIFFEID CRD not found on cluster, skipping")
+		}
+	}
+
 	slog.Info("exoskeleton: controller ready",
 		"postgres", cfg.PostgresEnabled(),
 		"nats", cfg.NATSEnabled(),
-		"rustfs", cfg.RustFSEnabled())
+		"rustfs", cfg.RustFSEnabled(),
+		"spire", c.spire != nil)
 
 	return c, nil
+}
+
+// checkClusterSPIFFEIDCRD checks if the ClusterSPIFFEID CRD is
+// installed on the cluster by attempting to list the resource.
+func checkClusterSPIFFEIDCRD(ctx context.Context, client *k8s.Client) bool {
+	_, err := client.Clientset.Discovery().ServerResourcesForGroupVersion("spire.spiffe.io/v1alpha1")
+	if err != nil {
+		// Also try a direct CRD lookup.
+		crdGVR := schema.GroupVersionResource{
+			Group:    "apiextensions.k8s.io",
+			Version:  "v1",
+			Resource: "customresourcedefinitions",
+		}
+		_, err = client.Dynamic.Resource(crdGVR).Get(ctx, "clusterspiffeids.spire.spiffe.io", metav1.GetOptions{})
+		return err == nil
+	}
+	return true
 }
 
 // ProcessManifests inspects the workflow manifests for tentacular-*
@@ -153,6 +187,15 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 		patchDeploymentAllowNet(manifests, creds)
 	}
 
+	// SPIRE identity registration: creates a ClusterSPIFFEID so matching
+	// pods receive an X.509 SVID automatically. This does not produce
+	// credentials -- the SPIRE agent handles SVID provisioning.
+	if c.spire != nil {
+		if err := c.spire.Register(ctx, id, namespace); err != nil {
+			slog.Warn("exoskeleton: SPIRE registration failed (non-fatal)", "error", err)
+		}
+	}
+
 	return manifests, nil
 }
 
@@ -162,6 +205,7 @@ type CleanupReport struct {
 	Postgres  string // e.g. "schema dropped"
 	NATS      string // e.g. "no-op"
 	RustFS    string // e.g. "user removed"
+	SPIRE     string // e.g. "identity removed"
 }
 
 // Summary returns a human-readable description of cleanup actions.
@@ -175,6 +219,9 @@ func (r *CleanupReport) Summary() string {
 	}
 	if r.RustFS != "" {
 		parts = append(parts, "rustfs "+r.RustFS)
+	}
+	if r.SPIRE != "" {
+		parts = append(parts, "spire "+r.SPIRE)
 	}
 	if len(parts) == 0 {
 		return "no services cleaned up"
@@ -227,6 +274,13 @@ func (c *Controller) CleanupWithReport(ctx context.Context, namespace, name stri
 			report.RustFS = "user removed"
 		}
 	}
+	if c.spire != nil {
+		if err := c.spire.Unregister(ctx, id, namespace); err != nil {
+			errs = append(errs, fmt.Sprintf("spire: %v", err))
+		} else {
+			report.SPIRE = "identity removed"
+		}
+	}
 
 	if len(errs) > 0 {
 		return report, fmt.Errorf("exoskeleton cleanup errors: %s", strings.Join(errs, "; "))
@@ -246,6 +300,9 @@ func (c *Controller) Close() error {
 	}
 	if c.rustfs != nil {
 		c.rustfs.Close()
+	}
+	if c.spire != nil {
+		c.spire.Close()
 	}
 	return nil
 }
@@ -268,6 +325,11 @@ func (c *Controller) NATSAvailable() bool {
 // RustFSAvailable returns true if the RustFS registrar is initialized.
 func (c *Controller) RustFSAvailable() bool {
 	return c.rustfs != nil
+}
+
+// SPIREAvailable returns true if the SPIRE registrar is initialized.
+func (c *Controller) SPIREAvailable() bool {
+	return c.spire != nil
 }
 
 // CleanupOnUndeploy returns the cleanup setting.

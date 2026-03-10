@@ -13,6 +13,13 @@ type Config struct {
 	NATS              NATSConfig
 	RustFS            RustFSConfig
 	Auth              AuthConfig
+	SPIRE             SPIREConfig
+}
+
+// SPIREConfig holds SPIRE identity registration configuration.
+type SPIREConfig struct {
+	Enabled   bool
+	ClassName string // default: "tentacular-system-spire"
 }
 
 // PostgresConfig holds admin connection details for the Postgres registrar.
@@ -70,6 +77,10 @@ func LoadFromEnv() *Config {
 			ClientID:     os.Getenv("TENTACULAR_KEYCLOAK_CLIENT_ID"),
 			ClientSecret: os.Getenv("TENTACULAR_KEYCLOAK_CLIENT_SECRET"),
 		},
+		SPIRE: SPIREConfig{
+			Enabled:   envBool("TENTACULAR_EXOSKELETON_SPIRE_ENABLED"),
+			ClassName: envDefault("TENTACULAR_SPIRE_CLASS_NAME", "tentacular-system-spire"),
+		},
 	}
 }
 
@@ -95,6 +106,12 @@ func (c *Config) RustFSEnabled() bool {
 // required OIDC configuration is present.
 func (c *Config) AuthEnabled() bool {
 	return c.Auth.Enabled && c.Auth.IssuerURL != "" && c.Auth.ClientID != ""
+}
+
+// SPIREEnabled returns true when exoskeleton is enabled and SPIRE
+// identity registration is enabled.
+func (c *Config) SPIREEnabled() bool {
+	return c.Enabled && c.SPIRE.Enabled
 }
 
 // envBool returns true if the named environment variable is set to a

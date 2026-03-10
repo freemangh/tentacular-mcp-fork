@@ -55,7 +55,7 @@ func main() {
 
 	// Initialize exoskeleton controller from environment configuration.
 	exoCfg := exoskeleton.LoadFromEnv()
-	exoCtrl, err := exoskeleton.NewController(exoCfg)
+	exoCtrl, err := exoskeleton.NewController(exoCfg, client)
 	if err != nil {
 		slog.Error("failed to initialize exoskeleton controller", "error", err)
 		os.Exit(1)

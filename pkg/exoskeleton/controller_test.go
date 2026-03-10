@@ -85,7 +85,7 @@ contract:
 
 func TestControllerDisabled(t *testing.T) {
 	cfg := &Config{Enabled: false}
-	ctrl, err := NewController(cfg)
+	ctrl, err := NewController(cfg, nil)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}

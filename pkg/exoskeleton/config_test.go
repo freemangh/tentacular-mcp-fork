@@ -26,6 +26,8 @@ func TestLoadFromEnv(t *testing.T) {
 		"TENTACULAR_KEYCLOAK_ISSUER",
 		"TENTACULAR_KEYCLOAK_CLIENT_ID",
 		"TENTACULAR_KEYCLOAK_CLIENT_SECRET",
+		"TENTACULAR_EXOSKELETON_SPIRE_ENABLED",
+		"TENTACULAR_SPIRE_CLASS_NAME",
 	}
 	saved := make(map[string]string)
 	for _, k := range envVars {
@@ -179,6 +181,44 @@ func TestLoadFromEnv(t *testing.T) {
 
 		os.Unsetenv("TENTACULAR_EXOSKELETON_AUTH_ENABLED")
 		os.Unsetenv("TENTACULAR_KEYCLOAK_CLIENT_ID")
+	})
+
+	t.Run("spire disabled by default", func(t *testing.T) {
+		cfg := LoadFromEnv()
+		if cfg.SPIREEnabled() {
+			t.Error("expected SPIREEnabled()=false when env not set")
+		}
+	})
+
+	t.Run("spire enabled", func(t *testing.T) {
+		os.Setenv("TENTACULAR_EXOSKELETON_ENABLED", "true")
+		os.Setenv("TENTACULAR_EXOSKELETON_SPIRE_ENABLED", "true")
+
+		cfg := LoadFromEnv()
+		if !cfg.SPIREEnabled() {
+			t.Error("expected SPIREEnabled()=true")
+		}
+		if cfg.SPIRE.ClassName != "tentacular-system-spire" {
+			t.Errorf("expected default class name, got %q", cfg.SPIRE.ClassName)
+		}
+
+		os.Unsetenv("TENTACULAR_EXOSKELETON_ENABLED")
+		os.Unsetenv("TENTACULAR_EXOSKELETON_SPIRE_ENABLED")
+	})
+
+	t.Run("spire custom class name", func(t *testing.T) {
+		os.Setenv("TENTACULAR_EXOSKELETON_ENABLED", "true")
+		os.Setenv("TENTACULAR_EXOSKELETON_SPIRE_ENABLED", "true")
+		os.Setenv("TENTACULAR_SPIRE_CLASS_NAME", "custom-spire")
+
+		cfg := LoadFromEnv()
+		if cfg.SPIRE.ClassName != "custom-spire" {
+			t.Errorf("expected custom class name, got %q", cfg.SPIRE.ClassName)
+		}
+
+		os.Unsetenv("TENTACULAR_EXOSKELETON_ENABLED")
+		os.Unsetenv("TENTACULAR_EXOSKELETON_SPIRE_ENABLED")
+		os.Unsetenv("TENTACULAR_SPIRE_CLASS_NAME")
 	})
 
 	t.Run("not enabled without top flag", func(t *testing.T) {
