@@ -5,7 +5,10 @@ import (
 )
 
 func TestPostgresCreds(t *testing.T) {
-	id := CompileIdentity("tent-dev", "hn-digest")
+	id, err := CompileIdentity("tent-dev", "hn-digest")
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 
 	// Verify the expected role and schema names.
 	if id.PgRole != "tn_tent_dev_hn_digest" {

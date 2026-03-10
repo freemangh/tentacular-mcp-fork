@@ -86,9 +86,18 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 
 	slog.Info("exoskeleton: detected dependencies", "namespace", namespace, "workflow", name, "deps", deps)
 
-	id := CompileIdentity(namespace, name)
+	id, err := CompileIdentity(namespace, name)
+	if err != nil {
+		return nil, fmt.Errorf("exoskeleton identity: %w", err)
+	}
 	creds := make(map[string]interface{})
 
+	// NOTE: Registrars are called sequentially. If an earlier registrar
+	// succeeds but a later one fails (e.g., Postgres succeeds, NATS fails),
+	// the successfully registered credentials become orphaned. This is
+	// acceptable for Phase 1: the next deploy will re-register idempotently,
+	// and Cleanup() handles tear-down of all services. A future phase may
+	// add compensating rollback logic.
 	for _, dep := range deps {
 		switch dep {
 		case "tentacular-postgres":
@@ -127,7 +136,10 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 	}
 
 	if len(creds) > 0 {
-		secret := BuildSecretManifest(namespace, name, creds)
+		secret, err := BuildSecretManifest(namespace, name, creds)
+		if err != nil {
+			return nil, fmt.Errorf("build secret manifest: %w", err)
+		}
 		manifests = append(manifests, secret)
 		slog.Info("exoskeleton: injected credential secret", "namespace", namespace, "workflow", name)
 	}
@@ -142,7 +154,10 @@ func (c *Controller) Cleanup(ctx context.Context, namespace, name string) error 
 		return nil
 	}
 
-	id := CompileIdentity(namespace, name)
+	id, err := CompileIdentity(namespace, name)
+	if err != nil {
+		return fmt.Errorf("exoskeleton identity: %w", err)
+	}
 	var errs []string
 
 	if c.pg != nil {

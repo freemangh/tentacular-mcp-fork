@@ -2,6 +2,7 @@ package exoskeleton
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // BuildSecretManifest constructs a Kubernetes Secret manifest containing
@@ -10,7 +11,7 @@ import (
 //
 // The returned manifest is an unstructured map suitable for inclusion in
 // the wf_apply manifest list.
-func BuildSecretManifest(namespace, workflow string, creds map[string]interface{}) map[string]interface{} {
+func BuildSecretManifest(namespace, workflow string, creds map[string]interface{}) (map[string]interface{}, error) {
 	secretName := "tentacular-exoskeleton-" + workflow
 
 	stringData := make(map[string]interface{})
@@ -48,7 +49,10 @@ func BuildSecretManifest(namespace, workflow string, creds map[string]interface{
 	}
 
 	// Always include identity fields.
-	id := CompileIdentity(namespace, workflow)
+	id, err := CompileIdentity(namespace, workflow)
+	if err != nil {
+		return nil, fmt.Errorf("compile identity for secret: %w", err)
+	}
 	stringData["tentacular-identity.principal"] = id.Principal
 	stringData["tentacular-identity.namespace"] = namespace
 	stringData["tentacular-identity.workflow"] = workflow
@@ -66,5 +70,5 @@ func BuildSecretManifest(namespace, workflow string, creds map[string]interface{
 		},
 		"type":       "Opaque",
 		"stringData": stringData,
-	}
+	}, nil
 }

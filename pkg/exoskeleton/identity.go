@@ -2,7 +2,9 @@ package exoskeleton
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -25,9 +27,22 @@ type Identity struct {
 // maxPgIdentLen is the maximum length of a Postgres identifier.
 const maxPgIdentLen = 63
 
+// ErrEmptyNamespace is returned when namespace is empty.
+var ErrEmptyNamespace = errors.New("namespace must not be empty")
+
+// ErrEmptyWorkflow is returned when workflow is empty.
+var ErrEmptyWorkflow = errors.New("workflow must not be empty")
+
 // CompileIdentity deterministically computes all service-specific
-// identifiers from a namespace and workflow name.
-func CompileIdentity(namespace, workflow string) Identity {
+// identifiers from a namespace and workflow name. Returns an error if
+// namespace or workflow is empty.
+func CompileIdentity(namespace, workflow string) (Identity, error) {
+	if namespace == "" {
+		return Identity{}, ErrEmptyNamespace
+	}
+	if workflow == "" {
+		return Identity{}, ErrEmptyWorkflow
+	}
 	pgBase := sanitizePg(namespace, workflow)
 	return Identity{
 		Namespace:  namespace,
@@ -40,12 +55,19 @@ func CompileIdentity(namespace, workflow string) Identity {
 		S3Prefix:   fmt.Sprintf("ns/%s/tentacles/%s/", namespace, workflow),
 		S3User:     pgBase,
 		S3Policy:   truncatePg(fmt.Sprintf("tn_%s_%s_policy", replacePg(namespace), replacePg(workflow))),
-	}
+	}, nil
 }
 
-// replacePg replaces hyphens with underscores and lowercases the input.
+// pgSafeRe matches any character not in [a-z0-9_].
+var pgSafeRe = regexp.MustCompile(`[^a-z0-9_]`)
+
+// replacePg replaces hyphens with underscores, lowercases, and strips
+// any remaining character not matching [a-z0-9_]. K8s namespace names
+// are DNS-1123 (lowercase alphanumeric + hyphens), but this provides a
+// broader safety net against non-standard input.
 func replacePg(s string) string {
-	return strings.ToLower(strings.ReplaceAll(s, "-", "_"))
+	s = strings.ToLower(strings.ReplaceAll(s, "-", "_"))
+	return pgSafeRe.ReplaceAllString(s, "")
 }
 
 // sanitizePg builds the "tn_<ns>_<wf>" Postgres identifier with proper

@@ -23,7 +23,10 @@ func TestBuildSecretManifest(t *testing.T) {
 		},
 	}
 
-	manifest := BuildSecretManifest("tent-dev", "myapp", creds)
+	manifest, err := BuildSecretManifest("tent-dev", "myapp", creds)
+	if err != nil {
+		t.Fatalf("BuildSecretManifest returned error: %v", err)
+	}
 
 	// Check top-level structure
 	if manifest["apiVersion"] != "v1" {
@@ -106,7 +109,10 @@ func TestBuildSecretManifestRustFS(t *testing.T) {
 		},
 	}
 
-	manifest := BuildSecretManifest("tent-dev", "myapp", creds)
+	manifest, err := BuildSecretManifest("tent-dev", "myapp", creds)
+	if err != nil {
+		t.Fatalf("BuildSecretManifest returned error: %v", err)
+	}
 	sd := manifest["stringData"].(map[string]interface{})
 
 	if sd["tentacular-rustfs.endpoint"] != "http://minio:9000" {
@@ -121,7 +127,10 @@ func TestBuildSecretManifestRustFS(t *testing.T) {
 }
 
 func TestBuildSecretManifestEmpty(t *testing.T) {
-	manifest := BuildSecretManifest("tent-dev", "myapp", map[string]interface{}{})
+	manifest, err := BuildSecretManifest("tent-dev", "myapp", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("BuildSecretManifest returned error: %v", err)
+	}
 	sd := manifest["stringData"].(map[string]interface{})
 
 	// Should still have identity fields

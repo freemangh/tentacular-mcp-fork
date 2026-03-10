@@ -46,7 +46,10 @@ func TestCompileIdentity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id := CompileIdentity(tt.namespace, tt.workflow)
+			id, err := CompileIdentity(tt.namespace, tt.workflow)
+			if err != nil {
+				t.Fatalf("CompileIdentity returned error: %v", err)
+			}
 
 			if id.PgRole != tt.wantPg {
 				t.Errorf("PgRole = %q, want %q", id.PgRole, tt.wantPg)
@@ -77,7 +80,10 @@ func TestCompileIdentityLongNames(t *testing.T) {
 	// Generate names that would exceed 63 chars for the Postgres identifier
 	longNS := strings.Repeat("a", 30)
 	longWF := strings.Repeat("b", 30)
-	id := CompileIdentity(longNS, longWF)
+	id, err := CompileIdentity(longNS, longWF)
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 
 	if len(id.PgRole) > maxPgIdentLen {
 		t.Errorf("PgRole length %d exceeds max %d: %q", len(id.PgRole), maxPgIdentLen, id.PgRole)
@@ -90,17 +96,47 @@ func TestCompileIdentityLongNames(t *testing.T) {
 	}
 
 	// Verify determinism
-	id2 := CompileIdentity(longNS, longWF)
+	id2, err := CompileIdentity(longNS, longWF)
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 	if id.PgRole != id2.PgRole {
 		t.Errorf("PgRole not deterministic: %q != %q", id.PgRole, id2.PgRole)
 	}
 }
 
 func TestCompileIdentityDeterminism(t *testing.T) {
-	a := CompileIdentity("tent-dev", "hn-digest")
-	b := CompileIdentity("tent-dev", "hn-digest")
+	a, err := CompileIdentity("tent-dev", "hn-digest")
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
+	b, err := CompileIdentity("tent-dev", "hn-digest")
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 
 	if a != b {
 		t.Errorf("CompileIdentity is not deterministic")
+	}
+}
+
+func TestCompileIdentityEmptyNamespace(t *testing.T) {
+	_, err := CompileIdentity("", "workflow")
+	if err != ErrEmptyNamespace {
+		t.Errorf("expected ErrEmptyNamespace, got %v", err)
+	}
+}
+
+func TestCompileIdentityEmptyWorkflow(t *testing.T) {
+	_, err := CompileIdentity("namespace", "")
+	if err != ErrEmptyWorkflow {
+		t.Errorf("expected ErrEmptyWorkflow, got %v", err)
+	}
+}
+
+func TestCompileIdentityBothEmpty(t *testing.T) {
+	_, err := CompileIdentity("", "")
+	if err == nil {
+		t.Error("expected error for empty namespace and workflow")
 	}
 }

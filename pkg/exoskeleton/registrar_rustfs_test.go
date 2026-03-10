@@ -58,7 +58,10 @@ func TestBuildS3Policy(t *testing.T) {
 }
 
 func TestRustFSIdentityMapping(t *testing.T) {
-	id := CompileIdentity("tent-dev", "hn-digest")
+	id, err := CompileIdentity("tent-dev", "hn-digest")
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 
 	if id.S3Prefix != "ns/tent-dev/tentacles/hn-digest/" {
 		t.Errorf("S3Prefix = %q", id.S3Prefix)

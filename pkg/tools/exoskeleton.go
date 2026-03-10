@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
@@ -93,9 +94,9 @@ func registerExoskeletonTools(srv *mcp.Server, client *k8s.Client, ctrl *exoskel
 
 // isSecretKey returns true for keys that contain sensitive values.
 func isSecretKey(key string) bool {
-	sensitiveKeys := []string{".password", ".secret_key", ".token"}
-	for _, sk := range sensitiveKeys {
-		if len(key) >= len(sk) && key[len(key)-len(sk):] == sk {
+	sensitiveSuffixes := []string{".password", ".secret_key", ".access_key", ".token"}
+	for _, suffix := range sensitiveSuffixes {
+		if strings.HasSuffix(key, suffix) {
 			return true
 		}
 	}

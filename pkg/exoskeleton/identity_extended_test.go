@@ -13,7 +13,10 @@ func TestCompileIdentity_ExactlyAtLimit(t *testing.T) {
 	// 63 - 4 = 59 chars for ns + wf combined.
 	ns := strings.Repeat("a", 29)
 	wf := strings.Repeat("b", 30) // tn_ + 29 + _ + 30 = 63
-	id := CompileIdentity(ns, wf)
+	id, err := CompileIdentity(ns, wf)
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 
 	if len(id.PgRole) != maxPgIdentLen {
 		t.Errorf("PgRole length = %d, want exactly %d: %q", len(id.PgRole), maxPgIdentLen, id.PgRole)
@@ -34,7 +37,10 @@ func TestCompileIdentity_ExactlyAtLimit(t *testing.T) {
 func TestCompileIdentity_OneOverLimit(t *testing.T) {
 	ns := strings.Repeat("a", 30)
 	wf := strings.Repeat("b", 30) // tn_ + 30 + _ + 30 = 64 > 63
-	id := CompileIdentity(ns, wf)
+	id, err := CompileIdentity(ns, wf)
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 
 	if len(id.PgRole) > maxPgIdentLen {
 		t.Errorf("PgRole length %d exceeds max %d: %q", len(id.PgRole), maxPgIdentLen, id.PgRole)
@@ -51,24 +57,21 @@ func TestCompileIdentity_OneOverLimit(t *testing.T) {
 	}
 }
 
-// TestCompileIdentity_EmptyInputs verifies behavior with empty strings.
+// TestCompileIdentity_EmptyInputs verifies that empty strings return errors.
 func TestCompileIdentity_EmptyInputs(t *testing.T) {
-	id := CompileIdentity("", "")
-	if id.PgRole != "tn__" {
-		t.Errorf("PgRole = %q, want tn__", id.PgRole)
-	}
-	if id.Principal != "spiffe://tentacular/ns//tentacles/" {
-		t.Errorf("Principal = %q", id.Principal)
-	}
-	if id.NATSUser != "." {
-		t.Errorf("NATSUser = %q, want '.'", id.NATSUser)
+	_, err := CompileIdentity("", "")
+	if err == nil {
+		t.Error("expected error for empty namespace and workflow")
 	}
 }
 
 // TestCompileIdentity_SpecialCharacters verifies hyphens are replaced
 // and the identifier stays valid.
 func TestCompileIdentity_SpecialCharacters(t *testing.T) {
-	id := CompileIdentity("my-ns-with-hyphens", "my-wf-with-hyphens")
+	id, err := CompileIdentity("my-ns-with-hyphens", "my-wf-with-hyphens")
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 	if strings.Contains(id.PgRole, "-") {
 		t.Errorf("PgRole should not contain hyphens: %q", id.PgRole)
 	}
@@ -84,7 +87,10 @@ func TestCompileIdentity_S3PolicyAlsoTruncated(t *testing.T) {
 	// Make names long enough that pgBase fits but pgBase + "_policy" does not
 	ns := strings.Repeat("a", 25)
 	wf := strings.Repeat("b", 25) // tn_ + 25 + _ + 25 = 54 chars; +_policy = 61, still fits
-	id := CompileIdentity(ns, wf)
+	id, err := CompileIdentity(ns, wf)
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 	if len(id.S3Policy) > maxPgIdentLen {
 		t.Errorf("S3Policy length %d exceeds max %d: %q", len(id.S3Policy), maxPgIdentLen, id.S3Policy)
 	}
@@ -92,7 +98,10 @@ func TestCompileIdentity_S3PolicyAlsoTruncated(t *testing.T) {
 	// Now make it overflow
 	ns2 := strings.Repeat("a", 28)
 	wf2 := strings.Repeat("b", 28) // tn_ + 28 + _ + 28 = 59 chars; +_policy = 66 > 63
-	id2 := CompileIdentity(ns2, wf2)
+	id2, err := CompileIdentity(ns2, wf2)
+	if err != nil {
+		t.Fatalf("CompileIdentity returned error: %v", err)
+	}
 	if len(id2.S3Policy) > maxPgIdentLen {
 		t.Errorf("S3Policy length %d exceeds max %d: %q", len(id2.S3Policy), maxPgIdentLen, id2.S3Policy)
 	}

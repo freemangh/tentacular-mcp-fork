@@ -35,7 +35,10 @@ func TestBuildSecretManifestAllThreeServices(t *testing.T) {
 		},
 	}
 
-	manifest := BuildSecretManifest("myns", "mywf", creds)
+	manifest, err := BuildSecretManifest("myns", "mywf", creds)
+	if err != nil {
+		t.Fatalf("BuildSecretManifest returned error: %v", err)
+	}
 	sd := manifest["stringData"].(map[string]interface{})
 
 	// Postgres keys
@@ -108,7 +111,10 @@ func TestBuildSecretManifestFallbackJSON(t *testing.T) {
 		"tentacular-unknown": map[string]string{"key": "value"},
 	}
 
-	manifest := BuildSecretManifest("ns", "wf", creds)
+	manifest, err := BuildSecretManifest("ns", "wf", creds)
+	if err != nil {
+		t.Fatalf("BuildSecretManifest returned error: %v", err)
+	}
 	sd := manifest["stringData"].(map[string]interface{})
 
 	val, ok := sd["tentacular-unknown"]
