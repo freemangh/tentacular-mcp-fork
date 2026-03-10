@@ -623,7 +623,7 @@ If they differ, re-extract the trust bundle (Step 1) and restart NATS.
 
 ### Trust bundle rotation
 
-SPIRE rotates its CA periodically. The `spire-bundle` ConfigMap updates automatically, but the `nats-spire-ca` Secret does not. After a SPIRE CA rotation:
+With the recommended `ca_ttl` of `87600h` (10 years, matching Istio's default), SPIRE CA rotation is extremely infrequent. The SPIRE trust bundle in `spire-bundle` ConfigMap auto-updates, but the `nats-spire-ca` Secret (which contains the PEM-encoded combined bundle) needs manual refresh after a CA rotation:
 
 ```bash
 # Re-run Step 1 to extract the new bundle
@@ -631,7 +631,7 @@ SPIRE rotates its CA periodically. The `spire-bundle` ConfigMap updates automati
 kubectl -n tentacular-exoskeleton rollout restart statefulset nats
 ```
 
-For automated rotation, consider a CronJob or controller that watches `spire-bundle` and syncs to `nats-spire-ca`.
+With a 10-year CA, this is a rare operational event — not a recurring maintenance burden. If using a shorter `ca_ttl`, consider automating the sync via a CronJob or controller.
 
 ### SPIRE agent not running on node
 

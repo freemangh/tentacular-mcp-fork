@@ -96,8 +96,16 @@ helm install spire spiffe/spire \
   --set global.spire.trustDomain=tentacular \
   --set global.spire.clusterName=tentacular-cluster \
   --set spire-server.nodeAttestor.k8sPsat.enabled=true \
-  --set spire-agent.socketPath=/run/spire/sockets/agent.sock
+  --set spire-agent.socketPath=/run/spire/sockets/agent.sock \
+  --set spire-server.ca_ttl=87600h
 ```
+
+> **CA lifetime:** The recommended `ca_ttl` is `87600h` (10 years). This matches
+> Istio's default CA lifetime (changed from 1 year to 10 years in Istio v1.3 after
+> operational incidents with frequent CA rotation). Security in a SPIFFE system comes
+> from short-lived workload SVIDs (default 4h), not from CA rotation frequency. A
+> 10-year CA dramatically reduces trust bundle sync overhead and eliminates the
+> operational risk of CA rotation breaking TLS trust chains.
 
 ### 2.3 Create a default ClusterSPIFFEID
 
@@ -1078,7 +1086,7 @@ All expiring credentials and their rotation mechanisms:
 | OIDC refresh token | 60 days (dev) / 30 days (prod) | Re-login (`tntc login`) | Keycloak |
 | NATS server cert | 1 year | Auto-renewed 30 days before expiry | cert-manager |
 | Internal CA cert | 10 years | Auto-renewed 1 year before expiry | cert-manager |
-| SPIRE server CA | ~12 hours (configurable) | Automatic rotation | SPIRE server |
+| SPIRE server CA | 10 years (recommended) | Automatic rotation at ~50% lifetime | SPIRE server |
 | Workflow SVIDs | ~1 hour | Automatic via SPIRE Agent Workload API | SPIRE Agent |
 | Postgres per-tentacle passwords | Per deploy cycle | On re-registration (credential refresh) | MCP server registrar |
 | RustFS per-tentacle secret keys | Per deploy cycle | On re-registration (credential refresh) | MCP server registrar |
