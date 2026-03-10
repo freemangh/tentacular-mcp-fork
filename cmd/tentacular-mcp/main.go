@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/randybias/tentacular-mcp/pkg/auth"
+	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	"github.com/randybias/tentacular-mcp/pkg/proxy"
 	"github.com/randybias/tentacular-mcp/pkg/scheduler"
@@ -52,7 +53,16 @@ func main() {
 
 	sched := scheduler.New(client, logger)
 
-	srv, err := server.New(client, reconciler, sched, token, logger)
+	// Initialize exoskeleton controller from environment configuration.
+	exoCfg := exoskeleton.LoadFromEnv()
+	exoCtrl, err := exoskeleton.NewController(exoCfg)
+	if err != nil {
+		slog.Error("failed to initialize exoskeleton controller", "error", err)
+		os.Exit(1)
+	}
+	defer exoCtrl.Close()
+
+	srv, err := server.New(client, reconciler, sched, exoCtrl, token, logger)
 	if err != nil {
 		slog.Error("failed to create MCP server", "error", err)
 		os.Exit(1)

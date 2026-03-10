@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	"github.com/randybias/tentacular-mcp/pkg/proxy"
@@ -114,13 +115,21 @@ type WorkflowStatusResult struct {
 	Events    []WorkflowEventInfo      `json:"events,omitempty"`
 }
 
-func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.Scheduler) {
+func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.Scheduler, exoCtrl *exoskeleton.Controller) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "wf_apply",
 		Description: "Apply a set of Kubernetes manifests as a named deployment in a namespace. Uses release labels for tracking and garbage collection.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WorkflowApplyParams) (*mcp.CallToolResult, WorkflowApplyResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WorkflowApplyResult{}, err
+		}
+		// Exoskeleton: detect tentacular-* dependencies, register, and inject Secret.
+		if exoCtrl != nil {
+			processed, exoErr := exoCtrl.ProcessManifests(ctx, params.Namespace, params.Name, params.Manifests)
+			if exoErr != nil {
+				return nil, WorkflowApplyResult{}, fmt.Errorf("exoskeleton: %w", exoErr)
+			}
+			params.Manifests = processed
 		}
 		result, err := handleWorkflowApply(ctx, client, params)
 		if err == nil {
@@ -157,6 +166,12 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 			sched.Deregister(params.Namespace, params.Name)
 		}
 		result, err := handleWorkflowRemove(ctx, client, params)
+		// Exoskeleton: cleanup registrations after removing K8s resources.
+		if err == nil && exoCtrl != nil {
+			if cleanupErr := exoCtrl.Cleanup(ctx, params.Namespace, params.Name); cleanupErr != nil {
+				slog.Warn("exoskeleton cleanup failed", "namespace", params.Namespace, "name", params.Name, "error", cleanupErr)
+			}
+		}
 		return nil, result, err
 	})
 

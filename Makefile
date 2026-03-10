@@ -1,4 +1,4 @@
-.PHONY: build build-local build-binary login test test-unit test-integration test-e2e test-all lint clean
+.PHONY: build build-local build-binary dev-release login test test-unit test-integration test-e2e test-all lint clean
 
 REGISTRY  := ghcr.io/randybias
 IMAGE     := $(REGISTRY)/tentacular-mcp
@@ -48,6 +48,17 @@ build: ## Multi-arch build and push to GHCR (linux/amd64 + linux/arm64)
 build-local: ## Single-arch build into local daemon (no push, for testing)
 	$(DOCKER) build \
 		--tag $(IMAGE):local \
+		.
+
+DEV_TAG := dev-$(shell git rev-parse --short HEAD)
+dev-release: ## Multi-arch build, tag as dev-<sha>, push to GHCR
+	$(DOCKER) buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg VERSION=$(DEV_TAG) \
+		--build-arg COMMIT=$(shell git rev-parse HEAD) \
+		--build-arg BUILD_DATE=$(shell date -u +%Y-%m-%dT%H:%M:%SZ) \
+		--tag $(IMAGE):$(DEV_TAG) \
+		--push \
 		.
 
 login: ## Login to GHCR using gh CLI token

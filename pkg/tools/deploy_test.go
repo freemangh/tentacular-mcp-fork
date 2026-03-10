@@ -183,7 +183,7 @@ func TestDeployToolNamesRegistered(t *testing.T) {
 		&mcp.ServerOptions{Logger: slog.New(slog.NewTextHandler(os.Stderr, nil))},
 	)
 	client := newDeployTestClient()
-	registerDeployTools(mcpSrv, client, nil)
+	registerDeployTools(mcpSrv, client, nil, nil)
 
 	handler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server { return mcpSrv },

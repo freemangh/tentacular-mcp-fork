@@ -1,0 +1,248 @@
+package exoskeleton
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+// Controller orchestrates exoskeleton registration and cleanup across
+// all enabled backing services.
+type Controller struct {
+	cfg    *Config
+	pg     *PostgresRegistrar
+	nats   *NATSRegistrar
+	rustfs *RustFSRegistrar
+}
+
+// NewController initializes registrars for all enabled services. If the
+// exoskeleton is disabled, returns a no-op controller.
+func NewController(cfg *Config) (*Controller, error) {
+	c := &Controller{cfg: cfg}
+
+	if !cfg.Enabled {
+		slog.Info("exoskeleton: disabled")
+		return c, nil
+	}
+
+	ctx := context.Background()
+
+	if cfg.PostgresEnabled() {
+		pg, err := NewPostgresRegistrar(ctx, cfg.Postgres)
+		if err != nil {
+			return nil, fmt.Errorf("exoskeleton postgres init: %w", err)
+		}
+		c.pg = pg
+		slog.Info("exoskeleton: postgres registrar initialized")
+	}
+
+	if cfg.NATSEnabled() {
+		natsReg, err := NewNATSRegistrar(ctx, cfg.NATS)
+		if err != nil {
+			return nil, fmt.Errorf("exoskeleton nats init: %w", err)
+		}
+		c.nats = natsReg
+		slog.Info("exoskeleton: nats registrar initialized")
+	}
+
+	if cfg.RustFSEnabled() {
+		rustfs, err := NewRustFSRegistrar(ctx, cfg.RustFS)
+		if err != nil {
+			return nil, fmt.Errorf("exoskeleton rustfs init: %w", err)
+		}
+		c.rustfs = rustfs
+		slog.Info("exoskeleton: rustfs registrar initialized")
+	}
+
+	slog.Info("exoskeleton: controller ready",
+		"postgres", cfg.PostgresEnabled(),
+		"nats", cfg.NATSEnabled(),
+		"rustfs", cfg.RustFSEnabled())
+
+	return c, nil
+}
+
+// ProcessManifests inspects the workflow manifests for tentacular-*
+// dependencies. If any are found and the corresponding registrar is
+// enabled, it registers the tentacle and appends an exoskeleton Secret
+// manifest to the list. If a required service is not enabled, it returns
+// an error.
+//
+// When the exoskeleton is disabled or no tentacular-* dependencies are
+// declared, the manifests are returned unchanged.
+func (c *Controller) ProcessManifests(ctx context.Context, namespace, name string, manifests []map[string]interface{}) ([]map[string]interface{}, error) {
+	if !c.cfg.Enabled {
+		return manifests, nil
+	}
+
+	deps := detectExoDeps(manifests)
+	if len(deps) == 0 {
+		return manifests, nil
+	}
+
+	slog.Info("exoskeleton: detected dependencies", "namespace", namespace, "workflow", name, "deps", deps)
+
+	id := CompileIdentity(namespace, name)
+	creds := make(map[string]interface{})
+
+	for _, dep := range deps {
+		switch dep {
+		case "tentacular-postgres":
+			if c.pg == nil {
+				return nil, fmt.Errorf("workflow requires tentacular-postgres but TENTACULAR_EXOSKELETON_POSTGRES is not enabled or not configured")
+			}
+			pgCreds, err := c.pg.Register(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("postgres registration: %w", err)
+			}
+			creds[dep] = pgCreds
+
+		case "tentacular-nats":
+			if c.nats == nil {
+				return nil, fmt.Errorf("workflow requires tentacular-nats but TENTACULAR_EXOSKELETON_NATS is not enabled or not configured")
+			}
+			natsCreds, err := c.nats.Register(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("nats registration: %w", err)
+			}
+			creds[dep] = natsCreds
+
+		case "tentacular-rustfs":
+			if c.rustfs == nil {
+				return nil, fmt.Errorf("workflow requires tentacular-rustfs but TENTACULAR_EXOSKELETON_RUSTFS is not enabled or not configured")
+			}
+			rustfsCreds, err := c.rustfs.Register(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("rustfs registration: %w", err)
+			}
+			creds[dep] = rustfsCreds
+
+		default:
+			slog.Warn("exoskeleton: unknown tentacular dependency, skipping", "dep", dep)
+		}
+	}
+
+	if len(creds) > 0 {
+		secret := BuildSecretManifest(namespace, name, creds)
+		manifests = append(manifests, secret)
+		slog.Info("exoskeleton: injected credential secret", "namespace", namespace, "workflow", name)
+	}
+
+	return manifests, nil
+}
+
+// Cleanup unregisters the tentacle from all enabled services. Called
+// from wf_remove when CleanupOnUndeploy is true.
+func (c *Controller) Cleanup(ctx context.Context, namespace, name string) error {
+	if !c.cfg.Enabled || !c.cfg.CleanupOnUndeploy {
+		return nil
+	}
+
+	id := CompileIdentity(namespace, name)
+	var errs []string
+
+	if c.pg != nil {
+		if err := c.pg.Unregister(ctx, id); err != nil {
+			errs = append(errs, fmt.Sprintf("postgres: %v", err))
+		}
+	}
+	if c.nats != nil {
+		if err := c.nats.Unregister(ctx, id); err != nil {
+			errs = append(errs, fmt.Sprintf("nats: %v", err))
+		}
+	}
+	if c.rustfs != nil {
+		if err := c.rustfs.Unregister(ctx, id); err != nil {
+			errs = append(errs, fmt.Sprintf("rustfs: %v", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("exoskeleton cleanup errors: %s", strings.Join(errs, "; "))
+	}
+
+	slog.Info("exoskeleton: cleanup complete", "namespace", namespace, "workflow", name)
+	return nil
+}
+
+// Close releases all registrar resources.
+func (c *Controller) Close() error {
+	if c.pg != nil {
+		c.pg.Close()
+	}
+	if c.nats != nil {
+		c.nats.Close()
+	}
+	if c.rustfs != nil {
+		c.rustfs.Close()
+	}
+	return nil
+}
+
+// Enabled returns true if the exoskeleton is enabled.
+func (c *Controller) Enabled() bool {
+	return c.cfg.Enabled
+}
+
+// PostgresAvailable returns true if the Postgres registrar is initialized.
+func (c *Controller) PostgresAvailable() bool {
+	return c.pg != nil
+}
+
+// NATSAvailable returns true if the NATS registrar is initialized.
+func (c *Controller) NATSAvailable() bool {
+	return c.nats != nil
+}
+
+// RustFSAvailable returns true if the RustFS registrar is initialized.
+func (c *Controller) RustFSAvailable() bool {
+	return c.rustfs != nil
+}
+
+// CleanupOnUndeploy returns the cleanup setting.
+func (c *Controller) CleanupOnUndeploy() bool {
+	return c.cfg.CleanupOnUndeploy
+}
+
+// contractDeps is a minimal YAML structure to extract tentacular-*
+// dependencies from a workflow ConfigMap.
+type contractDeps struct {
+	Contract *struct {
+		Dependencies map[string]interface{} `yaml:"dependencies"`
+	} `yaml:"contract"`
+}
+
+// detectExoDeps scans manifests for a ConfigMap containing workflow.yaml
+// and returns any dependency names with the "tentacular-" prefix.
+func detectExoDeps(manifests []map[string]interface{}) []string {
+	for _, m := range manifests {
+		obj := &unstructured.Unstructured{Object: m}
+		if obj.GetKind() != "ConfigMap" {
+			continue
+		}
+		data, ok, _ := unstructured.NestedStringMap(obj.Object, "data")
+		if !ok {
+			continue
+		}
+		wfYAML, ok := data["workflow.yaml"]
+		if !ok {
+			continue
+		}
+		var cd contractDeps
+		if err := yaml.Unmarshal([]byte(wfYAML), &cd); err != nil || cd.Contract == nil {
+			continue
+		}
+		var deps []string
+		for name := range cd.Contract.Dependencies {
+			if strings.HasPrefix(name, "tentacular-") {
+				deps = append(deps, name)
+			}
+		}
+		return deps
+	}
+	return nil
+}

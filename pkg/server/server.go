@@ -7,6 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/randybias/tentacular-mcp/pkg/auth"
+	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	"github.com/randybias/tentacular-mcp/pkg/proxy"
 	"github.com/randybias/tentacular-mcp/pkg/scheduler"
@@ -20,12 +21,13 @@ type Server struct {
 	client     *k8s.Client
 	reconciler *proxy.Reconciler
 	scheduler  *scheduler.Scheduler
+	exoCtrl    *exoskeleton.Controller
 	token      string
 	logger     *slog.Logger
 }
 
 // New creates a new MCP server with all tools registered.
-func New(client *k8s.Client, reconciler *proxy.Reconciler, sched *scheduler.Scheduler, token string, logger *slog.Logger) (*Server, error) {
+func New(client *k8s.Client, reconciler *proxy.Reconciler, sched *scheduler.Scheduler, exoCtrl *exoskeleton.Controller, token string, logger *slog.Logger) (*Server, error) {
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "tentacular-mcp",
@@ -42,6 +44,7 @@ func New(client *k8s.Client, reconciler *proxy.Reconciler, sched *scheduler.Sche
 		client:     client,
 		reconciler: reconciler,
 		scheduler:  sched,
+		exoCtrl:    exoCtrl,
 		token:      token,
 		logger:     logger,
 	}
@@ -75,5 +78,5 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // registerTools registers all MCP tools by delegating to the tools package.
 func (s *Server) registerTools() {
-	tools.RegisterAll(s.mcpServer, s.client, s.reconciler, s.scheduler)
+	tools.RegisterAll(s.mcpServer, s.client, s.reconciler, s.scheduler, s.exoCtrl)
 }

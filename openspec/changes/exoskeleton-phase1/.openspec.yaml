@@ -1,0 +1,9 @@
+name: exoskeleton-phase1
+status: in-progress
+description: >
+  Phase 1 of the exoskeleton: core registration lifecycle, credential injection,
+  and MCP tools for Postgres, NATS, and RustFS backing services.
+artifacts:
+  - proposal
+  - design
+  - tasks
