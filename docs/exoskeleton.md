@@ -591,34 +591,7 @@ const s3 = ctx.dependency("tentacular-rustfs");
 
 ## 10. Roadmap
 
-Listed in approximate priority order:
-
-### 10.1 NATS server TLS reconfiguration
-
-Activate SPIFFE mTLS for NATS. The registrar code is built and tested; the NATS server needs TLS configuration with SPIRE trust bundle and `verify_and_map` enabled. See the deployment guide for step-by-step instructions. Once active, subject isolation is cryptographically enforced per-tentacle.
-
-### 10.2 Vault integration
-
-SVIDs become auth credentials for HashiCorp Vault. The deployer identity (from SSO) maps to a Vault policy. Vault issues short-lived Postgres credentials, NATS tokens, and S3 presigned URLs. This replaces static passwords with time-limited, automatically-rotated secrets and connects the chain: deployer identity → workload identity → Vault access → scoped secrets.
-
-### 10.3 Provenance persistence and audit history
-
-Currently deployer identity is stored as Kubernetes annotations only (`tentacular.io/deployed-by`, `deployed-at`, `deployed-via`), queryable via `kubectl` and `wf_describe`. Future work:
-
-- **Provenance store**: persist deployment records (who, when, what, from where) in the exoskeleton Postgres for querying and audit.
-- **Registration audit log**: record all register/re-register/unregister events with timestamps, identities, and outcomes.
-- **Credential rotation history**: track when credentials were rotated and by whom.
-- **Deployment diff tracking**: record what changed between deploys (contract changes, config changes, node changes).
-- **Audit API**: MCP tools for querying provenance history by workflow, namespace, deployer, or time range.
-- **Integration with observability stack**: export audit events to cluster logging/monitoring for dashboards and alerting.
-
-### 10.4 Istio ambient mode
-
-SPIFFE IDs become the service mesh identity layer. Zero-config mTLS for all tentacle-to-service traffic. The exoskeleton's SPIRE-issued identities are directly compatible with Istio ambient mode's identity model.
-
-### 10.5 Per-service enable/disable flags
-
-Currently implicit via config presence. Future: explicit `TENTACULAR_EXOSKELETON_POSTGRES_ENABLED` style flags for cases where admin credentials are configured but the service should not be offered to tentacles.
+For the development roadmap, see [docs/roadmap.md](roadmap.md).
 
 ---
 
