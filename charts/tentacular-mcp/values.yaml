@@ -109,6 +109,20 @@ tolerations: []
 # -- Affinity rules for pod scheduling
 affinity: {}
 
+# -- Exoskeleton SSO/OIDC authentication configuration.
+exoskeletonAuth:
+  # -- Enable OIDC authentication (Keycloak SSO)
+  enabled: false
+  # -- Keycloak realm issuer URL (internal cluster URL preferred)
+  issuerURL: ""
+  # -- OIDC client ID
+  clientID: ""
+  # -- OIDC client secret (used only when existingSecret is empty)
+  clientSecret: ""
+  # -- Name of an existing Secret containing Keycloak credentials.
+  # Required keys: issuer-url, client-id, client-secret.
+  existingSecret: ""
+
 # -- Exoskeleton configuration for backing-service registration.
 exoskeleton:
   # -- Enable the exoskeleton control plane

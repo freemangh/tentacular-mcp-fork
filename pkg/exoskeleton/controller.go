@@ -136,12 +136,21 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 	}
 
 	if len(creds) > 0 {
+		// Step 7.8 + 7.9: Enrich contract dependencies in the ConfigMap.
+		if err := enrichContractDeps(manifests, creds); err != nil {
+			return nil, fmt.Errorf("enrich contract deps: %w", err)
+		}
+
+		// Step 7.10: Build and append the Secret manifest.
 		secret, err := BuildSecretManifest(namespace, name, creds)
 		if err != nil {
 			return nil, fmt.Errorf("build secret manifest: %w", err)
 		}
 		manifests = append(manifests, secret)
 		slog.Info("exoskeleton: injected credential secret", "namespace", namespace, "workflow", name)
+
+		// Step 7.11: Patch Deployment --allow-net flags.
+		patchDeploymentAllowNet(manifests, creds)
 	}
 
 	return manifests, nil
@@ -221,6 +230,16 @@ func (c *Controller) RustFSAvailable() bool {
 // CleanupOnUndeploy returns the cleanup setting.
 func (c *Controller) CleanupOnUndeploy() bool {
 	return c.cfg.CleanupOnUndeploy
+}
+
+// AuthEnabled returns true if OIDC authentication is enabled.
+func (c *Controller) AuthEnabled() bool {
+	return c.cfg.AuthEnabled()
+}
+
+// AuthIssuer returns the configured OIDC issuer URL, or empty if not set.
+func (c *Controller) AuthIssuer() string {
+	return c.cfg.Auth.IssuerURL
 }
 
 // contractDeps is a minimal YAML structure to extract tentacular-*

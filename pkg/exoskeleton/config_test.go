@@ -22,6 +22,10 @@ func TestLoadFromEnv(t *testing.T) {
 		"TENTACULAR_RUSTFS_SECRET_KEY",
 		"TENTACULAR_RUSTFS_BUCKET",
 		"TENTACULAR_RUSTFS_REGION",
+		"TENTACULAR_EXOSKELETON_AUTH_ENABLED",
+		"TENTACULAR_KEYCLOAK_ISSUER",
+		"TENTACULAR_KEYCLOAK_CLIENT_ID",
+		"TENTACULAR_KEYCLOAK_CLIENT_SECRET",
 	}
 	saved := make(map[string]string)
 	for _, k := range envVars {
@@ -129,6 +133,52 @@ func TestLoadFromEnv(t *testing.T) {
 			t.Error("expected CleanupOnUndeploy=true")
 		}
 		os.Unsetenv("TENTACULAR_EXOSKELETON_CLEANUP_ON_UNDEPLOY")
+	})
+
+	t.Run("auth disabled by default", func(t *testing.T) {
+		cfg := LoadFromEnv()
+		if cfg.AuthEnabled() {
+			t.Error("expected AuthEnabled()=false when env not set")
+		}
+	})
+
+	t.Run("auth enabled with config", func(t *testing.T) {
+		os.Setenv("TENTACULAR_EXOSKELETON_AUTH_ENABLED", "true")
+		os.Setenv("TENTACULAR_KEYCLOAK_ISSUER", "http://keycloak.local/realms/test")
+		os.Setenv("TENTACULAR_KEYCLOAK_CLIENT_ID", "tentacular-mcp")
+		os.Setenv("TENTACULAR_KEYCLOAK_CLIENT_SECRET", "secret123")
+
+		cfg := LoadFromEnv()
+		if !cfg.AuthEnabled() {
+			t.Error("expected AuthEnabled()=true")
+		}
+		if cfg.Auth.IssuerURL != "http://keycloak.local/realms/test" {
+			t.Errorf("expected issuer URL, got %q", cfg.Auth.IssuerURL)
+		}
+		if cfg.Auth.ClientID != "tentacular-mcp" {
+			t.Errorf("expected client ID, got %q", cfg.Auth.ClientID)
+		}
+		if cfg.Auth.ClientSecret != "secret123" {
+			t.Errorf("expected client secret, got %q", cfg.Auth.ClientSecret)
+		}
+
+		os.Unsetenv("TENTACULAR_EXOSKELETON_AUTH_ENABLED")
+		os.Unsetenv("TENTACULAR_KEYCLOAK_ISSUER")
+		os.Unsetenv("TENTACULAR_KEYCLOAK_CLIENT_ID")
+		os.Unsetenv("TENTACULAR_KEYCLOAK_CLIENT_SECRET")
+	})
+
+	t.Run("auth enabled but missing issuer", func(t *testing.T) {
+		os.Setenv("TENTACULAR_EXOSKELETON_AUTH_ENABLED", "true")
+		os.Setenv("TENTACULAR_KEYCLOAK_CLIENT_ID", "tentacular-mcp")
+
+		cfg := LoadFromEnv()
+		if cfg.AuthEnabled() {
+			t.Error("expected AuthEnabled()=false when issuer is missing")
+		}
+
+		os.Unsetenv("TENTACULAR_EXOSKELETON_AUTH_ENABLED")
+		os.Unsetenv("TENTACULAR_KEYCLOAK_CLIENT_ID")
 	})
 
 	t.Run("not enabled without top flag", func(t *testing.T) {

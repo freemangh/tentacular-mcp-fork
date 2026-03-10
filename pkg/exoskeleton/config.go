@@ -12,6 +12,7 @@ type Config struct {
 	Postgres          PostgresConfig
 	NATS              NATSConfig
 	RustFS            RustFSConfig
+	Auth              AuthConfig
 }
 
 // PostgresConfig holds admin connection details for the Postgres registrar.
@@ -63,6 +64,12 @@ func LoadFromEnv() *Config {
 			Bucket:    envDefault("TENTACULAR_RUSTFS_BUCKET", "tentacular"),
 			Region:    envDefault("TENTACULAR_RUSTFS_REGION", "us-east-1"),
 		},
+		Auth: AuthConfig{
+			Enabled:      envBool("TENTACULAR_EXOSKELETON_AUTH_ENABLED"),
+			IssuerURL:    os.Getenv("TENTACULAR_KEYCLOAK_ISSUER"),
+			ClientID:     os.Getenv("TENTACULAR_KEYCLOAK_CLIENT_ID"),
+			ClientSecret: os.Getenv("TENTACULAR_KEYCLOAK_CLIENT_SECRET"),
+		},
 	}
 }
 
@@ -82,6 +89,12 @@ func (c *Config) NATSEnabled() bool {
 // endpoint and credentials are configured.
 func (c *Config) RustFSEnabled() bool {
 	return c.Enabled && c.RustFS.Endpoint != "" && c.RustFS.AccessKey != "" && c.RustFS.SecretKey != ""
+}
+
+// AuthEnabled returns true when exoskeleton auth is enabled and the
+// required OIDC configuration is present.
+func (c *Config) AuthEnabled() bool {
+	return c.Auth.Enabled && c.Auth.IssuerURL != "" && c.Auth.ClientID != ""
 }
 
 // envBool returns true if the named environment variable is set to a

@@ -48,6 +48,39 @@ spec:
           env:
             - name: TOKEN_PATH
               value: /etc/tentacular-mcp/token
+            {{- if .Values.exoskeletonAuth.enabled }}
+            - name: TENTACULAR_EXOSKELETON_AUTH_ENABLED
+              value: "true"
+            {{- if .Values.exoskeletonAuth.existingSecret }}
+            - name: TENTACULAR_KEYCLOAK_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeletonAuth.existingSecret }}
+                  key: issuer-url
+            - name: TENTACULAR_KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeletonAuth.existingSecret }}
+                  key: client-id
+            - name: TENTACULAR_KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeletonAuth.existingSecret }}
+                  key: client-secret
+            {{- else }}
+            - name: TENTACULAR_KEYCLOAK_ISSUER
+              value: {{ .Values.exoskeletonAuth.issuerURL | quote }}
+            - name: TENTACULAR_KEYCLOAK_CLIENT_ID
+              value: {{ .Values.exoskeletonAuth.clientID | quote }}
+            {{- if .Values.exoskeletonAuth.clientSecret }}
+            - name: TENTACULAR_KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton-auth
+                  key: client-secret
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.exoskeleton.enabled }}
             - name: TENTACULAR_EXOSKELETON_ENABLED
               value: "true"

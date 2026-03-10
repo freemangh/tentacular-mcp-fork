@@ -62,7 +62,18 @@ func main() {
 	}
 	defer exoCtrl.Close()
 
-	srv, err := server.New(client, reconciler, sched, exoCtrl, token, logger)
+	// Initialize OIDC validator if auth is enabled.
+	var oidcValidator *exoskeleton.OIDCValidator
+	if exoCfg.AuthEnabled() {
+		oidcValidator, err = exoskeleton.NewOIDCValidator(exoCfg.Auth)
+		if err != nil {
+			slog.Error("failed to initialize OIDC validator", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("OIDC authentication enabled", "issuer", exoCfg.Auth.IssuerURL)
+	}
+
+	srv, err := server.New(client, reconciler, sched, exoCtrl, oidcValidator, token, logger)
 	if err != nil {
 		slog.Error("failed to create MCP server", "error", err)
 		os.Exit(1)

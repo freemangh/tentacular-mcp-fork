@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/randybias/tentacular-mcp/pkg/auth"
 	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
@@ -123,6 +124,13 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WorkflowApplyResult{}, err
 		}
+
+		// Extract deployer identity from request context (set by auth middleware).
+		deployer := auth.DeployerFromContext(ctx)
+		if deployer != nil {
+			slog.Info("wf_apply deployer", "email", deployer.Email, "subject", deployer.Subject, "provider", deployer.Provider)
+		}
+
 		// Exoskeleton: detect tentacular-* dependencies, register, and inject Secret.
 		if exoCtrl != nil {
 			processed, exoErr := exoCtrl.ProcessManifests(ctx, params.Namespace, params.Name, params.Manifests)
@@ -130,6 +138,16 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 				return nil, WorkflowApplyResult{}, fmt.Errorf("exoskeleton: %w", exoErr)
 			}
 			params.Manifests = processed
+
+			// Annotate Deployment manifests with deployer provenance.
+			if deployer != nil {
+				params.Manifests = exoCtrl.AnnotateDeployer(params.Manifests, *deployer)
+			} else {
+				// No SSO deployer — annotate with bearer-token provenance.
+				params.Manifests = exoCtrl.AnnotateDeployer(params.Manifests, exoskeleton.DeployerInfo{
+					Provider: "bearer-token",
+				})
+			}
 		}
 		result, err := handleWorkflowApply(ctx, client, params)
 		if err == nil {

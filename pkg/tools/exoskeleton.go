@@ -17,11 +17,13 @@ type ExoStatusParams struct{}
 
 // ExoStatusResult is the result of exo_status.
 type ExoStatusResult struct {
-	Enabled           bool `json:"enabled"`
-	CleanupOnUndeploy bool `json:"cleanup_on_undeploy"`
-	PostgresAvailable bool `json:"postgres_available"`
-	NATSAvailable     bool `json:"nats_available"`
-	RustFSAvailable   bool `json:"rustfs_available"`
+	Enabled           bool   `json:"enabled"`
+	CleanupOnUndeploy bool   `json:"cleanup_on_undeploy"`
+	PostgresAvailable bool   `json:"postgres_available"`
+	NATSAvailable     bool   `json:"nats_available"`
+	RustFSAvailable   bool   `json:"rustfs_available"`
+	AuthEnabled       bool   `json:"auth_enabled"`
+	AuthIssuer        string `json:"auth_issuer,omitempty"`
 }
 
 // ExoRegistrationParams are the parameters for exo_registration.
@@ -52,6 +54,8 @@ func registerExoskeletonTools(srv *mcp.Server, client *k8s.Client, ctrl *exoskel
 			PostgresAvailable: ctrl.PostgresAvailable(),
 			NATSAvailable:     ctrl.NATSAvailable(),
 			RustFSAvailable:   ctrl.RustFSAvailable(),
+			AuthEnabled:       ctrl.AuthEnabled(),
+			AuthIssuer:        ctrl.AuthIssuer(),
 		}, nil
 	})
 
