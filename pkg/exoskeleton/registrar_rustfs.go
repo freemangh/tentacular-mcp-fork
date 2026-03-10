@@ -1,16 +1,147 @@
 package exoskeleton
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"strings"
 
-	"github.com/minio/madmin-go/v3"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/signer"
 )
+
+// rustfsAdmin is a thin HTTP client for RustFS's admin API.
+// RustFS uses /rustfs/admin/v3/ instead of MinIO's /minio/admin/v3/.
+// Auth is AWS SigV4 with service "s3".
+type rustfsAdmin struct {
+	endpoint   string // scheme + host, e.g. "http://localhost:9000"
+	accessKey  string
+	secretKey  string
+	region     string
+	httpClient *http.Client
+}
+
+// newRustFSAdmin creates a new RustFS admin HTTP client.
+func newRustFSAdmin(endpoint, accessKey, secretKey, region string, httpClient *http.Client) *rustfsAdmin {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	return &rustfsAdmin{
+		endpoint:   strings.TrimRight(endpoint, "/"),
+		accessKey:  accessKey,
+		secretKey:  secretKey,
+		region:     region,
+		httpClient: httpClient,
+	}
+}
+
+// adminURL builds the full URL for an admin API path with optional query params.
+func (a *rustfsAdmin) adminURL(path string, query url.Values) string {
+	u := a.endpoint + "/rustfs/admin/v3" + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+	return u
+}
+
+// do executes a signed admin API request.
+func (a *rustfsAdmin) do(ctx context.Context, method, path string, query url.Values, body []byte) (*http.Response, error) {
+	fullURL := a.adminURL(path, query)
+
+	var bodyReader io.Reader
+	if len(body) > 0 {
+		bodyReader = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+
+	// Set content-sha256 header (required for SigV4).
+	h := sha256.Sum256(body)
+	req.Header.Set("X-Amz-Content-Sha256", hex.EncodeToString(h[:]))
+
+	if len(body) > 0 {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Sign with SigV4 (service "s3", matching RustFS expectations).
+	signed := signer.SignV4(*req, a.accessKey, a.secretKey, "", a.region)
+
+	resp, err := a.httpClient.Do(signed)
+	if err != nil {
+		return nil, fmt.Errorf("admin request %s %s: %w", method, path, err)
+	}
+	return resp, nil
+}
+
+// doNoBody executes a signed request and checks for a successful status code,
+// discarding the response body.
+func (a *rustfsAdmin) doNoBody(ctx context.Context, method, path string, query url.Values, body []byte) error {
+	resp, err := a.do(ctx, method, path, query, body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("admin %s %s: HTTP %d: %s", method, path, resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
+// AddUser creates or updates an IAM user.
+func (a *rustfsAdmin) AddUser(ctx context.Context, accessKey, secretKey string) error {
+	q := url.Values{"accessKey": {accessKey}}
+	body, err := json.Marshal(struct {
+		SecretKey string `json:"secretKey"`
+		Status    string `json:"status"`
+	}{
+		SecretKey: secretKey,
+		Status:    "enabled",
+	})
+	if err != nil {
+		return fmt.Errorf("marshal add-user body: %w", err)
+	}
+	return a.doNoBody(ctx, http.MethodPut, "/add-user", q, body)
+}
+
+// RemoveUser deletes an IAM user.
+func (a *rustfsAdmin) RemoveUser(ctx context.Context, accessKey string) error {
+	q := url.Values{"accessKey": {accessKey}}
+	return a.doNoBody(ctx, http.MethodDelete, "/remove-user", q, nil)
+}
+
+// AddCannedPolicy creates or replaces a canned IAM policy.
+func (a *rustfsAdmin) AddCannedPolicy(ctx context.Context, name string, policy []byte) error {
+	q := url.Values{"name": {name}}
+	return a.doNoBody(ctx, http.MethodPut, "/add-canned-policy", q, policy)
+}
+
+// SetPolicy attaches a named policy to a user.
+func (a *rustfsAdmin) SetPolicy(ctx context.Context, policyName, userName string) error {
+	q := url.Values{
+		"policyName":  {policyName},
+		"userOrGroup": {userName},
+		"isGroup":     {"false"},
+	}
+	return a.doNoBody(ctx, http.MethodPut, "/set-user-or-group-policy", q, nil)
+}
+
+// RemoveCannedPolicy deletes a canned IAM policy.
+func (a *rustfsAdmin) RemoveCannedPolicy(ctx context.Context, name string) error {
+	q := url.Values{"name": {name}}
+	return a.doNoBody(ctx, http.MethodDelete, "/remove-canned-policy", q, nil)
+}
 
 // RustFSCreds holds the connection details returned after registering
 // a tentacle with RustFS (MinIO-compatible object storage).
@@ -27,20 +158,15 @@ type RustFSCreds struct {
 // RustFSRegistrar manages per-tentacle RustFS IAM users, policies, and
 // prefix-scoped access.
 type RustFSRegistrar struct {
-	admin  *madmin.AdminClient
-	s3     *minio.Client
-	cfg    RustFSConfig
+	admin *rustfsAdmin
+	s3    *minio.Client
+	cfg   RustFSConfig
 }
 
 // NewRustFSRegistrar creates a new RustFS registrar with admin and S3 clients.
 func NewRustFSRegistrar(_ context.Context, cfg RustFSConfig) (*RustFSRegistrar, error) {
 	endpoint := strings.TrimPrefix(strings.TrimPrefix(cfg.Endpoint, "http://"), "https://")
 	useSSL := strings.HasPrefix(cfg.Endpoint, "https://")
-
-	admin, err := madmin.New(endpoint, cfg.AccessKey, cfg.SecretKey, useSSL)
-	if err != nil {
-		return nil, fmt.Errorf("rustfs admin client: %w", err)
-	}
 
 	s3Client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
@@ -50,6 +176,15 @@ func NewRustFSRegistrar(_ context.Context, cfg RustFSConfig) (*RustFSRegistrar, 
 	if err != nil {
 		return nil, fmt.Errorf("rustfs s3 client: %w", err)
 	}
+
+	// Build the full scheme+host endpoint for the admin client.
+	scheme := "http://"
+	if useSSL {
+		scheme = "https://"
+	}
+	adminEndpoint := scheme + endpoint
+
+	admin := newRustFSAdmin(adminEndpoint, cfg.AccessKey, cfg.SecretKey, cfg.Region, nil)
 
 	return &RustFSRegistrar{admin: admin, s3: s3Client, cfg: cfg}, nil
 }
@@ -102,7 +237,7 @@ func (r *RustFSRegistrar) Register(ctx context.Context, id Identity) (*RustFSCre
 	}
 
 	// Attach the policy to the user.
-	if err := r.admin.SetPolicy(ctx, policyName, userName, false); err != nil {
+	if err := r.admin.SetPolicy(ctx, policyName, userName); err != nil {
 		return nil, fmt.Errorf("set policy %s for user %s: %w", policyName, userName, err)
 	}
 
@@ -143,20 +278,16 @@ func (r *RustFSRegistrar) Unregister(ctx context.Context, id Identity) error {
 		}
 	}
 
-	// Detach policy from user (best-effort; user may not have the old access key).
-	// We remove the policy and user by name rather than tracking the access key.
-	// The admin API may not support detach directly, so we just remove user + policy.
-
-	// Remove the canned policy.
-	if err := r.admin.RemoveCannedPolicy(ctx, policyName); err != nil {
-		slog.Warn("rustfs: remove policy failed", "policy", policyName, "error", err)
-	}
-
-	// Remove the IAM user. In the shared model, we use userName as a proxy.
-	// Since we generated a unique access key during Register, we don't have
-	// it at Unregister time. We remove the user by the userName convention.
+	// Remove the IAM user first (detaches policy automatically).
+	// Must happen before policy removal — RustFS rejects removing a policy
+	// that is still attached to a user ("policy in use").
 	if err := r.admin.RemoveUser(ctx, userName); err != nil {
 		slog.Warn("rustfs: remove user failed", "user", userName, "error", err)
+	}
+
+	// Remove the canned policy (now that no user references it).
+	if err := r.admin.RemoveCannedPolicy(ctx, policyName); err != nil {
+		slog.Warn("rustfs: remove policy failed", "policy", policyName, "error", err)
 	}
 
 	slog.Info("rustfs: unregistered tentacle",
@@ -166,13 +297,13 @@ func (r *RustFSRegistrar) Unregister(ctx context.Context, id Identity) error {
 	return nil
 }
 
-// Close is a no-op since the MinIO clients don't hold persistent connections.
+// Close is a no-op since the clients don't hold persistent connections.
 func (r *RustFSRegistrar) Close() {}
 
 // s3PolicyDoc represents a MinIO/S3 IAM policy document.
 type s3PolicyDoc struct {
-	Version   string            `json:"Version"`
-	Statement []s3PolicyStmt    `json:"Statement"`
+	Version   string         `json:"Version"`
+	Statement []s3PolicyStmt `json:"Statement"`
 }
 
 type s3PolicyStmt struct {
