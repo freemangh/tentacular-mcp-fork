@@ -124,6 +124,33 @@ Keycloak's Google identity provider uses the `hostedDomain` parameter to restric
 
 The MCP service account's ClusterRole must include permissions for `spire.spiffe.io` API group resources (specifically `clusterspiffeids`). The Helm chart includes this in the default ClusterRole. On existing clusters, the ClusterRole may need manual patching if it was deployed before this permission was added.
 
+## Certificate Management
+
+### Design decisions
+
+1. **cert-manager internal CA for server certificates.** A `tentacular-internal-ca` CA Issuer in `tentacular-exoskeleton`, bootstrapped from a self-signed ClusterIssuer. The CA has 10-year validity with auto-renewal 1 year before expiry. The NATS server certificate (`nats-server-tls`) is issued by this CA with 1-year validity and 30-day auto-renewal.
+
+2. **SPIRE for client SVIDs.** SPIRE issues X.509 SVIDs to workload pods through the Workload API (Unix socket on each node via DaemonSet). These SVIDs serve as client certificates for NATS mTLS.
+
+3. **Why not use SPIRE as the cert-manager CA?** The SPIRE CA key is not exportable. SPIRE manages its own CA internally and does not expose the private key material. There is no supported way to use SPIRE as a cert-manager CA Issuer. Therefore, cert-manager has its own independent CA for server certs.
+
+4. **Combined trust bundle.** NATS must verify both server-cert-chain trust (cert-manager CA) and client-cert trust (SPIRE CA). A combined PEM bundle containing both CA certificates is stored in the `nats-spire-ca` Secret and mounted into the NATS pod at `/etc/nats/spire-ca/ca.pem`.
+
+5. **Rotation model:**
+   - Server cert: fully automated by cert-manager.
+   - Client SVIDs: fully automated by SPIRE.
+   - SPIRE CA bundle sync to NATS: manual refresh of `nats-spire-ca` Secret when SPIRE rotates its CA. Known limitation -- future fix is a sidecar or CronJob.
+
+### Resources created
+
+| Resource | Kind | Namespace |
+|----------|------|-----------|
+| `tentacular-selfsigned-bootstrap` | ClusterIssuer | cluster-scoped |
+| `tentacular-internal-ca` | Certificate | `tentacular-exoskeleton` |
+| `tentacular-internal-ca` | Issuer | `tentacular-exoskeleton` |
+| `nats-server-tls` | Certificate | `tentacular-exoskeleton` |
+| `nats-spire-ca` | Secret (manual) | `tentacular-exoskeleton` |
+
 ## New Dependencies
 - github.com/jackc/pgx/v5
 - github.com/nats-io/nats.go

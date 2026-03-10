@@ -15,7 +15,7 @@ The exoskeleton is an optional, feature-flagged extension to Tentacular that pro
 | Namespace | Role | Contents |
 |-----------|------|----------|
 | `tentacular-system` | Control plane | MCP server, SPIRE server + agent |
-| `tentacular-exoskeleton` | Data plane | Postgres, NATS, RustFS, Keycloak |
+| `tentacular-exoskeleton` | Data plane | Postgres, NATS, RustFS, Keycloak, cert-manager internal CA |
 | `tentacular-support` | Dev tooling | esm-sh module proxy, shared utilities |
 | `tent-*` | Workloads | Tentacle workflow deployments |
 
@@ -131,7 +131,7 @@ When SSO auth is active, deployer identity is recorded as Kubernetes annotations
 | **SPIFFE** (preferred) | `TENTACULAR_NATS_SPIFFE_ENABLED=true` | mTLS with X.509 SVIDs; NATS `verify_and_map` maps SPIFFE URIs to authorization rules | Enforced per-tentacle subject isolation via NATS authorization ConfigMap |
 | **Token** (active default) | `TENTACULAR_NATS_TOKEN` set, SPIFFE not enabled | Shared bearer token | Convention-only subject isolation |
 
-> **Note:** SPIFFE mode code is fully implemented and tested. However, activating SPIFFE mode on a live cluster requires NATS server TLS reconfiguration (trust bundle, `verify_and_map` directive, TLS certificates), which is a separate infrastructure step. Token mode is the active default.
+> **Note:** SPIFFE mode is fully implemented, tested, and deployed on the `eastus-dev` cluster. The NATS server TLS certificate is issued by a cert-manager internal CA (`tentacular-internal-ca`), with 1-year validity and automatic renewal 30 days before expiry. NATS trusts both the cert-manager CA (for its own server cert chain) and the SPIRE CA (for client SVIDs) via a combined trust bundle. See [NATS SPIFFE mTLS Activation Guide](nats-spiffe-deployment.md) for the full deployment procedure.
 
 **SPIFFE mode:** When enabled, the NATS registrar creates an authorization entry in a ConfigMap (name configured via `TENTACULAR_NATS_AUTHZ_CONFIGMAP`, namespace via `TENTACULAR_NATS_AUTHZ_NAMESPACE`). Each entry maps a tentacle's SPIFFE URI to its permitted publish/subscribe subjects. NATS uses `verify_and_map` with the SPIRE trust bundle to authenticate client certificates and enforce subject-level permissions. This provides cryptographically enforced isolation -- a tentacle cannot publish to another tentacle's subjects.
 
@@ -599,7 +599,7 @@ For the development roadmap, see [docs/roadmap.md](roadmap.md).
 
 | Limitation | Impact | Mitigation |
 |------------|--------|------------|
-| NATS SPIFFE mode requires NATS TLS reconfiguration | Enabling SPIFFE mode requires manual NATS server TLS reconfiguration (trust bundle, `verify_and_map` directive, TLS certificates). Not automated by the registrar. | Deployment guide to be provided. Token mode remains available as fallback. |
+| NATS SPIRE CA bundle sync is manual | NATS server TLS is automated via cert-manager (internal CA, auto-renewed). However, when SPIRE rotates its CA, the combined trust bundle in the `nats-spire-ca` Secret must be refreshed manually. | Future: sidecar or CronJob to watch `spire-bundle` and sync. See [NATS SPIFFE mTLS Activation Guide](nats-spiffe-deployment.md#certificate-rotation). |
 | NATS token mode (fallback) | Convention-only subject isolation when SPIFFE mode is not enabled. | Enable SPIFFE mode for enforced isolation. |
 | RustFS alpha admin API | Returns HTTP 500 instead of 404 for missing resources. | Registrar treats 500 as not-found for idempotent operations. |
 | Keycloak azp vs aud | Access tokens use `azp` not `aud` for client ID. | Validator skips `aud` check, validates `azp` instead. |

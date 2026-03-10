@@ -8,7 +8,7 @@ Reconfigure the NATS server on a Tentacular cluster to use SPIFFE mTLS for per-t
 |-------------|---------|
 | SPIRE server and agent | Running in `tentacular-system`, trust domain `tentacular` |
 | NATS 2.12+ | Deployed in `tentacular-exoskeleton` namespace |
-| cert-manager (or equivalent) | For issuing the NATS server TLS certificate |
+| cert-manager v1.12+ | For issuing the NATS server TLS certificate via internal CA |
 | MCP server | Built with exoskeleton support, `TENTACULAR_NATS_SPIFFE_ENABLED=true` ready |
 | kubectl access | Admin kubeconfig for the target cluster |
 | ClusterSPIFFEID CRD | Installed by SPIRE (verify: `kubectl get crd clusterspiffeids.spire.spiffe.io`) |
@@ -19,11 +19,39 @@ Set your kubeconfig for all commands in this guide:
 export KUBECONFIG=~/dev-secrets/kubeconfigs/eastus-admin.kubeconfig
 ```
 
+> **Status:** These resources are deployed and working on the `eastus-dev` cluster as of 2026-03-10.
+
 ---
 
-## Step 1: Extract SPIRE Trust Bundle as PEM
+## Trust Chain Architecture
 
-The SPIRE trust bundle is stored in ConfigMap `spire-bundle` in `tentacular-system`. The bundle is JWKS format with `x5c` certificates. Extract them as PEM and create a Secret for NATS.
+NATS mTLS requires two independent trust chains:
+
+```
+Server certificate chain (cert-manager):
+  tentacular-internal-ca (self-signed root)
+    └── nats-server-tls (server cert, 1-year validity)
+
+Client certificate chain (SPIRE):
+  SPIRE CA (managed internally by SPIRE server)
+    └── Workload X.509 SVIDs (issued via SPIRE Agent Unix socket)
+```
+
+**Why two CAs?** SPIRE manages its own CA internally and does not expose the CA private key. The SPIRE CA key is not exportable, so it cannot be used as a cert-manager Issuer. Instead, cert-manager maintains its own internal CA (`tentacular-internal-ca`) for server certificates, while SPIRE issues client SVIDs through the Workload API.
+
+NATS trusts both CAs via a combined trust bundle stored in the `nats-spire-ca` Secret. This bundle contains the SPIRE CA certificate(s) (for verifying client SVIDs) and the cert-manager internal CA certificate (for the server cert chain).
+
+**No inbound connections to `tentacular-system`:** SPIRE Agent runs as a DaemonSet on each node. Workloads obtain SVIDs via a Unix domain socket on the local node, not via network calls.
+
+---
+
+## Step 1: Create Combined Trust Bundle
+
+The NATS server needs a CA bundle that trusts both SPIRE-issued client SVIDs and its own server certificate chain (issued by the cert-manager internal CA). This step creates a combined PEM bundle containing both CA certificates.
+
+### 1.1 Extract the SPIRE CA certificate
+
+The SPIRE trust bundle is stored in ConfigMap `spire-bundle` in `tentacular-system`. The bundle is JWKS format with `x5c` certificates. Extract them as PEM:
 
 ```bash
 kubectl -n tentacular-system get configmap spire-bundle \
@@ -47,39 +75,100 @@ Verify the extracted certificate:
 openssl x509 -in /tmp/spire-ca.pem -noout -subject -issuer -dates
 ```
 
-Create the Secret in the NATS namespace:
+### 1.2 Extract the cert-manager internal CA certificate
+
+After Step 2 creates the cert-manager internal CA, extract its certificate:
 
 ```bash
+kubectl -n tentacular-exoskeleton get secret tentacular-internal-ca-tls \
+  -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/certmanager-ca.pem
+```
+
+### 1.3 Create the combined bundle Secret
+
+Concatenate both CA certificates into a single PEM bundle and create the Secret:
+
+```bash
+cat /tmp/spire-ca.pem /tmp/certmanager-ca.pem > /tmp/combined-ca.pem
+
 kubectl -n tentacular-exoskeleton create secret generic nats-spire-ca \
-  --from-file=ca.pem=/tmp/spire-ca.pem \
+  --from-file=ca.pem=/tmp/combined-ca.pem \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Clean up the temporary file:
+Clean up:
 
 ```bash
-rm /tmp/spire-ca.pem
+rm /tmp/spire-ca.pem /tmp/certmanager-ca.pem /tmp/combined-ca.pem
 ```
 
 ---
 
-## Step 2: Create NATS Server TLS Certificate
+## Step 2: Create NATS Server TLS Certificate (cert-manager Internal CA)
 
-The NATS server needs its own TLS certificate (separate from the SPIRE trust bundle). Three options follow. **Option A (cert-manager) is recommended for production.**
+The NATS server needs its own TLS certificate, issued by a cert-manager internal CA. This is the **primary and recommended approach** -- deployed and tested on `eastus-dev`.
 
-### Option A: cert-manager Certificate (recommended)
+### 2.1 Bootstrap the internal CA
 
-Create an Issuer and Certificate in `tentacular-exoskeleton`:
+Create a self-signed ClusterIssuer, then use it to issue a long-lived CA certificate. The CA certificate is stored as a Secret (`tentacular-internal-ca-tls`) and referenced by a namespace-scoped Issuer.
 
 ```yaml
+# 1. Self-signed ClusterIssuer (bootstraps the CA)
 apiVersion: cert-manager.io/v1
-kind: Issuer
+kind: ClusterIssuer
 metadata:
-  name: nats-selfsigned
-  namespace: tentacular-exoskeleton
+  name: tentacular-selfsigned-bootstrap
 spec:
   selfSigned: {}
 ---
+# 2. CA certificate (10-year validity, auto-renewed 1 year before expiry)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tentacular-internal-ca
+  namespace: tentacular-exoskeleton
+spec:
+  isCA: true
+  secretName: tentacular-internal-ca-tls
+  issuerRef:
+    name: tentacular-selfsigned-bootstrap
+    kind: ClusterIssuer
+  commonName: tentacular-internal-ca
+  duration: 87600h     # 10 years
+  renewBefore: 8760h   # 1 year before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+---
+# 3. CA Issuer (references the CA Secret)
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tentacular-internal-ca
+  namespace: tentacular-exoskeleton
+spec:
+  ca:
+    secretName: tentacular-internal-ca-tls
+```
+
+Apply it:
+
+```bash
+kubectl apply -f tentacular-internal-ca.yaml
+```
+
+Verify the CA certificate was issued:
+
+```bash
+kubectl -n tentacular-exoskeleton get certificate tentacular-internal-ca
+kubectl -n tentacular-exoskeleton get secret tentacular-internal-ca-tls
+```
+
+### 2.2 Issue the NATS server certificate
+
+Create a Certificate resource issued by the internal CA:
+
+```yaml
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -88,7 +177,7 @@ metadata:
 spec:
   secretName: nats-server-tls
   issuerRef:
-    name: nats-selfsigned
+    name: tentacular-internal-ca
     kind: Issuer
   commonName: nats.tentacular-exoskeleton.svc.cluster.local
   dnsNames:
@@ -110,26 +199,27 @@ Apply it:
 kubectl apply -f nats-server-tls.yaml
 ```
 
-Verify the Secret was created:
+Verify the Secret was created and the certificate is valid:
 
 ```bash
+kubectl -n tentacular-exoskeleton get certificate nats-server-tls
 kubectl -n tentacular-exoskeleton get secret nats-server-tls
 ```
 
-### Option B: SPIRE-issued cert via spiffe-helper
+### Resources summary
 
-For environments where NATS should also use a SPIFFE identity, deploy `spiffe-helper` as a sidecar in the NATS StatefulSet. The helper fetches an X.509 SVID from the SPIRE agent and writes it to a shared volume.
+| Resource | Kind | Namespace | Purpose |
+|----------|------|-----------|---------|
+| `tentacular-selfsigned-bootstrap` | ClusterIssuer | (cluster-scoped) | Bootstraps the internal CA |
+| `tentacular-internal-ca` | Certificate | `tentacular-exoskeleton` | CA cert (10y validity, auto-renewed) |
+| `tentacular-internal-ca-tls` | Secret | `tentacular-exoskeleton` | CA cert + key (created by cert-manager) |
+| `tentacular-internal-ca` | Issuer | `tentacular-exoskeleton` | Issues server certs using the CA |
+| `nats-server-tls` | Certificate | `tentacular-exoskeleton` | NATS server cert (1y validity, auto-renewed) |
+| `nats-server-tls` | Secret | `tentacular-exoskeleton` | Server cert + key (created by cert-manager) |
 
-This requires:
-- A `ClusterSPIFFEID` for the NATS server pods
-- `spiffe-helper` container with access to the SPIRE agent socket
-- A shared `emptyDir` volume between `spiffe-helper` and `nats`
+### Fallback: Self-signed certificate (dev only)
 
-This approach is more complex. Use Option A unless you need NATS itself to have a SPIFFE identity.
-
-### Option C: Self-signed (dev only)
-
-Generate a self-signed cert for quick local testing:
+For quick local testing without cert-manager, generate a self-signed cert directly:
 
 ```bash
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
@@ -144,6 +234,8 @@ kubectl -n tentacular-exoskeleton create secret tls nats-server-tls \
 
 rm /tmp/nats-key.pem /tmp/nats-cert.pem
 ```
+
+> **Note:** With a self-signed server cert, you must add the self-signed cert to the combined CA bundle in the `nats-spire-ca` Secret (Step 1) or clients will reject the server certificate.
 
 ---
 
@@ -275,7 +367,7 @@ kubectl -n tentacular-exoskeleton patch statefulset nats --type=json -p='[
 | Volume | Source | Mount path | Notes |
 |--------|--------|-----------|-------|
 | `nats-server-tls` | Secret `nats-server-tls` | `/etc/nats/tls` | Server cert + key |
-| `nats-spire-ca` | Secret `nats-spire-ca` | `/etc/nats/spire-ca` | SPIRE trust bundle for client verification |
+| `nats-spire-ca` | Secret `nats-spire-ca` | `/etc/nats/spire-ca` | Combined CA bundle (SPIRE CA + cert-manager internal CA) |
 | `nats-tentacular-authz` | ConfigMap `nats-tentacular-authz` | `/etc/nats/authz` | `optional: true` -- may not exist until first tentacle registers |
 
 ---
@@ -480,6 +572,32 @@ kubectl -n tentacular-exoskeleton delete secret nats-spire-ca --ignore-not-found
 kubectl -n tentacular-exoskeleton delete secret nats-server-tls --ignore-not-found
 kubectl -n tentacular-exoskeleton delete configmap nats-tentacular-authz --ignore-not-found
 ```
+
+---
+
+## Certificate Rotation
+
+### Server certificate (automated)
+
+cert-manager handles NATS server certificate rotation automatically. The `nats-server-tls` Certificate has `renewBefore: 720h` (30 days), so cert-manager renews it before expiry. The new certificate is written to the `nats-server-tls` Secret. NATS picks up the new cert on the next pod restart or rollout.
+
+The internal CA certificate (`tentacular-internal-ca`) has a 10-year validity with 1-year `renewBefore`. cert-manager handles this rotation as well.
+
+### Client SVIDs (automated)
+
+SPIRE handles SVID rotation internally. Engine pods receive updated SVIDs through the SPIRE Workload API (Unix socket) without restarts.
+
+### SPIRE CA bundle sync (manual -- known limitation)
+
+When SPIRE rotates its CA, the `spire-bundle` ConfigMap in `tentacular-system` updates automatically. However, the `nats-spire-ca` Secret in `tentacular-exoskeleton` does **not** update automatically. The combined CA bundle must be refreshed manually:
+
+```bash
+# Re-run Step 1 to rebuild the combined bundle with the new SPIRE CA
+# Then restart NATS to pick up the updated bundle
+kubectl -n tentacular-exoskeleton rollout restart statefulset nats
+```
+
+**Future fix:** A sidecar container or CronJob that watches `spire-bundle` and syncs the SPIRE CA cert into the `nats-spire-ca` Secret.
 
 ---
 

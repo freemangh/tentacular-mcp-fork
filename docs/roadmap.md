@@ -6,11 +6,7 @@ Last updated: 2026-03-10
 
 ### P0 — In Progress
 
-Items actively being worked on.
-
-| Item | Description | Status | Target |
-|------|-------------|--------|--------|
-| NATS server TLS reconfiguration | Activate SPIFFE mTLS for NATS. Registrar code is built and tested; NATS server needs TLS configuration with SPIRE trust bundle and `verify_and_map` enabled. Once active, subject isolation is cryptographically enforced per-tentacle. | Code ready, infra needed | TBD |
+No items currently in progress.
 
 ### P1 — Next Up
 
@@ -39,6 +35,12 @@ Items planned but not yet scheduled.
 ## Archive
 
 Completed items, most recent first.
+
+### 2026-03-10 — NATS Server TLS (cert-manager)
+
+| Item | Completed | Notes |
+|------|-----------|-------|
+| NATS server TLS via cert-manager | 2026-03-10 | Internal CA (`tentacular-internal-ca`) with 10y validity. Server cert auto-renewed 30 days before expiry. Combined trust bundle for SPIRE CA + cert-manager CA. Deployed on eastus-dev. |
 
 ### 2026-03-10 — Exoskeleton Phase 1
 
