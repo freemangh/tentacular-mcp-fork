@@ -221,6 +221,7 @@ func TestDualAuthMiddleware_OIDCToken_SetsDeployerContext(t *testing.T) {
 	claims := map[string]interface{}{
 		"iss":               srv.URL,
 		"aud":               "tentacular-mcp",
+		"azp":               "tentacular-mcp",
 		"sub":               "user-123",
 		"email":             "test@example.com",
 		"name":              "Test User",

@@ -67,9 +67,11 @@ type WorkflowRemoveParams struct {
 
 // WorkflowRemoveResult is the result of wf_remove.
 type WorkflowRemoveResult struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	Deleted   int    `json:"deleted"`
+	Name              string `json:"name"`
+	Namespace         string `json:"namespace"`
+	Deleted           int    `json:"deleted"`
+	ExoCleanedUp      bool   `json:"exo_cleaned_up,omitempty"`
+	ExoCleanupDetails string `json:"exo_cleanup_details,omitempty"`
 }
 
 // WorkflowStatusParams are the parameters for wf_status.
@@ -186,8 +188,13 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		result, err := handleWorkflowRemove(ctx, client, params)
 		// Exoskeleton: cleanup registrations after removing K8s resources.
 		if err == nil && exoCtrl != nil {
-			if cleanupErr := exoCtrl.Cleanup(ctx, params.Namespace, params.Name); cleanupErr != nil {
+			report, cleanupErr := exoCtrl.CleanupWithReport(ctx, params.Namespace, params.Name)
+			if cleanupErr != nil {
 				slog.Warn("exoskeleton cleanup failed", "namespace", params.Namespace, "name", params.Name, "error", cleanupErr)
+			}
+			if report != nil && report.Performed {
+				result.ExoCleanedUp = true
+				result.ExoCleanupDetails = report.Summary()
 			}
 		}
 		return nil, result, err

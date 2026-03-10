@@ -1,6 +1,7 @@
 package exoskeleton
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestCompileIdentity(t *testing.T) {
 			workflow:  "hn-digest",
 			wantPg:    "tn_tent_dev_hn_digest",
 			wantPrinc: "spiffe://tentacular/ns/tent-dev/tentacles/hn-digest",
-			wantNATS:  "tent-dev.hn-digest",
+			wantNATS:  "tentacle.tent-dev.hn-digest",
 			wantS3:    "ns/tent-dev/tentacles/hn-digest/",
 		},
 		{
@@ -30,7 +31,7 @@ func TestCompileIdentity(t *testing.T) {
 			workflow:  "myapp",
 			wantPg:    "tn_prod_myapp",
 			wantPrinc: "spiffe://tentacular/ns/prod/tentacles/myapp",
-			wantNATS:  "prod.myapp",
+			wantNATS:  "tentacle.prod.myapp",
 			wantS3:    "ns/prod/tentacles/myapp/",
 		},
 		{
@@ -39,7 +40,7 @@ func TestCompileIdentity(t *testing.T) {
 			workflow:  "my-long-wf-name",
 			wantPg:    "tn_my_long_ns_my_long_wf_name",
 			wantPrinc: "spiffe://tentacular/ns/my-long-ns/tentacles/my-long-wf-name",
-			wantNATS:  "my-long-ns.my-long-wf-name",
+			wantNATS:  "tentacle.my-long-ns.my-long-wf-name",
 			wantS3:    "ns/my-long-ns/tentacles/my-long-wf-name/",
 		},
 	}
@@ -69,8 +70,9 @@ func TestCompileIdentity(t *testing.T) {
 			if id.S3User != tt.wantPg {
 				t.Errorf("S3User = %q, want PgRole %q", id.S3User, tt.wantPg)
 			}
-			if id.NATSPrefix != "tentacular."+tt.wantNATS+".>" {
-				t.Errorf("NATSPrefix = %q, want %q", id.NATSPrefix, "tentacular."+tt.wantNATS+".>")
+			wantPrefix := fmt.Sprintf("tentacular.%s.%s.>", tt.namespace, tt.workflow)
+			if id.NATSPrefix != wantPrefix {
+				t.Errorf("NATSPrefix = %q, want %q", id.NATSPrefix, wantPrefix)
 			}
 		})
 	}

@@ -156,41 +156,84 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 	return manifests, nil
 }
 
+// CleanupReport describes what the exoskeleton cleanup performed.
+type CleanupReport struct {
+	Performed bool
+	Postgres  string // e.g. "schema dropped"
+	NATS      string // e.g. "no-op"
+	RustFS    string // e.g. "user removed"
+}
+
+// Summary returns a human-readable description of cleanup actions.
+func (r *CleanupReport) Summary() string {
+	var parts []string
+	if r.Postgres != "" {
+		parts = append(parts, "postgres "+r.Postgres)
+	}
+	if r.NATS != "" {
+		parts = append(parts, "nats "+r.NATS)
+	}
+	if r.RustFS != "" {
+		parts = append(parts, "rustfs "+r.RustFS)
+	}
+	if len(parts) == 0 {
+		return "no services cleaned up"
+	}
+	return strings.Join(parts, ", ")
+}
+
 // Cleanup unregisters the tentacle from all enabled services. Called
 // from wf_remove when CleanupOnUndeploy is true.
 func (c *Controller) Cleanup(ctx context.Context, namespace, name string) error {
+	_, err := c.CleanupWithReport(ctx, namespace, name)
+	return err
+}
+
+// CleanupWithReport unregisters the tentacle from all enabled services and
+// returns a report of what was cleaned up. Called from wf_remove.
+func (c *Controller) CleanupWithReport(ctx context.Context, namespace, name string) (*CleanupReport, error) {
+	report := &CleanupReport{}
+
 	if !c.cfg.Enabled || !c.cfg.CleanupOnUndeploy {
-		return nil
+		return report, nil
 	}
 
 	id, err := CompileIdentity(namespace, name)
 	if err != nil {
-		return fmt.Errorf("exoskeleton identity: %w", err)
+		return report, fmt.Errorf("exoskeleton identity: %w", err)
 	}
 	var errs []string
+
+	report.Performed = true
 
 	if c.pg != nil {
 		if err := c.pg.Unregister(ctx, id); err != nil {
 			errs = append(errs, fmt.Sprintf("postgres: %v", err))
+		} else {
+			report.Postgres = "schema dropped"
 		}
 	}
 	if c.nats != nil {
 		if err := c.nats.Unregister(ctx, id); err != nil {
 			errs = append(errs, fmt.Sprintf("nats: %v", err))
+		} else {
+			report.NATS = "no-op"
 		}
 	}
 	if c.rustfs != nil {
 		if err := c.rustfs.Unregister(ctx, id); err != nil {
 			errs = append(errs, fmt.Sprintf("rustfs: %v", err))
+		} else {
+			report.RustFS = "user removed"
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("exoskeleton cleanup errors: %s", strings.Join(errs, "; "))
+		return report, fmt.Errorf("exoskeleton cleanup errors: %s", strings.Join(errs, "; "))
 	}
 
 	slog.Info("exoskeleton: cleanup complete", "namespace", namespace, "workflow", name)
-	return nil
+	return report, nil
 }
 
 // Close releases all registrar resources.

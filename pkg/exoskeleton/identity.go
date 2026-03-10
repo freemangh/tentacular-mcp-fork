@@ -17,7 +17,7 @@ type Identity struct {
 	Principal  string // spiffe://tentacular/ns/<ns>/tentacles/<wf>
 	PgRole     string // tn_<ns>_<wf> (hyphens -> underscores, max 63 chars)
 	PgSchema   string // same as PgRole
-	NATSUser   string // <ns>.<wf>
+	NATSUser   string // tentacle.<ns>.<wf>
 	NATSPrefix string // tentacular.<ns>.<wf>.>
 	S3Prefix   string // ns/<ns>/tentacles/<wf>/
 	S3User     string // same as PgRole
@@ -50,7 +50,7 @@ func CompileIdentity(namespace, workflow string) (Identity, error) {
 		Principal:  fmt.Sprintf("spiffe://tentacular/ns/%s/tentacles/%s", namespace, workflow),
 		PgRole:     pgBase,
 		PgSchema:   pgBase,
-		NATSUser:   fmt.Sprintf("%s.%s", namespace, workflow),
+		NATSUser:   fmt.Sprintf("tentacle.%s.%s", namespace, workflow),
 		NATSPrefix: fmt.Sprintf("tentacular.%s.%s.>", namespace, workflow),
 		S3Prefix:   fmt.Sprintf("ns/%s/tentacles/%s/", namespace, workflow),
 		S3User:     pgBase,

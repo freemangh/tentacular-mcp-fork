@@ -10,8 +10,8 @@ func TestNATSCredsMapping(t *testing.T) {
 		t.Fatalf("CompileIdentity returned error: %v", err)
 	}
 
-	if id.NATSUser != "tent-dev.hn-digest" {
-		t.Errorf("NATSUser = %q, want tent-dev.hn-digest", id.NATSUser)
+	if id.NATSUser != "tentacle.tent-dev.hn-digest" {
+		t.Errorf("NATSUser = %q, want tentacle.tent-dev.hn-digest", id.NATSUser)
 	}
 	if id.NATSPrefix != "tentacular.tent-dev.hn-digest.>" {
 		t.Errorf("NATSPrefix = %q, want tentacular.tent-dev.hn-digest.>", id.NATSPrefix)

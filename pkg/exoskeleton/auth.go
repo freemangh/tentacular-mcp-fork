@@ -58,8 +58,11 @@ func NewOIDCValidator(cfg AuthConfig) (*OIDCValidator, error) {
 		return nil, fmt.Errorf("OIDC provider discovery for %s: %w", cfg.IssuerURL, err)
 	}
 
+	// Keycloak access tokens use "azp" (authorized party) instead of "aud"
+	// for the client ID. Skip the default audience check and validate azp
+	// manually in ValidateToken.
 	verifier := provider.Verifier(&oidc.Config{
-		ClientID: cfg.ClientID,
+		SkipClientIDCheck: true,
 	})
 
 	slog.Info("OIDC validator initialized", "issuer", cfg.IssuerURL, "client_id", cfg.ClientID)
@@ -91,6 +94,12 @@ func (v *OIDCValidator) ValidateToken(ctx context.Context, tokenString string) (
 	var claims keycloakClaims
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, fmt.Errorf("OIDC claims extraction failed: %w", err)
+	}
+
+	// Validate azp (authorized party) since Keycloak access tokens use azp
+	// instead of aud for the client identifier.
+	if claims.AZP != v.clientID {
+		return nil, fmt.Errorf("OIDC token azp %q does not match client ID %q", claims.AZP, v.clientID)
 	}
 
 	provider := determineProvider(claims)
