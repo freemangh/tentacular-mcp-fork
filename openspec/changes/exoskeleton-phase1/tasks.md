@@ -59,3 +59,18 @@
 ## Step 12: Go Dependencies
 - [x] Add pgx, nats.go, madmin-go, minio-go to go.mod
 - [x] Run go mod tidy
+
+## Step 13: SPIRE Registrar
+- [x] Create `pkg/exoskeleton/registrar_spire.go` with ClusterSPIFFEID management
+- [x] `Register(ctx, id)` -> create ClusterSPIFFEID custom resource
+- [x] `Unregister(ctx, id)` -> delete ClusterSPIFFEID custom resource
+- [x] Wire into controller registration lifecycle
+
+## Step 14: NATS SPIFFE Mode
+- [x] Add dual-mode auth to NATS registrar (SPIFFE mTLS or shared token)
+- [x] SPIFFE mode: manage authorization entries in ConfigMap (`TENTACULAR_NATS_AUTHZ_CONFIGMAP`)
+- [x] Map SPIFFE URIs to per-tentacle publish/subscribe permissions
+- [x] Token mode: preserve existing shared-token behavior as fallback
+- [x] Add `TENTACULAR_NATS_SPIFFE_ENABLED`, `TENTACULAR_NATS_AUTHZ_CONFIGMAP`, `TENTACULAR_NATS_AUTHZ_NAMESPACE` env vars
+- [x] Update config loader and Helm chart values
+- [x] Update `exo_status` to report `spire_available` and `nats_spiffe_enabled`

@@ -17,6 +17,9 @@ func TestLoadFromEnv(t *testing.T) {
 		"TENTACULAR_POSTGRES_ADMIN_PASSWORD",
 		"TENTACULAR_NATS_URL",
 		"TENTACULAR_NATS_TOKEN",
+		"TENTACULAR_NATS_SPIFFE_ENABLED",
+		"TENTACULAR_NATS_AUTHZ_CONFIGMAP",
+		"TENTACULAR_NATS_AUTHZ_NAMESPACE",
 		"TENTACULAR_RUSTFS_ENDPOINT",
 		"TENTACULAR_RUSTFS_ACCESS_KEY",
 		"TENTACULAR_RUSTFS_SECRET_KEY",
@@ -219,6 +222,50 @@ func TestLoadFromEnv(t *testing.T) {
 		os.Unsetenv("TENTACULAR_EXOSKELETON_ENABLED")
 		os.Unsetenv("TENTACULAR_EXOSKELETON_SPIRE_ENABLED")
 		os.Unsetenv("TENTACULAR_SPIRE_CLASS_NAME")
+	})
+
+	t.Run("nats spiffe defaults", func(t *testing.T) {
+		os.Setenv("TENTACULAR_EXOSKELETON_ENABLED", "true")
+		os.Setenv("TENTACULAR_NATS_URL", "nats://localhost:4222")
+
+		cfg := LoadFromEnv()
+		if cfg.NATS.SPIFFEEnabled {
+			t.Error("expected SPIFFEEnabled=false by default")
+		}
+		if cfg.NATS.AuthzConfigMap != "nats-tentacular-authz" {
+			t.Errorf("expected default AuthzConfigMap, got %q", cfg.NATS.AuthzConfigMap)
+		}
+		if cfg.NATS.AuthzNamespace != "tentacular-exoskeleton" {
+			t.Errorf("expected default AuthzNamespace, got %q", cfg.NATS.AuthzNamespace)
+		}
+
+		os.Unsetenv("TENTACULAR_EXOSKELETON_ENABLED")
+		os.Unsetenv("TENTACULAR_NATS_URL")
+	})
+
+	t.Run("nats spiffe enabled with custom configmap", func(t *testing.T) {
+		os.Setenv("TENTACULAR_EXOSKELETON_ENABLED", "true")
+		os.Setenv("TENTACULAR_NATS_URL", "nats://localhost:4222")
+		os.Setenv("TENTACULAR_NATS_SPIFFE_ENABLED", "true")
+		os.Setenv("TENTACULAR_NATS_AUTHZ_CONFIGMAP", "custom-authz")
+		os.Setenv("TENTACULAR_NATS_AUTHZ_NAMESPACE", "custom-ns")
+
+		cfg := LoadFromEnv()
+		if !cfg.NATS.SPIFFEEnabled {
+			t.Error("expected SPIFFEEnabled=true")
+		}
+		if cfg.NATS.AuthzConfigMap != "custom-authz" {
+			t.Errorf("expected custom AuthzConfigMap, got %q", cfg.NATS.AuthzConfigMap)
+		}
+		if cfg.NATS.AuthzNamespace != "custom-ns" {
+			t.Errorf("expected custom AuthzNamespace, got %q", cfg.NATS.AuthzNamespace)
+		}
+
+		os.Unsetenv("TENTACULAR_EXOSKELETON_ENABLED")
+		os.Unsetenv("TENTACULAR_NATS_URL")
+		os.Unsetenv("TENTACULAR_NATS_SPIFFE_ENABLED")
+		os.Unsetenv("TENTACULAR_NATS_AUTHZ_CONFIGMAP")
+		os.Unsetenv("TENTACULAR_NATS_AUTHZ_NAMESPACE")
 	})
 
 	t.Run("not enabled without top flag", func(t *testing.T) {

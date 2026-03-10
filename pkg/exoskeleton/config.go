@@ -34,8 +34,11 @@ type PostgresConfig struct {
 
 // NATSConfig holds connection details for the NATS registrar.
 type NATSConfig struct {
-	URL   string
-	Token string
+	URL            string
+	Token          string // for token mode
+	SPIFFEEnabled  bool   // use SPIFFE mTLS instead of token
+	AuthzConfigMap string // ConfigMap name for NATS authz (default: "nats-tentacular-authz")
+	AuthzNamespace string // Namespace of the ConfigMap (default: "tentacular-exoskeleton")
 }
 
 // RustFSConfig holds admin connection details for the RustFS (MinIO-compatible) registrar.
@@ -61,8 +64,11 @@ func LoadFromEnv() *Config {
 			SSLMode:  envDefault("TENTACULAR_POSTGRES_SSLMODE", "disable"),
 		},
 		NATS: NATSConfig{
-			URL:   os.Getenv("TENTACULAR_NATS_URL"),
-			Token: os.Getenv("TENTACULAR_NATS_TOKEN"),
+			URL:            os.Getenv("TENTACULAR_NATS_URL"),
+			Token:          os.Getenv("TENTACULAR_NATS_TOKEN"),
+			SPIFFEEnabled:  envBool("TENTACULAR_NATS_SPIFFE_ENABLED"),
+			AuthzConfigMap: envDefault("TENTACULAR_NATS_AUTHZ_CONFIGMAP", "nats-tentacular-authz"),
+			AuthzNamespace: envDefault("TENTACULAR_NATS_AUTHZ_NAMESPACE", "tentacular-exoskeleton"),
 		},
 		RustFS: RustFSConfig{
 			Endpoint:  os.Getenv("TENTACULAR_RUSTFS_ENDPOINT"),

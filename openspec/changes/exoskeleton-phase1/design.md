@@ -74,6 +74,48 @@ stringData:
 
 After deleting resources, detect exoskeleton Secret label and run unregistrars if `CleanupOnUndeploy` is true.
 
+## SPIRE Registrar
+
+The SPIRE registrar creates `ClusterSPIFFEID` custom resources that match workflow pods by namespace and release label. The SPIRE controller provisions X.509 SVIDs to matched pods automatically.
+
+```go
+// Register creates a ClusterSPIFFEID for the tentacle
+func (r *SPIRERegistrar) Register(ctx context.Context, id Identity) error
+// Unregister deletes the ClusterSPIFFEID
+func (r *SPIRERegistrar) Unregister(ctx context.Context, id Identity) error
+```
+
+No credentials are returned. SPIRE provides identity only.
+
+## NATS SPIFFE Mode
+
+The NATS registrar supports dual-mode authentication:
+
+### SPIFFE mode (`TENTACULAR_NATS_SPIFFE_ENABLED=true`)
+
+- Uses mTLS with SPIRE-issued X.509 SVIDs for NATS authentication
+- NATS server configured with `verify_and_map` to map SPIFFE URIs to authorization rules
+- Authorization rules stored in a ConfigMap (`TENTACULAR_NATS_AUTHZ_CONFIGMAP` in `TENTACULAR_NATS_AUTHZ_NAMESPACE`)
+- Each tentacle gets a ConfigMap entry mapping its SPIFFE URI to permitted publish/subscribe subjects
+- Enforced per-tentacle isolation -- cryptographic, not convention-based
+
+### Token mode (fallback)
+
+- Shared bearer token, convention-only subject isolation
+- Used when SPIRE is not available or SPIFFE mode is not enabled
+
+### Config additions
+
+```
+TENTACULAR_NATS_SPIFFE_ENABLED      - Enable SPIFFE mTLS auth (default: false)
+TENTACULAR_NATS_AUTHZ_CONFIGMAP     - ConfigMap name for authz rules (default: nats-tentacular-authz)
+TENTACULAR_NATS_AUTHZ_NAMESPACE     - ConfigMap namespace (default: tentacular-exoskeleton)
+```
+
+### exo_status additions
+
+`exo_status` now reports `spire_available` and `nats_spiffe_enabled` fields.
+
 ## New Dependencies
 - github.com/jackc/pgx/v5
 - github.com/nats-io/nats.go

@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 )
@@ -48,7 +49,11 @@ func NewController(cfg *Config, k8sClient *k8s.Client) (*Controller, error) {
 	}
 
 	if cfg.NATSEnabled() {
-		natsReg, err := NewNATSRegistrar(ctx, cfg.NATS)
+		var natsClientset kubernetes.Interface
+		if k8sClient != nil {
+			natsClientset = k8sClient.Clientset
+		}
+		natsReg, err := NewNATSRegistrar(ctx, cfg.NATS, natsClientset)
 		if err != nil {
 			return nil, fmt.Errorf("exoskeleton nats init: %w", err)
 		}
@@ -264,7 +269,11 @@ func (c *Controller) CleanupWithReport(ctx context.Context, namespace, name stri
 		if err := c.nats.Unregister(ctx, id); err != nil {
 			errs = append(errs, fmt.Sprintf("nats: %v", err))
 		} else {
-			report.NATS = "no-op"
+			if c.cfg.NATS.SPIFFEEnabled {
+				report.NATS = "authz entry removed"
+			} else {
+				report.NATS = "no-op"
+			}
 		}
 	}
 	if c.rustfs != nil {

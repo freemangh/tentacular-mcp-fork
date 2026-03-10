@@ -28,9 +28,12 @@ func BuildSecretManifest(namespace, workflow string, creds map[string]interface{
 			stringData[svcName+".protocol"] = c.Protocol
 		case *NATSCreds:
 			stringData[svcName+".url"] = c.URL
-			stringData[svcName+".token"] = c.Token
+			if c.Token != "" {
+				stringData[svcName+".token"] = c.Token
+			}
 			stringData[svcName+".subject_prefix"] = c.SubjectPrefix
 			stringData[svcName+".protocol"] = c.Protocol
+			stringData[svcName+".auth_method"] = c.AuthMethod
 		case *RustFSCreds:
 			stringData[svcName+".endpoint"] = c.Endpoint
 			stringData[svcName+".access_key"] = c.AccessKey

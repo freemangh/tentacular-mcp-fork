@@ -23,6 +23,7 @@ func TestBuildSecretManifestAllThreeServices(t *testing.T) {
 			Token:         "natstoken",
 			SubjectPrefix: "tentacular.ns.wf.>",
 			Protocol:      "nats",
+			AuthMethod:    "token",
 		},
 		"tentacular-rustfs": &RustFSCreds{
 			Endpoint:  "http://minio:9000",
@@ -63,6 +64,7 @@ func TestBuildSecretManifestAllThreeServices(t *testing.T) {
 		"tentacular-nats.token",
 		"tentacular-nats.subject_prefix",
 		"tentacular-nats.protocol",
+		"tentacular-nats.auth_method",
 	}
 	for _, k := range natsKeys {
 		if _, ok := sd[k]; !ok {
@@ -98,9 +100,9 @@ func TestBuildSecretManifestAllThreeServices(t *testing.T) {
 		}
 	}
 
-	// Verify total key count: 7 pg + 4 nats + 7 rustfs + 3 identity = 21
-	if len(sd) != 21 {
-		t.Errorf("expected 21 stringData keys, got %d", len(sd))
+	// Verify total key count: 7 pg + 5 nats + 7 rustfs + 3 identity = 22
+	if len(sd) != 22 {
+		t.Errorf("expected 22 stringData keys, got %d", len(sd))
 	}
 }
 
