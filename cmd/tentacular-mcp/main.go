@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/randybias/tentacular-mcp/pkg/auth"
+	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	"github.com/randybias/tentacular-mcp/pkg/proxy"
 	"github.com/randybias/tentacular-mcp/pkg/scheduler"
@@ -52,7 +53,27 @@ func main() {
 
 	sched := scheduler.New(client, logger)
 
-	srv, err := server.New(client, reconciler, sched, token, logger)
+	// Initialize exoskeleton controller from environment configuration.
+	exoCfg := exoskeleton.LoadFromEnv()
+	exoCtrl, err := exoskeleton.NewController(exoCfg, client)
+	if err != nil {
+		slog.Error("failed to initialize exoskeleton controller", "error", err)
+		os.Exit(1)
+	}
+	defer exoCtrl.Close()
+
+	// Initialize OIDC validator if auth is enabled.
+	var oidcValidator *exoskeleton.OIDCValidator
+	if exoCfg.AuthEnabled() {
+		oidcValidator, err = exoskeleton.NewOIDCValidator(exoCfg.Auth)
+		if err != nil {
+			slog.Error("failed to initialize OIDC validator", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("OIDC authentication enabled", "issuer", exoCfg.Auth.IssuerURL)
+	}
+
+	srv, err := server.New(client, reconciler, sched, exoCtrl, oidcValidator, token, logger)
 	if err != nil {
 		slog.Error("failed to create MCP server", "error", err)
 		os.Exit(1)

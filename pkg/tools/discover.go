@@ -49,6 +49,8 @@ type WfListEntry struct {
 	Owner       string `json:"owner,omitempty"`
 	Team        string `json:"team,omitempty"`
 	Environment string `json:"environment,omitempty"`
+	DeployedBy  string `json:"deployed_by,omitempty"`
+	DeployedVia string `json:"deployed_via,omitempty"`
 	Ready       bool   `json:"ready"`
 	Age         string `json:"age"`
 }
@@ -73,6 +75,9 @@ type WfDescribeResult struct {
 	Team          string            `json:"team,omitempty"`
 	Tags          []string          `json:"tags,omitempty"`
 	Environment   string            `json:"environment,omitempty"`
+	DeployedBy    string            `json:"deployed_by,omitempty"`
+	DeployedVia   string            `json:"deployed_via,omitempty"`
+	DeployedAt    string            `json:"deployed_at,omitempty"`
 	Ready         bool              `json:"ready"`
 	Replicas      int32             `json:"replicas"`
 	ReadyReplicas int32             `json:"ready_replicas"`
@@ -163,10 +168,10 @@ func handleWfDescribe(ctx context.Context, client *k8s.Client, params WfDescribe
 		image = dep.Spec.Template.Spec.Containers[0].Image
 	}
 
-	// Collect only tentacular.dev/* annotations for the result
+	// Collect tentacular.dev/* and tentacular.io/* annotations for the result.
 	tentacularAnn := make(map[string]string)
 	for k, v := range ann {
-		if strings.HasPrefix(k, "tentacular.dev/") {
+		if strings.HasPrefix(k, "tentacular.dev/") || strings.HasPrefix(k, "tentacular.io/") {
 			tentacularAnn[k] = v
 		}
 	}
@@ -184,6 +189,9 @@ func handleWfDescribe(ctx context.Context, client *k8s.Client, params WfDescribe
 		Team:          ann["tentacular.dev/team"],
 		Tags:          tags,
 		Environment:   ann["tentacular.dev/environment"],
+		DeployedBy:    ann["tentacular.io/deployed-by"],
+		DeployedVia:   ann["tentacular.io/deployed-via"],
+		DeployedAt:    ann["tentacular.io/deployed-at"],
 		Ready:         dep.Status.ReadyReplicas >= 1,
 		Replicas:      derefInt32(dep.Spec.Replicas),
 		ReadyReplicas: dep.Status.ReadyReplicas,
@@ -243,6 +251,8 @@ func deploymentToListEntry(dep appsv1.Deployment) WfListEntry {
 		Owner:       ann["tentacular.dev/owner"],
 		Team:        ann["tentacular.dev/team"],
 		Environment: ann["tentacular.dev/environment"],
+		DeployedBy:  ann["tentacular.io/deployed-by"],
+		DeployedVia: ann["tentacular.io/deployed-via"],
 		Ready:       dep.Status.ReadyReplicas >= 1,
 		Age:         age,
 	}

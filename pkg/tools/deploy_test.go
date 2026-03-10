@@ -183,7 +183,7 @@ func TestDeployToolNamesRegistered(t *testing.T) {
 		&mcp.ServerOptions{Logger: slog.New(slog.NewTextHandler(os.Stderr, nil))},
 	)
 	client := newDeployTestClient()
-	registerDeployTools(mcpSrv, client, nil)
+	registerDeployTools(mcpSrv, client, nil, nil)
 
 	handler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server { return mcpSrv },
@@ -315,6 +315,56 @@ func TestWorkflowRemoveResultJSONNameField(t *testing.T) {
 	}
 	if _, ok := m["release"]; ok {
 		t.Error("WorkflowRemoveResult JSON: old \"release\" field is present; should have been renamed to \"name\"")
+	}
+}
+
+// TestWorkflowRemoveResultIncludesCleanupFields verifies that exo cleanup fields
+// are serialized in the wf_remove result when populated.
+func TestWorkflowRemoveResultIncludesCleanupFields(t *testing.T) {
+	result := WorkflowRemoveResult{
+		Name:              "my-wf",
+		Namespace:         "my-ns",
+		Deleted:           2,
+		ExoCleanedUp:      true,
+		ExoCleanupDetails: "postgres schema dropped, rustfs user removed",
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if v, ok := m["exo_cleaned_up"]; !ok || v != true {
+		t.Errorf("expected exo_cleaned_up=true, got %v", v)
+	}
+	if v, ok := m["exo_cleanup_details"]; !ok || v != "postgres schema dropped, rustfs user removed" {
+		t.Errorf("expected exo_cleanup_details to match, got %v", v)
+	}
+}
+
+// TestWorkflowRemoveResultOmitsCleanupFieldsWhenEmpty verifies that exo cleanup fields
+// are omitted from JSON when not set (omitempty behavior).
+func TestWorkflowRemoveResultOmitsCleanupFieldsWhenEmpty(t *testing.T) {
+	result := WorkflowRemoveResult{
+		Name:      "my-wf",
+		Namespace: "my-ns",
+		Deleted:   1,
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if _, ok := m["exo_cleaned_up"]; ok {
+		t.Error("expected exo_cleaned_up to be omitted when false")
+	}
+	if _, ok := m["exo_cleanup_details"]; ok {
+		t.Error("expected exo_cleanup_details to be omitted when empty")
 	}
 }
 

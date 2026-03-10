@@ -94,6 +94,10 @@ rules:
   - apiGroups: ["apiextensions.k8s.io"]
     resources: ["customresourcedefinitions"]
     verbs: ["get", "list", "watch"]
+  # SPIRE identity registration (exoskeleton)
+  - apiGroups: ["spire.spiffe.io"]
+    resources: ["clusterspiffeids"]
+    verbs: ["create", "update", "delete", "get", "list"]
   # Self-subject access review (preflight checks)
   - apiGroups: ["authorization.k8s.io"]
     resources: ["selfsubjectaccessreviews"]

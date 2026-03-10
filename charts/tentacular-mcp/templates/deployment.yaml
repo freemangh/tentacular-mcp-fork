@@ -48,6 +48,178 @@ spec:
           env:
             - name: TOKEN_PATH
               value: /etc/tentacular-mcp/token
+            {{- if .Values.exoskeletonAuth.enabled }}
+            - name: TENTACULAR_EXOSKELETON_AUTH_ENABLED
+              value: "true"
+            {{- if .Values.exoskeletonAuth.existingSecret }}
+            - name: TENTACULAR_KEYCLOAK_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeletonAuth.existingSecret }}
+                  key: issuer-url
+            - name: TENTACULAR_KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeletonAuth.existingSecret }}
+                  key: client-id
+            - name: TENTACULAR_KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeletonAuth.existingSecret }}
+                  key: client-secret
+            {{- else }}
+            - name: TENTACULAR_KEYCLOAK_ISSUER
+              value: {{ .Values.exoskeletonAuth.issuerURL | quote }}
+            - name: TENTACULAR_KEYCLOAK_CLIENT_ID
+              value: {{ .Values.exoskeletonAuth.clientID | quote }}
+            {{- if .Values.exoskeletonAuth.clientSecret }}
+            - name: TENTACULAR_KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton-auth
+                  key: client-secret
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.exoskeleton.enabled }}
+            - name: TENTACULAR_EXOSKELETON_ENABLED
+              value: "true"
+            - name: TENTACULAR_EXOSKELETON_CLEANUP_ON_UNDEPLOY
+              value: {{ .Values.exoskeleton.cleanupOnUndeploy | quote }}
+            {{- if .Values.exoskeleton.postgres.existingSecret }}
+            - name: TENTACULAR_POSTGRES_ADMIN_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.postgres.existingSecret }}
+                  key: host
+            - name: TENTACULAR_POSTGRES_ADMIN_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.postgres.existingSecret }}
+                  key: port
+            - name: TENTACULAR_POSTGRES_ADMIN_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.postgres.existingSecret }}
+                  key: database
+            - name: TENTACULAR_POSTGRES_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.postgres.existingSecret }}
+                  key: user
+            - name: TENTACULAR_POSTGRES_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.postgres.existingSecret }}
+                  key: password
+            - name: TENTACULAR_POSTGRES_SSLMODE
+              value: {{ .Values.exoskeleton.postgres.sslMode | default "disable" | quote }}
+            {{- else if .Values.exoskeleton.postgres.host }}
+            - name: TENTACULAR_POSTGRES_ADMIN_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: postgres-host
+            - name: TENTACULAR_POSTGRES_ADMIN_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: postgres-port
+            - name: TENTACULAR_POSTGRES_ADMIN_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: postgres-database
+            - name: TENTACULAR_POSTGRES_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: postgres-user
+            - name: TENTACULAR_POSTGRES_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: postgres-password
+            - name: TENTACULAR_POSTGRES_SSLMODE
+              value: {{ .Values.exoskeleton.postgres.sslMode | default "disable" | quote }}
+            {{- end }}
+            {{- if .Values.exoskeleton.nats.existingSecret }}
+            - name: TENTACULAR_NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.nats.existingSecret }}
+                  key: url
+            - name: TENTACULAR_NATS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.nats.existingSecret }}
+                  key: token
+            {{- else if .Values.exoskeleton.nats.url }}
+            - name: TENTACULAR_NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: nats-url
+            - name: TENTACULAR_NATS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: nats-token
+            {{- end }}
+            {{- if .Values.exoskeleton.rustfs.existingSecret }}
+            - name: TENTACULAR_RUSTFS_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.rustfs.existingSecret }}
+                  key: endpoint
+            - name: TENTACULAR_RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.rustfs.existingSecret }}
+                  key: access_key
+            - name: TENTACULAR_RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.rustfs.existingSecret }}
+                  key: secret_key
+            - name: TENTACULAR_RUSTFS_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.rustfs.existingSecret }}
+                  key: bucket
+            - name: TENTACULAR_RUSTFS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.exoskeleton.rustfs.existingSecret }}
+                  key: region
+            {{- else if .Values.exoskeleton.rustfs.endpoint }}
+            - name: TENTACULAR_RUSTFS_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: rustfs-endpoint
+            - name: TENTACULAR_RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: rustfs-access-key
+            - name: TENTACULAR_RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: rustfs-secret-key
+            - name: TENTACULAR_RUSTFS_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: rustfs-bucket
+            - name: TENTACULAR_RUSTFS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
+                  key: rustfs-region
+            {{- end }}
+            {{- end }}
           volumeMounts:
             - name: auth-secret
               mountPath: /etc/tentacular-mcp

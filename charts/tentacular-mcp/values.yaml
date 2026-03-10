@@ -108,3 +108,53 @@ tolerations: []
 
 # -- Affinity rules for pod scheduling
 affinity: {}
+
+# -- Exoskeleton SSO/OIDC authentication configuration.
+exoskeletonAuth:
+  # -- Enable OIDC authentication (Keycloak SSO)
+  enabled: false
+  # -- Keycloak realm issuer URL (internal cluster URL preferred)
+  issuerURL: ""
+  # -- OIDC client ID
+  clientID: ""
+  # -- OIDC client secret (used only when existingSecret is empty)
+  clientSecret: ""
+  # -- Name of an existing Secret containing Keycloak credentials.
+  # Required keys: issuer-url, client-id, client-secret.
+  existingSecret: ""
+
+# -- Exoskeleton configuration for backing-service registration.
+exoskeleton:
+  # -- Enable the exoskeleton control plane
+  enabled: false
+  # -- Delete backing-service data on undeploy
+  cleanupOnUndeploy: false
+  postgres:
+    # -- Name of an existing Secret containing Postgres admin credentials.
+    # Required keys: host, port, database, user, password.
+    existingSecret: ""
+    # -- Inline Postgres admin credentials (used only when existingSecret is empty)
+    host: ""
+    port: "5432"
+    database: "tentacular"
+    user: ""
+    password: ""
+    # -- Postgres SSL mode (disable, require, verify-ca, verify-full)
+    sslMode: "disable"
+  nats:
+    # -- Name of an existing Secret containing NATS credentials.
+    # Required keys: url, token.
+    existingSecret: ""
+    # -- Inline NATS credentials (used only when existingSecret is empty)
+    url: ""
+    token: ""
+  rustfs:
+    # -- Name of an existing Secret containing RustFS admin credentials.
+    # Required keys: endpoint, access_key, secret_key, bucket, region.
+    existingSecret: ""
+    # -- Inline RustFS admin credentials (used only when existingSecret is empty)
+    endpoint: ""
+    accessKey: ""
+    secretKey: ""
+    bucket: "tentacular"
+    region: "us-east-1"
