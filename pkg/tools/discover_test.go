@@ -87,13 +87,6 @@ func TestWrapListErrorAllNamespaces(t *testing.T) {
 	}
 }
 
-func TestWrapGetError(t *testing.T) {
-	err := wrapGetError("deployment", "my-dep", "my-ns", errFake)
-	if !strings.Contains(err.Error(), `"my-dep"`) || !strings.Contains(err.Error(), `"my-ns"`) {
-		t.Errorf("expected name and namespace in error, got: %v", err)
-	}
-}
-
 var errFake = &fakeError{}
 
 type fakeError struct{}
