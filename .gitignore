@@ -6,3 +6,14 @@ scratch/
 .env
 .mcp.json
 .DS_Store
+
+# AI assistant configs
+.claude/
+
+# Ralphex local config
+.ralphex/
+docs/plans/
+
+# Helm build artifacts
+.helm-bin
+charts/tentacular-platform/charts/*.tgz
