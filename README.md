@@ -19,13 +19,12 @@ Developer workstations holding cluster-wide admin kubeconfig is a security anti-
 
 Full documentation: **[randybias.github.io/tentacular-docs](https://randybias.github.io/tentacular-docs)** — see [MCP Tools Reference](https://randybias.github.io/tentacular-docs/reference/mcp-tools/), [MCP Server Setup](https://randybias.github.io/tentacular-docs/guides/mcp-server-setup/), and [Exoskeleton](https://randybias.github.io/tentacular-docs/concepts/exoskeleton/).
 
-The `docs/` directory in this repo is the source-of-record for the published documentation site.
 
 ## Architecture
 
 ![MCP Server Architecture](docs/diagrams/mcp-server-architecture.svg)
 
-The MCP server also manages the **module proxy** in the `tentacular-support` namespace. On startup, the proxy reconciler (`pkg/proxy/`) auto-creates an esm.sh Deployment and Service that caches jsr/npm modules for workflow pods. This eliminates direct internet egress from workflow containers. See the [tentacular architecture docs](https://github.com/randybias/tentacular/blob/main/docs/esm-module-proxy.md) for the full module proxy design.
+The MCP server also manages the **module proxy** in the `tentacular-support` namespace. On startup, the proxy reconciler (`pkg/proxy/`) auto-creates an esm.sh Deployment and Service that caches jsr/npm modules for workflow pods. This eliminates direct internet egress from workflow containers.
 
 ### Request Flow
 
@@ -347,7 +346,7 @@ pkg/guard/                    Self-protection namespace guard
 pkg/k8s/                      Kubernetes client and operations
 pkg/proxy/                    Module proxy reconciler and manifests
 pkg/server/                   MCP server setup and HTTP handler
-pkg/tools/                    31 MCP tool handlers (one file per group)
+pkg/tools/                    32 MCP tool handlers (one file per group)
 deploy/manifests/             Kustomize-based deployment manifests
 test/integration/             Integration tests (kind cluster)
 test/e2e/                     E2E tests (production cluster)
@@ -410,7 +409,7 @@ The CLI has no direct Kubernetes API access. All cluster-facing
 commands (deploy, run, list, status, logs, undeploy, audit,
 cluster check, cluster profile) route through MCP.
 
-On startup, the MCP server's proxy reconciler auto-creates the esm.sh module proxy in `tentacular-support`. See the [tentacular docs](https://github.com/randybias/tentacular/blob/main/docs/esm-module-proxy.md) for the full infrastructure bootstrapping sequence.
+On startup, the MCP server's proxy reconciler auto-creates the esm.sh module proxy in `tentacular-support`.
 
 ### MCP Tools Used by CLI
 
@@ -426,8 +425,7 @@ On startup, the MCP server's proxy reconciler auto-creates the esm.sh module pro
 | `undeploy` | `wf_remove` |
 | `audit` | `audit_rbac`, `audit_netpol`, `audit_psa` |
 
-For the original design document, see
-[docs/cli-integration.md](docs/cli-integration.md).
+See the [MCP Server Setup guide](https://randybias.github.io/tentacular-docs/guides/mcp-server-setup/) for full details.
 
 ## Contributing
 
