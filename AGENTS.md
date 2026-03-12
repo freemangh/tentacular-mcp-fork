@@ -124,4 +124,4 @@ Use `scratch/` for all temporary files, experiments, and throwaway work. This di
 
 ## License
 
-Apache License 2.0
+Copyright (c) 2025-2026 Mirantis, Inc. All rights reserved.

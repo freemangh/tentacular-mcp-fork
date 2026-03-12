@@ -13,6 +13,13 @@ Developer workstations holding cluster-wide admin kubeconfig is a security anti-
 | [tentacular](https://github.com/randybias/tentacular) | Go CLI + Deno workflow engine |
 | [tentacular-skill](https://github.com/randybias/tentacular-skill) | Agent skill definition for AI assistants |
 | [tentacular-catalog](https://github.com/randybias/tentacular-catalog) | Workflow template catalog |
+| [tentacular-docs](https://github.com/randybias/tentacular-docs) | [Documentation site](https://randybias.github.io/tentacular-docs) |
+
+## Documentation
+
+Full documentation: **[randybias.github.io/tentacular-docs](https://randybias.github.io/tentacular-docs)** — see [MCP Tools Reference](https://randybias.github.io/tentacular-docs/reference/mcp-tools/), [MCP Server Setup](https://randybias.github.io/tentacular-docs/guides/mcp-server-setup/), and [Exoskeleton](https://randybias.github.io/tentacular-docs/concepts/exoskeleton/).
+
+The `docs/` directory in this repo is the source-of-record for the published documentation site.
 
 ## Architecture
 
@@ -433,4 +440,4 @@ For the original design document, see
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+Copyright (c) 2025-2026 Mirantis, Inc. All rights reserved. See [LICENSE](LICENSE) for details.
