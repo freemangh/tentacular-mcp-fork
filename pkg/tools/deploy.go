@@ -260,6 +260,108 @@ func resourceKey(gvr schema.GroupVersionResource, name string) string {
 	return fmt.Sprintf("%s/%s/%s", gvr.Group, gvr.Resource, name)
 }
 
+// ensurePSACompliance ensures Deployment, Job, and CronJob manifests have
+// PSA-compliant security contexts. Required fields are added only when absent
+// so user-specified values are preserved. This prevents rejection by PSA
+// restricted enforcement on managed namespaces.
+func ensurePSACompliance(manifests []map[string]interface{}) {
+	for _, m := range manifests {
+		kind, _, _ := unstructured.NestedString(m, "kind")
+
+		var podSpecPath []string
+		switch kind {
+		case "Deployment", "Job":
+			podSpecPath = []string{"spec", "template", "spec"}
+		case "CronJob":
+			podSpecPath = []string{"spec", "jobTemplate", "spec", "template", "spec"}
+		default:
+			continue
+		}
+
+		ensurePodSpecPSA(m, podSpecPath)
+	}
+}
+
+// ensurePodSpecPSA sets PSA-restricted security context defaults on a PodSpec
+// at the given path. It only sets fields that are not already present.
+func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
+	// Pod-level security context.
+	scPath := append(append([]string{}, podSpecPath...), "securityContext")
+	setIfAbsent(obj, true, append(append([]string{}, scPath...), "runAsNonRoot")...)
+	setIfAbsent(obj, "RuntimeDefault", append(append([]string{}, scPath...), "seccompProfile", "type")...)
+
+	// Container-level security contexts.
+	containersRaw, found, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), "containers")...)
+	if !found {
+		return
+	}
+
+	hasTmpMount := false
+	for i, cRaw := range containersRaw {
+		c, ok := cRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		prefix := []string{"securityContext"}
+		setIfAbsent(c, false, append(append([]string{}, prefix...), "allowPrivilegeEscalation")...)
+		setIfAbsent(c, true, append(append([]string{}, prefix...), "readOnlyRootFilesystem")...)
+		setIfAbsent(c, true, append(append([]string{}, prefix...), "runAsNonRoot")...)
+		setIfAbsent(c, []interface{}{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
+		setIfAbsent(c, "RuntimeDefault", append(append([]string{}, prefix...), "seccompProfile", "type")...)
+
+		// Check if container already has a /tmp volumeMount.
+		vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
+		for _, vm := range vms {
+			vmMap, ok := vm.(map[string]interface{})
+			if ok && vmMap["mountPath"] == "/tmp" {
+				hasTmpMount = true
+			}
+		}
+
+		// Add /tmp volumeMount if readOnlyRootFilesystem is set and no /tmp mount exists.
+		roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
+		if roFS && !hasTmpMount {
+			vms = append(vms, map[string]interface{}{
+				"name":      "tmp",
+				"mountPath": "/tmp",
+			})
+			_ = unstructured.SetNestedSlice(c, vms, "volumeMounts")
+			hasTmpMount = true
+		}
+
+		containersRaw[i] = c
+	}
+	_ = unstructured.SetNestedSlice(obj, containersRaw, append(append([]string{}, podSpecPath...), "containers")...)
+
+	// Add tmp emptyDir volume if any container got a /tmp mount.
+	if hasTmpMount {
+		volumes, _, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), "volumes")...)
+		hasTmpVol := false
+		for _, v := range volumes {
+			vMap, ok := v.(map[string]interface{})
+			if ok && vMap["name"] == "tmp" {
+				hasTmpVol = true
+				break
+			}
+		}
+		if !hasTmpVol {
+			volumes = append(volumes, map[string]interface{}{
+				"name":     "tmp",
+				"emptyDir": map[string]interface{}{},
+			})
+			_ = unstructured.SetNestedSlice(obj, volumes, append(append([]string{}, podSpecPath...), "volumes")...)
+		}
+	}
+}
+
+// setIfAbsent sets a nested field only when it does not already exist.
+func setIfAbsent(obj map[string]interface{}, value interface{}, fields ...string) {
+	_, found, _ := unstructured.NestedFieldNoCopy(obj, fields...)
+	if !found {
+		_ = unstructured.SetNestedField(obj, value, fields...)
+	}
+}
+
 // handleWorkflowApply applies a set of Kubernetes manifests as a named deployment.
 //
 // ConfigMap data integrity note: large string values in ConfigMap data are NOT
@@ -272,6 +374,9 @@ func handleWorkflowApply(ctx context.Context, client *k8s.Client, params Workflo
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowApplyResult{}, err
 	}
+
+	// Ensure all workload manifests have PSA-compliant security contexts.
+	ensurePSACompliance(params.Manifests)
 
 	created, updated, deleted := 0, 0, 0
 	appliedKeys := make(map[string]bool)

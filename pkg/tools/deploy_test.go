@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -614,6 +615,196 @@ func newDeployTestClientWithDiscovery() *k8s.Client {
 		Clientset: staticClient,
 		Dynamic:   dynClient,
 		Config:    &rest.Config{Host: "https://test-cluster:6443"},
+	}
+}
+
+// TestEnsurePSACompliance_DeploymentDefaults verifies that a Deployment without
+// security context gets PSA-restricted defaults injected.
+func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
+	dep := map[string]interface{}{
+		"apiVersion": "apps/v1",
+		"kind":       "Deployment",
+		"metadata":   map[string]interface{}{"name": "my-app"},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"spec": map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name":  "app",
+							"image": "myimg:v1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	manifests := []map[string]interface{}{dep}
+	ensurePSACompliance(manifests)
+
+	// Pod-level security context.
+	runAsNonRoot, found, _ := unstructured.NestedBool(dep, "spec", "template", "spec", "securityContext", "runAsNonRoot")
+	if !found || !runAsNonRoot {
+		t.Error("expected pod-level runAsNonRoot=true")
+	}
+	seccompType, found, _ := unstructured.NestedString(dep, "spec", "template", "spec", "securityContext", "seccompProfile", "type")
+	if !found || seccompType != "RuntimeDefault" {
+		t.Errorf("expected pod-level seccompProfile.type=RuntimeDefault, got %q", seccompType)
+	}
+
+	// Container-level security context.
+	containers, _, _ := unstructured.NestedSlice(dep, "spec", "template", "spec", "containers")
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+	c := containers[0].(map[string]interface{})
+
+	ape, _, _ := unstructured.NestedBool(c, "securityContext", "allowPrivilegeEscalation")
+	if ape {
+		t.Error("expected allowPrivilegeEscalation=false")
+	}
+	roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
+	if !roFS {
+		t.Error("expected readOnlyRootFilesystem=true")
+	}
+	cRunAsNonRoot, _, _ := unstructured.NestedBool(c, "securityContext", "runAsNonRoot")
+	if !cRunAsNonRoot {
+		t.Error("expected container runAsNonRoot=true")
+	}
+	drop, _, _ := unstructured.NestedSlice(c, "securityContext", "capabilities", "drop")
+	if len(drop) != 1 || drop[0] != "ALL" {
+		t.Errorf("expected capabilities.drop=[ALL], got %v", drop)
+	}
+
+	// Verify /tmp emptyDir volume and volumeMount were added.
+	vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
+	foundTmpMount := false
+	for _, vm := range vms {
+		vmMap := vm.(map[string]interface{})
+		if vmMap["mountPath"] == "/tmp" {
+			foundTmpMount = true
+		}
+	}
+	if !foundTmpMount {
+		t.Error("expected /tmp volumeMount on container")
+	}
+
+	volumes, _, _ := unstructured.NestedSlice(dep, "spec", "template", "spec", "volumes")
+	foundTmpVol := false
+	for _, v := range volumes {
+		vMap := v.(map[string]interface{})
+		if vMap["name"] == "tmp" {
+			foundTmpVol = true
+		}
+	}
+	if !foundTmpVol {
+		t.Error("expected tmp emptyDir volume")
+	}
+}
+
+// TestEnsurePSACompliance_PreservesExisting verifies that user-specified security
+// context values are not overwritten.
+func TestEnsurePSACompliance_PreservesExisting(t *testing.T) {
+	dep := map[string]interface{}{
+		"apiVersion": "apps/v1",
+		"kind":       "Deployment",
+		"metadata":   map[string]interface{}{"name": "secure-app"},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"spec": map[string]interface{}{
+					"securityContext": map[string]interface{}{
+						"runAsUser":    int64(1000),
+						"runAsNonRoot": true,
+					},
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name":  "app",
+							"image": "myimg:v1",
+							"securityContext": map[string]interface{}{
+								"allowPrivilegeEscalation": false,
+								"readOnlyRootFilesystem":   false, // User explicitly wants writable.
+								"runAsNonRoot":             true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ensurePSACompliance([]map[string]interface{}{dep})
+
+	// Pod-level: user set runAsUser, it should be preserved.
+	runAsUser, found, _ := unstructured.NestedInt64(dep, "spec", "template", "spec", "securityContext", "runAsUser")
+	if !found || runAsUser != 1000 {
+		t.Errorf("expected runAsUser=1000 preserved, got %d", runAsUser)
+	}
+
+	// Container-level: user explicitly set readOnlyRootFilesystem=false, it should be preserved.
+	containers, _, _ := unstructured.NestedSlice(dep, "spec", "template", "spec", "containers")
+	c := containers[0].(map[string]interface{})
+	roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
+	if roFS {
+		t.Error("expected readOnlyRootFilesystem=false to be preserved (user-specified)")
+	}
+}
+
+// TestEnsurePSACompliance_SkipsNonWorkloads verifies ConfigMaps and Services are not modified.
+func TestEnsurePSACompliance_SkipsNonWorkloads(t *testing.T) {
+	cm := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata":   map[string]interface{}{"name": "my-config"},
+		"data":       map[string]interface{}{"key": "val"},
+	}
+	svc := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Service",
+		"metadata":   map[string]interface{}{"name": "my-svc"},
+	}
+
+	manifests := []map[string]interface{}{cm, svc}
+	ensurePSACompliance(manifests)
+
+	// ConfigMap should not have spec.template.spec added.
+	_, found, _ := unstructured.NestedMap(cm, "spec", "template", "spec")
+	if found {
+		t.Error("ConfigMap should not have spec.template.spec after PSA compliance")
+	}
+}
+
+// TestEnsurePSACompliance_Job verifies that Job manifests also get PSA defaults.
+func TestEnsurePSACompliance_Job(t *testing.T) {
+	job := map[string]interface{}{
+		"apiVersion": "batch/v1",
+		"kind":       "Job",
+		"metadata":   map[string]interface{}{"name": "my-job"},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"spec": map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name":  "worker",
+							"image": "busybox:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ensurePSACompliance([]map[string]interface{}{job})
+
+	runAsNonRoot, found, _ := unstructured.NestedBool(job, "spec", "template", "spec", "securityContext", "runAsNonRoot")
+	if !found || !runAsNonRoot {
+		t.Error("expected Job pod-level runAsNonRoot=true")
+	}
+
+	containers, _, _ := unstructured.NestedSlice(job, "spec", "template", "spec", "containers")
+	c := containers[0].(map[string]interface{})
+	ape, found, _ := unstructured.NestedBool(c, "securityContext", "allowPrivilegeEscalation")
+	if !found || ape {
+		t.Error("expected Job container allowPrivilegeEscalation=false")
 	}
 }
 

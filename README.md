@@ -19,7 +19,6 @@ Developer workstations holding cluster-wide admin kubeconfig is a security anti-
 
 Full documentation: **[randybias.github.io/tentacular-docs](https://randybias.github.io/tentacular-docs)** — see [MCP Tools Reference](https://randybias.github.io/tentacular-docs/reference/mcp-tools/), [MCP Server Setup](https://randybias.github.io/tentacular-docs/guides/mcp-server-setup/), and [Exoskeleton](https://randybias.github.io/tentacular-docs/concepts/exoskeleton/).
 
-
 ## Architecture
 
 ![MCP Server Architecture](docs/diagrams/mcp-server-architecture.svg)
@@ -45,38 +44,27 @@ The MCP server also manages the **module proxy** in the `tentacular-support` nam
 
 ## Quick Start
 
-### Deploy via Helm (Recommended)
+### Platform Deploy via Umbrella Chart (Recommended)
 
-The easiest way to deploy tentacular-mcp is via the Helm chart:
+The umbrella chart (`charts/tentacular-platform/`) deploys the full platform: MCP server, PostgreSQL, NATS, cert-manager (optional), esm-sh proxy, namespace management, and network policies.
 
 ```bash
-# Generate a token
 TOKEN=$(openssl rand -hex 32)
-
-# Install
-helm install tentacular-mcp ./charts/tentacular-mcp \
-  --namespace tentacular-system \
-  --create-namespace \
-  --set auth.token="${TOKEN}"
+helm dependency update charts/tentacular-platform/
+helm install tentacular charts/tentacular-platform/ \
+  --namespace tentacular-system --create-namespace \
+  --set tentacular-mcp.auth.token="${TOKEN}"
 ```
 
-After deployment, save the endpoint and token to your CLI config at
-`~/.tentacular/config.yaml`:
+Creates three namespaces (`tentacular-system`, `tentacular-exoskeleton`, `tentacular-support`), deploys all subcharts, and wires the exoskeleton Secret via `envFrom`. The `--namespace tentacular-system` flag is required so the MCP pod and its Secret are co-located. See `charts/tentacular-platform/README.md` for ingress modes (nodeport, ingress, istio, alb-istio), network policies, and component toggles.
 
-```yaml
-mcp:
-  endpoint: http://<cluster-internal-address>:8080/mcp
-  token: <TOKEN>
-```
-
-### Build from Source
+### MCP Server Only (Standalone)
 
 ```bash
-# Build the binary
-make build
-
-# Build the Docker image
-make docker-build
+TOKEN=$(openssl rand -hex 32)
+helm install tentacular-mcp ./charts/tentacular-mcp \
+  --namespace tentacular-system --create-namespace \
+  --set auth.token="${TOKEN}"
 ```
 
 ### Manual Deploy (Kustomize)
@@ -150,7 +138,7 @@ curl http://localhost:8080/healthz
 
 ## MCP Tools
 
-32 tools organized across 12 functional groups. All namespace-scoped tools enforce a self-protection guard that rejects operations targeting `tentacular-system`.
+36 tools organized across 13 functional groups. All namespace-scoped tools enforce a self-protection guard that rejects operations targeting system namespaces.
 
 ### Namespace Lifecycle
 
@@ -195,11 +183,19 @@ curl http://localhost:8080/healthz
 | `gvisor_annotate_ns` | Annotate a managed namespace with the gVisor runtime class. |
 | `gvisor_verify` | Run a verification pod to confirm gVisor sandbox isolation is functional. |
 
+### Exoskeleton (Phase 1)
+
+| Tool | Description |
+|------|-------------|
+| `exo_status` | Return exoskeleton feature status including which backing services (Postgres, NATS, RustFS, SPIRE) are available. |
+| `exo_registration` | Return exoskeleton registration details (Secret contents) for a workflow deployment. Sensitive values are redacted. |
+| `exo_list` | List all workflows with exoskeleton registrations by scanning Secrets with the exoskeleton label across all namespaces. |
+
 ### Deploy Lifecycle
 
 | Tool | Description |
 |------|-------------|
-| `wf_apply` | Apply arbitrary Kubernetes manifests as a named deployment using the dynamic client. Tracks resources by name label for garbage collection. |
+| `wf_apply` | Apply arbitrary Kubernetes manifests as a named deployment using the dynamic client. Auto-injects PSA-compliant security contexts on Deployment/Job/CronJob manifests. Tracks resources by name label for garbage collection. |
 | `wf_remove` | Remove all resources associated with a deployment name. |
 | `wf_status` | Check the status of all resources in a named deployment. |
 
@@ -237,6 +233,13 @@ curl http://localhost:8080/healthz
 | `audit_rbac` | Scan namespace RBAC for over-permissioned roles (wildcard verbs, sensitive resources, escalation paths via bind/escalate/impersonate) with remediation suggestions. |
 | `audit_netpol` | Verify NetworkPolicy coverage: default-deny presence, overly broad allow rules, cross-namespace ingress detection, with remediation suggestions. |
 | `audit_psa` | Validate Pod Security Admission labels: enforce/audit/warn levels, privileged detection, level mismatch detection, with remediation suggestions. |
+
+### Workflow Discovery
+
+| Tool | Description |
+|------|-------------|
+| `wf_list` | List all workflow deployments across namespaces with owner, version, tags, and replica status. Supports filtering by owner and tag. |
+| `wf_describe` | Describe a single workflow deployment with detailed metadata, annotations, images, and enrichment data from the associated ConfigMap. |
 
 ## Authentication
 
@@ -342,12 +345,15 @@ TENTACULAR_E2E_KUBECONFIG=/path/to/kubeconfig make test-e2e
 ```
 cmd/tentacular-mcp/main.go   Entry point with graceful shutdown
 pkg/auth/                     Bearer token middleware
+pkg/exoskeleton/              Exoskeleton subsystem (registrars, identity, injection)
 pkg/guard/                    Self-protection namespace guard
 pkg/k8s/                      Kubernetes client and operations
 pkg/proxy/                    Module proxy reconciler and manifests
 pkg/server/                   MCP server setup and HTTP handler
-pkg/tools/                    32 MCP tool handlers (one file per group)
-deploy/manifests/             Kustomize-based deployment manifests
+pkg/tools/                    36 MCP tool handlers (one file per group)
+charts/tentacular-platform/   Umbrella Helm chart (recommended deployment)
+charts/tentacular-mcp/        Standalone MCP server Helm chart
+deploy/manifests/             Kustomize deployment manifests
 test/integration/             Integration tests (kind cluster)
 test/e2e/                     E2E tests (production cluster)
 ```
@@ -359,6 +365,7 @@ test/e2e/                     E2E tests (production cluster)
 | `LISTEN_ADDR` | `:8080` | Address and port the HTTP server binds to |
 | `TENTACULAR_MCP_TOKEN` | (required) | Bearer auth token for client authentication |
 | `TENTACULAR_MCP_NAMESPACE` | `tentacular-system` | Namespace the MCP server is installed in |
+| `TENTACULAR_PROXY_RECONCILER_DISABLED` | (unset) | Set to `"true"` to disable the built-in esm-sh proxy reconciler (used by umbrella chart) |
 
 ## Security Model
 
@@ -368,6 +375,8 @@ All namespaces created by `ns_create` are labeled with the `restricted` PSA prof
 - `pod-security.kubernetes.io/enforce: restricted`
 - `pod-security.kubernetes.io/enforce-version: latest`
 
+`wf_apply` auto-injects PSA-compliant security contexts on Deployment/Job/CronJob manifests (runAsNonRoot, readOnlyRootFilesystem, drop ALL capabilities, seccomp RuntimeDefault, /tmp emptyDir volume). Preserves user-specified values.
+
 ### Network Policies
 
 Every created namespace gets:
@@ -376,7 +385,7 @@ Every created namespace gets:
 
 ### RBAC Scoping
 
-The server's ClusterRole is scoped to exactly the verbs and resources needed by the 32 tools. It is significantly narrower than `cluster-admin`. Key constraints:
+The server's ClusterRole is scoped to exactly the verbs and resources needed by the 36 tools. It is significantly narrower than `cluster-admin`. Key constraints:
 - Read-only access to nodes, storage classes, runtime classes, CRDs
 - Create/delete for pods (gVisor verification only)
 - Namespaced CRUD for resources managed by tool handlers
@@ -384,7 +393,7 @@ The server's ClusterRole is scoped to exactly the verbs and resources needed by 
 
 ### Self-Protection
 
-`guard.CheckNamespace()` runs before every namespace-scoped tool. It rejects any operation targeting the `tentacular-system` namespace, preventing the server from modifying its own deployment.
+`guard.CheckNamespace()` runs before every namespace-scoped tool. It rejects any operation targeting `tentacular-system`, `tentacular-support`, `tentacular-exoskeleton`, `kube-system`, `kube-public`, `kube-node-lease`, and `default`, preventing the server from modifying its own deployment or critical cluster namespaces.
 
 ### Container Security
 
