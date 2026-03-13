@@ -301,50 +301,52 @@ func ensurePodSpecPSA(obj map[string]any, podSpecPath []string) {
 	setIfAbsent(obj, true, append(append([]string{}, scPath...), "runAsNonRoot")...)
 	setIfAbsent(obj, "RuntimeDefault", append(append([]string{}, scPath...), "seccompProfile", "type")...)
 
-	// Container-level security contexts.
-	containersRaw, found, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), "containers")...)
-	if !found {
-		return
-	}
-
+	// Container-level security contexts (containers and initContainers).
 	needsTmpVolume := false
-	for i, cRaw := range containersRaw {
-		c, ok := cRaw.(map[string]any)
-		if !ok {
+	for _, field := range []string{"containers", "initContainers"} {
+		containersRaw, found, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), field)...)
+		if !found {
 			continue
 		}
-		prefix := []string{"securityContext"}
-		setIfAbsent(c, false, append(append([]string{}, prefix...), "allowPrivilegeEscalation")...)
-		setIfAbsent(c, true, append(append([]string{}, prefix...), "readOnlyRootFilesystem")...)
-		setIfAbsent(c, true, append(append([]string{}, prefix...), "runAsNonRoot")...)
-		setIfAbsent(c, []any{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
-		setIfAbsent(c, "RuntimeDefault", append(append([]string{}, prefix...), "seccompProfile", "type")...)
 
-		// Check if this container already has a /tmp volumeMount.
-		vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
-		containerHasTmp := false
-		for _, vm := range vms {
-			vmMap, ok := vm.(map[string]any)
-			if ok && vmMap["mountPath"] == "/tmp" {
-				containerHasTmp = true
+		for i, cRaw := range containersRaw {
+			c, ok := cRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			prefix := []string{"securityContext"}
+			setIfAbsent(c, false, append(append([]string{}, prefix...), "allowPrivilegeEscalation")...)
+			setIfAbsent(c, true, append(append([]string{}, prefix...), "readOnlyRootFilesystem")...)
+			setIfAbsent(c, true, append(append([]string{}, prefix...), "runAsNonRoot")...)
+			setIfAbsent(c, []any{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
+			setIfAbsent(c, "RuntimeDefault", append(append([]string{}, prefix...), "seccompProfile", "type")...)
+
+			// Check if this container already has a /tmp volumeMount.
+			vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
+			containerHasTmp := false
+			for _, vm := range vms {
+				vmMap, ok := vm.(map[string]any)
+				if ok && vmMap["mountPath"] == "/tmp" {
+					containerHasTmp = true
+					needsTmpVolume = true
+				}
+			}
+
+			// Add /tmp volumeMount if readOnlyRootFilesystem is set and no /tmp mount exists.
+			roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
+			if roFS && !containerHasTmp {
+				vms = append(vms, map[string]any{
+					"name":      "tmp",
+					"mountPath": "/tmp",
+				})
+				_ = unstructured.SetNestedSlice(c, vms, "volumeMounts")
 				needsTmpVolume = true
 			}
-		}
 
-		// Add /tmp volumeMount if readOnlyRootFilesystem is set and no /tmp mount exists.
-		roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
-		if roFS && !containerHasTmp {
-			vms = append(vms, map[string]any{
-				"name":      "tmp",
-				"mountPath": "/tmp",
-			})
-			_ = unstructured.SetNestedSlice(c, vms, "volumeMounts")
-			needsTmpVolume = true
+			containersRaw[i] = c
 		}
-
-		containersRaw[i] = c
+		_ = unstructured.SetNestedSlice(obj, containersRaw, append(append([]string{}, podSpecPath...), field)...)
 	}
-	_ = unstructured.SetNestedSlice(obj, containersRaw, append(append([]string{}, podSpecPath...), "containers")...)
 
 	// Add tmp emptyDir volume if any container got a /tmp mount.
 	if needsTmpVolume {

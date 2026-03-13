@@ -235,6 +235,32 @@ spec:
 ---
 {{- end }}
 {{/*
+Allow egress from tentacular-system to workflow namespaces
+(MCP server needs to reach workflow /run endpoints via wf_run on port 8080).
+*/}}
+{{- if .Values.namespaces.system.create }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-workflows
+  namespace: {{ include "tentacular-platform.namespace.system" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/managed-by: tentacular
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+{{- end }}
+{{/*
 Allow ingress from any tent-* namespace to tentacular-exoskeleton
 (tentacle pods need to reach their scoped backing services).
 */}}

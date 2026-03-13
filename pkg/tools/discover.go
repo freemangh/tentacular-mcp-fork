@@ -109,6 +109,9 @@ func registerDiscoverTools(srv *mcp.Server, client *k8s.Client) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WfDescribeResult{}, err
 		}
+		if err := guard.CheckName(params.Name); err != nil {
+			return nil, WfDescribeResult{}, err
+		}
 		result, err := handleWfDescribe(ctx, client, params)
 		return nil, result, err
 	})
