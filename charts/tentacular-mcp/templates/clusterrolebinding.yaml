@@ -12,5 +12,5 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ include "tentacular-mcp.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ include "tentacular-mcp.namespace" . }}
 {{- end }}

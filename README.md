@@ -46,17 +46,54 @@ The MCP server also manages the **module proxy** in the `tentacular-support` nam
 
 ### Platform Deploy via Umbrella Chart (Recommended)
 
-The umbrella chart (`charts/tentacular-platform/`) deploys the full platform: MCP server, PostgreSQL, NATS, cert-manager (optional), esm-sh proxy, namespace management, and network policies.
+The umbrella chart (`charts/tentacular-platform/`) deploys the full platform: MCP server, PostgreSQL, NATS, cert-manager (optional), esm-sh proxy, namespace management, and network policies. It creates three namespaces (`tentacular-system`, `tentacular-exoskeleton`, `tentacular-support`), deploys all subcharts, and wires the exoskeleton Secret via `envFrom`.
+
+**Development** (emptyDir storage, minimal resources, NodePort access):
 
 ```bash
-TOKEN=$(openssl rand -hex 32)
 helm dependency update charts/tentacular-platform/
 helm install tentacular charts/tentacular-platform/ \
-  --namespace tentacular-system --create-namespace \
-  --set tentacular-mcp.auth.token="${TOKEN}"
+  -f charts/tentacular-platform/ci/dev-values.yaml \
+  -n tentacular-system --create-namespace
 ```
 
-Creates three namespaces (`tentacular-system`, `tentacular-exoskeleton`, `tentacular-support`), deploys all subcharts, and wires the exoskeleton Secret via `envFrom`. The `--namespace tentacular-system` flag is required so the MCP pod and its Secret are co-located. See `charts/tentacular-platform/README.md` for ingress modes (nodeport, ingress, istio, alb-istio), network policies, and component toggles.
+Dev values include test credentials and disable persistent storage, so no additional `--set` flags are needed. Access MCP via NodePort 30080.
+
+**Production** (persistent storage, TLS, nginx Ingress):
+
+Production requires cert-manager CRDs for TLS certificate management. Install cert-manager first if not already present:
+
+```bash
+# Step 1: Install cert-manager (skip if already installed)
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install cert-manager jetstack/cert-manager \
+  -n cert-manager --create-namespace --set crds.enabled=true
+
+# Step 2: Install the platform
+helm dependency update charts/tentacular-platform/
+helm install tentacular charts/tentacular-platform/ \
+  -f charts/tentacular-platform/ci/prod-values.yaml \
+  -n tentacular-system --create-namespace \
+  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
+  --set postgresql.auth.password="$(openssl rand -hex 16)" \
+  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)"
+```
+
+If you don't need TLS certificates, disable them and skip the cert-manager step:
+
+```bash
+helm install tentacular charts/tentacular-platform/ \
+  -f charts/tentacular-platform/ci/prod-values.yaml \
+  -n tentacular-system --create-namespace \
+  --set tls.clusterIssuers.create=false \
+  --set tls.certificates.mcp.create=false \
+  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
+  --set postgresql.auth.password="$(openssl rand -hex 16)" \
+  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)"
+```
+
+The `-n tentacular-system` flag is required so the MCP pod and its Secret are co-located. See `charts/tentacular-platform/README.md` for all value profiles, ingress modes (nodeport, ingress, istio, alb-istio), network policies, and component toggles.
 
 ### MCP Server Only (Standalone)
 

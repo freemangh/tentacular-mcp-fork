@@ -119,6 +119,8 @@ tls:
 tentacular-mcp:
   # -- Enable MCP server deployment
   enabled: true
+  # -- Deploy MCP into the system namespace (must match namespaces.system.name)
+  namespaceOverride: tentacular-system
   # -- Do not create namespace (managed by umbrella chart)
   namespace:
     create: false

@@ -24,21 +24,60 @@ When `exoskeleton.enabled: true`, the umbrella chart generates a Secret (`tentac
 
 ## Quick Start
 
-```bash
-# Add required Helm repositories
-helm repo add nats https://nats-io.github.io/k8s/helm/charts/
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
+### Development
 
-# Install with development values
+Dev values include test credentials, disable persistent storage (emptyDir), and expose MCP via NodePort 30080. No additional `--set` flags are needed.
+
+```bash
 helm dependency update charts/tentacular-platform/
 helm install tentacular charts/tentacular-platform/ \
-  -f charts/tentacular-platform/ci/dev-values.yaml
+  -f charts/tentacular-platform/ci/dev-values.yaml \
+  -n tentacular-system --create-namespace
 
 # Verify
 kubectl get pods -n tentacular-system
 kubectl get pods -n tentacular-exoskeleton
 kubectl get pods -n tentacular-support
+```
+
+### Production
+
+Production uses persistent storage, TLS via cert-manager, and nginx Ingress. Credentials must be provided via `--set`.
+
+**Step 1: Install cert-manager** (skip if already installed):
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install cert-manager jetstack/cert-manager \
+  -n cert-manager --create-namespace --set crds.enabled=true
+```
+
+cert-manager must be installed **before** the platform chart because the chart creates ClusterIssuer and Certificate resources that require cert-manager CRDs.
+
+**Step 2: Install the platform:**
+
+```bash
+helm dependency update charts/tentacular-platform/
+helm install tentacular charts/tentacular-platform/ \
+  -f charts/tentacular-platform/ci/prod-values.yaml \
+  -n tentacular-system --create-namespace \
+  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
+  --set postgresql.auth.password="$(openssl rand -hex 16)" \
+  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)"
+```
+
+**Without TLS** (no cert-manager required):
+
+```bash
+helm install tentacular charts/tentacular-platform/ \
+  -f charts/tentacular-platform/ci/prod-values.yaml \
+  -n tentacular-system --create-namespace \
+  --set tls.clusterIssuers.create=false \
+  --set tls.certificates.mcp.create=false \
+  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
+  --set postgresql.auth.password="$(openssl rand -hex 16)" \
+  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)"
 ```
 
 ## Ingress Modes
@@ -158,12 +197,36 @@ Every component can be independently enabled or disabled:
 | Keycloak | `keycloak.enabled` | `false` | Future: IAM |
 | SPIRE | `spire.enabled` | `false` | Future: Workload identity |
 
+## Storage
+
+PostgreSQL and NATS require persistent storage. In production clusters with a
+StorageClass provisioner this works out of the box. For **dev/test clusters
+without a provisioner** (e.g., k0s, kind, bare minikube), the CI value files
+disable PVCs and fall back to `emptyDir`:
+
+```yaml
+postgresql:
+  primary:
+    persistence:
+      enabled: false   # emptyDir — data lost on pod restart
+
+nats:
+  config:
+    jetstream:
+      fileStore:
+        pvc:
+          enabled: false  # emptyDir — data lost on pod restart
+```
+
+> **Note:** This is acceptable for development only. Production deployments
+> must use persistent storage.
+
 ## Example Values Files
 
 Pre-built profiles are available in `ci/`:
 
 - `ci/test-values.yaml` - CI testing (all defaults, minimal resources)
-- `ci/dev-values.yaml` - Development (NodePort, minimal resources)
+- `ci/dev-values.yaml` - Development (NodePort, minimal resources, emptyDir storage)
 - `ci/prod-values.yaml` - Production (nginx Ingress, TLS, higher resources)
 - `ci/aws-values.yaml` - AWS (ALB + Istio, ACM certificates)
 - `ci/tls-values.yaml` - TLS resources only (for testing cert-manager integration)

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "tentacular-mcp.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "tentacular-mcp.namespace" . }}
   labels:
     {{- include "tentacular-mcp.labels" . | nindent 4 }}
     app.kubernetes.io/component: server

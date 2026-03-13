@@ -1,5 +1,7 @@
 # AWS profile - ALB Ingress Controller or ALB fronting Istio
-# Usage: helm install tentacular charts/tentacular-platform/ -f charts/tentacular-platform/ci/aws-values.yaml
+# Usage: helm install tentacular charts/tentacular-platform/ \
+#   -f charts/tentacular-platform/ci/aws-values.yaml \
+#   -n tentacular-system --create-namespace
 # NOTE: Replace placeholder values (domain, certificate ARN, auth token, passwords) before deploying
 global:
   domain: tentacular.example.com
@@ -17,6 +19,9 @@ networkPolicies:
 
 postgresql:
   enabled: true
+  image:
+    # Bitnami removed versioned tags; use latest until chart is updated
+    tag: latest
   auth:
     # CHANGE: Use existingSecret in production instead of plaintext password
     password: "CHANGE-ME-use-existing-secret"
@@ -63,11 +68,16 @@ tentacular-mcp:
 
 exoskeleton:
   enabled: true
+  # Requires PostgreSQL TLS to be configured. Set to "disable" for test
+  # clusters without TLS, or "prefer" to use TLS when available.
   postgresSSLMode: "require"
 
 esm-sh:
   enabled: true
   replicas: 2
+  persistence:
+    enabled: true
+    size: 5Gi
   resources:
     requests:
       cpu: 100m

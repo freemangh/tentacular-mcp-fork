@@ -1,5 +1,7 @@
 # Production profile - standard Kubernetes Ingress with TLS
-# Usage: helm install tentacular charts/tentacular-platform/ -f charts/tentacular-platform/ci/prod-values.yaml
+# Usage: helm install tentacular charts/tentacular-platform/ \
+#   -f charts/tentacular-platform/ci/prod-values.yaml \
+#   -n tentacular-system --create-namespace
 # NOTE: Replace placeholder values (domain, auth token, passwords) before deploying
 global:
   domain: tentacular.example.com
@@ -17,6 +19,9 @@ networkPolicies:
 
 postgresql:
   enabled: true
+  image:
+    # Bitnami removed versioned tags; use latest until chart is updated
+    tag: latest
   auth:
     # CHANGE: Use existingSecret in production instead of plaintext password
     password: "CHANGE-ME-use-existing-secret"
@@ -32,10 +37,12 @@ nats:
         # CHANGE: Use a strong token in production
         token: "CHANGE-ME-strong-nats-token"
 
+# cert-manager: assumes pre-installed in production clusters.
+# To install via this chart, enable cert-manager first in a separate release
+# or run `helm install` once with tls.clusterIssuers.create=false and
+# tls.certificates.mcp.create=false, then `helm upgrade` to enable them.
 cert-manager:
-  enabled: true
-  crds:
-    enabled: true
+  enabled: false
 
 tls:
   clusterIssuers:
@@ -71,11 +78,16 @@ tentacular-mcp:
 
 exoskeleton:
   enabled: true
+  # Requires PostgreSQL TLS to be configured. Set to "disable" for test
+  # clusters without TLS, or "prefer" to use TLS when available.
   postgresSSLMode: "require"
 
 esm-sh:
   enabled: true
   replicas: 2
+  persistence:
+    enabled: true
+    size: 5Gi
   resources:
     requests:
       cpu: 100m

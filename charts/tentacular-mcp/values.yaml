@@ -18,6 +18,8 @@ imagePullSecrets: []
 nameOverride: ""
 # -- Override the full release name
 fullnameOverride: ""
+# -- Override the namespace for all resources (used by umbrella charts)
+namespaceOverride: ""
 
 namespace:
   # -- Create the namespace resource

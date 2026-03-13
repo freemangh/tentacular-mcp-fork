@@ -1,5 +1,7 @@
 # Development profile - single-node dev cluster
-# Usage: helm install tentacular charts/tentacular-platform/ -f charts/tentacular-platform/ci/dev-values.yaml
+# Usage: helm install tentacular charts/tentacular-platform/ \
+#   -f charts/tentacular-platform/ci/dev-values.yaml \
+#   -n tentacular-system --create-namespace
 global:
   domain: dev.tentacular.local
 
@@ -16,15 +18,29 @@ networkPolicies:
 
 postgresql:
   enabled: true
+  image:
+    # Bitnami removed versioned tags; use latest until chart is updated
+    tag: latest
   auth:
     password: dev-postgres-password
   primary:
     persistence:
-      size: 2Gi
+      # Use emptyDir for dev clusters without a StorageClass.
+      # Data is lost on pod restart — acceptable for development.
+      enabled: false
 
 nats:
   enabled: true
   config:
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        dir: /data
+        pvc:
+          # Use emptyDir for dev clusters without a StorageClass.
+          # JetStream data is lost on pod restart — acceptable for development.
+          enabled: false
     merge:
       authorization:
         token: "dev-nats-token"

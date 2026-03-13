@@ -375,3 +375,127 @@ func TestExoListServicesDetected(t *testing.T) {
 		}
 	}
 }
+
+// ---------- system namespace filtering ----------
+
+func TestExoListFiltersSystemNamespaces(t *testing.T) {
+	client := newExoListTestClient()
+	ctx := context.Background()
+
+	namespaces := []struct {
+		ns       string
+		workflow string
+		isSystem bool
+	}{
+		{"kube-system", "sys-wf", true},
+		{"default", "default-wf", true},
+		{"tentacular-system", "tent-sys-wf", true},
+		{"tent-app", "app-wf", false},
+	}
+
+	for _, n := range namespaces {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      exoskeleton.ExoskeletonSecretPrefix + n.workflow,
+				Namespace: n.ns,
+				Labels: map[string]string{
+					exoskeleton.ExoskeletonLabel: "true",
+					exoskeleton.ReleaseLabel:     n.workflow,
+				},
+			},
+			Data: map[string][]byte{
+				"tentacular-postgres.host": []byte("pg.example.com"),
+			},
+		}
+		_, err := client.Clientset.CoreV1().Secrets(n.ns).Create(ctx, secret, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("setup: create secret in %s: %v", n.ns, err)
+		}
+	}
+
+	result, err := handleExoList(ctx, client)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Registrations) != 1 {
+		t.Fatalf("expected 1 registration (only user namespace), got %d", len(result.Registrations))
+	}
+	if result.Registrations[0].Namespace != "tent-app" {
+		t.Errorf("expected namespace=tent-app, got %q", result.Registrations[0].Namespace)
+	}
+	if result.Registrations[0].Workflow != "app-wf" {
+		t.Errorf("expected workflow=app-wf, got %q", result.Registrations[0].Workflow)
+	}
+}
+
+func TestExoListZeroTimestamp(t *testing.T) {
+	client := newExoListTestClient()
+	ctx := context.Background()
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      exoskeleton.ExoskeletonSecretPrefix + "zero-ts",
+			Namespace: "tent-zero",
+			Labels: map[string]string{
+				exoskeleton.ExoskeletonLabel: "true",
+				exoskeleton.ReleaseLabel:     "zero-ts",
+			},
+		},
+		Data: map[string][]byte{
+			"tentacular-nats.url": []byte("nats://nats:4222"),
+		},
+	}
+	_, err := client.Clientset.CoreV1().Secrets("tent-zero").Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	result, err := handleExoList(ctx, client)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Registrations) != 1 {
+		t.Fatalf("expected 1 registration, got %d", len(result.Registrations))
+	}
+	if result.Registrations[0].Created != "" {
+		t.Errorf("expected empty Created for zero timestamp, got %q", result.Registrations[0].Created)
+	}
+}
+
+func TestDetectRegisteredServices_SingleService(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string][]byte
+		want []string
+	}{
+		{
+			name: "postgres only",
+			data: map[string][]byte{"tentacular-postgres.host": []byte("pg")},
+			want: []string{"postgres"},
+		},
+		{
+			name: "nats only",
+			data: map[string][]byte{"tentacular-nats.url": []byte("nats://nats:4222")},
+			want: []string{"nats"},
+		},
+		{
+			name: "rustfs only",
+			data: map[string][]byte{"tentacular-rustfs.endpoint": []byte("http://rustfs:9000")},
+			want: []string{"rustfs"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := detectRegisteredServices(tt.data)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i, s := range got {
+				if s != tt.want[i] {
+					t.Errorf("service[%d] = %q, want %q", i, s, tt.want[i])
+				}
+			}
+		})
+	}
+}
