@@ -144,7 +144,11 @@ tentacular-mcp:
     limits:
       cpu: 500m
       memory: 256Mi
-  # -- Name of the Secret containing exoskeleton env vars.
+  # -- Name of a Secret to load as environment variables via envFrom.
+  # Auto-set to the generated secret name; override when using exoskeleton.existingSecret.
+  exoskeleton:
+    secretRef: tentacular-exoskeleton-config
+  # -- Name of the Secret containing exoskeleton env vars (used by secret template).
   # Auto-set to the generated secret name; override when using exoskeleton.existingSecret.
   exoskeletonSecretName: tentacular-exoskeleton-config
   # -- Extra environment variable sources (e.g., ConfigMaps)
@@ -167,6 +171,42 @@ exoskeleton:
   existingSecret: ""
   # -- PostgreSQL SSL mode for tentacle connections
   postgresSSLMode: "prefer"
+  # -- Delete backing-service data on undeploy
+  cleanupOnUndeploy: false
+  spire:
+    # -- Enable SPIRE workload identity for exoskeleton
+    enabled: false
+    # -- SPIRE class name for ClusterSPIFFEID resources
+    className: "tentacular-system-spire"
+  nats:
+    # -- Enable NATS SPIFFE mTLS authentication
+    spiffeEnabled: false
+    # -- Name of the NATS authorization ConfigMap
+    authzConfigMap: "nats-tentacular-authz"
+    # -- Namespace of the NATS authorization ConfigMap
+    authzNamespace: "tentacular-exoskeleton"
+  rustfs:
+    # -- RustFS endpoint URL (used in exoskeleton secret when rustfs.enabled)
+    endpoint: ""
+    # -- RustFS access key
+    accessKey: ""
+    # -- RustFS secret key
+    secretKey: ""
+    # -- RustFS bucket name
+    bucket: "tentacular"
+    # -- RustFS region
+    region: "us-east-1"
+
+# -- Exoskeleton SSO/OIDC authentication configuration
+exoskeletonAuth:
+  # -- Enable OIDC authentication (Keycloak SSO)
+  enabled: false
+  # -- Keycloak realm issuer URL
+  issuerURL: ""
+  # -- OIDC client ID
+  clientID: ""
+  # -- OIDC client secret
+  clientSecret: ""
 
 # -- esm-sh module proxy configuration
 esm-sh:

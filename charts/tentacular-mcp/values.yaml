@@ -127,6 +127,10 @@ exoskeletonAuth:
 exoskeleton:
   # -- Enable the exoskeleton control plane
   enabled: false
+  # -- Name of a Secret to load as environment variables via envFrom.
+  # When set, per-service env var blocks are skipped.
+  # Used by tentacular-platform umbrella chart.
+  secretRef: ""
   # -- Delete backing-service data on undeploy
   cleanupOnUndeploy: false
   postgres:
@@ -148,6 +152,17 @@ exoskeleton:
     # -- Inline NATS credentials (used only when existingSecret is empty)
     url: ""
     token: ""
+    # -- Enable NATS SPIFFE mTLS authentication
+    spiffeEnabled: false
+    # -- Name of the NATS authorization ConfigMap
+    authzConfigMap: "nats-tentacular-authz"
+    # -- Namespace of the NATS authorization ConfigMap
+    authzNamespace: "tentacular-exoskeleton"
+  spire:
+    # -- Enable SPIRE workload identity
+    enabled: false
+    # -- SPIRE class name for ClusterSPIFFEID resources
+    className: "tentacular-system-spire"
   rustfs:
     # -- Name of an existing Secret containing RustFS admin credentials.
     # Required keys: endpoint, access_key, secret_key, bucket, region.
