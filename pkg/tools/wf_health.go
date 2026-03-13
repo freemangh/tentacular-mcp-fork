@@ -18,7 +18,7 @@ import (
 const (
 	wfHealthPort    = 8080
 	wfHealthTimeout = 5 * time.Second
-	wfHealthDefault = 20
+	wfHealthDefault = 10
 )
 
 // wfHealthProbe is the function used to probe a workflow health endpoint.

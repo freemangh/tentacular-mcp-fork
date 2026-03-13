@@ -254,8 +254,8 @@ func parseHostPort(rawURL string) (host, port string) {
 	// Try parsing as a full URL first.
 	u, err := url.Parse(rawURL)
 	if err == nil && u.Host != "" {
-		host := u.Hostname()
-		port := u.Port()
+		host = u.Hostname()
+		port = u.Port()
 		return host, port
 	}
 	// Fallback: treat as host:port.

@@ -88,6 +88,8 @@ func (r *SPIRERegistrar) Register(ctx context.Context, id Identity, namespace st
 		}
 		slog.Info("spire: updated ClusterSPIFFEID", "name", name, "namespace", namespace, "workflow", id.Workflow)
 		return nil
+	} else if !k8serr.IsNotFound(err) {
+		return fmt.Errorf("get ClusterSPIFFEID %s: %w", name, err)
 	}
 
 	// Create new resource.

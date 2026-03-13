@@ -263,6 +263,8 @@ func (r *RustFSRegistrar) Unregister(ctx context.Context, id Identity) error {
 	userName := id.S3User
 	policyName := id.S3Policy
 
+	var errs []string
+
 	// Delete all objects under the prefix.
 	objectCh := r.s3.ListObjects(ctx, bucket, minio.ListObjectsOptions{
 		Prefix:    prefix,
@@ -270,11 +272,11 @@ func (r *RustFSRegistrar) Unregister(ctx context.Context, id Identity) error {
 	})
 	for obj := range objectCh {
 		if obj.Err != nil {
-			slog.Warn("rustfs: error listing objects for cleanup", "prefix", prefix, "error", obj.Err)
+			errs = append(errs, fmt.Sprintf("list objects: %v", obj.Err))
 			break
 		}
 		if err := r.s3.RemoveObject(ctx, bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
-			slog.Warn("rustfs: failed to delete object", "key", obj.Key, "error", err)
+			errs = append(errs, fmt.Sprintf("delete object %s: %v", obj.Key, err))
 		}
 	}
 
@@ -282,18 +284,21 @@ func (r *RustFSRegistrar) Unregister(ctx context.Context, id Identity) error {
 	// Must happen before policy removal — RustFS rejects removing a policy
 	// that is still attached to a user ("policy in use").
 	if err := r.admin.RemoveUser(ctx, userName); err != nil {
-		slog.Warn("rustfs: remove user failed", "user", userName, "error", err)
+		errs = append(errs, fmt.Sprintf("remove user %s: %v", userName, err))
 	}
 
 	// Remove the canned policy (now that no user references it).
 	if err := r.admin.RemoveCannedPolicy(ctx, policyName); err != nil {
-		slog.Warn("rustfs: remove policy failed", "policy", policyName, "error", err)
+		errs = append(errs, fmt.Sprintf("remove policy %s: %v", policyName, err))
 	}
 
 	slog.Info("rustfs: unregistered tentacle",
 		"user", userName, "policy", policyName,
 		"bucket", bucket, "prefix", prefix)
 
+	if len(errs) > 0 {
+		return fmt.Errorf("rustfs unregister: %s", strings.Join(errs, "; "))
+	}
 	return nil
 }
 

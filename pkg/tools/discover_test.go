@@ -3,7 +3,6 @@
 // workflow_meta_test.go covers the basic wf_list/wf_describe CRUD paths.
 // This file adds coverage for:
 //   - containsTag: CSV tag matching helper
-//   - derefInt32: nil-safe pointer dereference
 //   - wrapListError / wrapGetError: error message formatting
 //   - deploymentToListEntry: conversion with full metadata and nil annotations
 //   - handleWfList: owner filter, tag filter, tag filter with nil annotations
@@ -53,21 +52,6 @@ func TestContainsTagTrimSpaces(t *testing.T) {
 	// containsTag does TrimSpace on each element
 	if !containsTag("prod, staging , dev", "staging") {
 		t.Error("expected containsTag to trim spaces and find 'staging'")
-	}
-}
-
-// --- derefInt32 ---
-
-func TestDerefInt32Nil(t *testing.T) {
-	if derefInt32(nil) != 0 {
-		t.Error("expected 0 for nil pointer")
-	}
-}
-
-func TestDerefInt32Value(t *testing.T) {
-	v := int32(3)
-	if derefInt32(&v) != 3 {
-		t.Errorf("expected 3, got %d", derefInt32(&v))
 	}
 }
 

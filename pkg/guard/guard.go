@@ -28,6 +28,9 @@ func IsSystemNamespace(ns string) bool {
 // system namespace. All tool handlers must call this before performing
 // operations.
 func CheckNamespace(namespace string) error {
+	if namespace == "" {
+		return errors.New("namespace must not be empty")
+	}
 	if systemNamespaces[namespace] {
 		return fmt.Errorf("operations on namespace %q are not permitted", namespace)
 	}

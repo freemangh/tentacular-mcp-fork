@@ -301,13 +301,6 @@ func containsTag(tagsCSV, tag string) bool {
 	return false
 }
 
-func derefInt32(p *int32) int32 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
 // replicaCount returns the effective replica count for a Deployment,
 // normalizing nil (omitted) to Kubernetes' default of 1.
 func replicaCount(p *int32) int32 {

@@ -186,18 +186,6 @@ func TestContainsTag(t *testing.T) {
 	}
 }
 
-// ---------- derefInt32 tests ----------
-
-func TestDerefInt32(t *testing.T) {
-	val := int32(5)
-	if got := derefInt32(&val); got != 5 {
-		t.Errorf("derefInt32(&5) = %d", got)
-	}
-	if got := derefInt32(nil); got != 0 {
-		t.Errorf("derefInt32(nil) = %d", got)
-	}
-}
-
 // ---------- wf_list filter tests ----------
 
 func TestWfList_FilterByOwner(t *testing.T) {
