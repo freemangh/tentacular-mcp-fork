@@ -43,6 +43,20 @@ var allowedKinds = map[string]bool{
 	"Ingress":               true,
 }
 
+// knownGVRs is the set of GroupVersionResources used for garbage collection,
+// removal, and status checks across workflow lifecycle operations.
+var knownGVRs = []schema.GroupVersionResource{
+	{Group: "apps", Version: "v1", Resource: "deployments"},
+	{Group: "", Version: "v1", Resource: "services"},
+	{Group: "", Version: "v1", Resource: "configmaps"},
+	{Group: "", Version: "v1", Resource: "secrets"},
+	{Group: "batch", Version: "v1", Resource: "jobs"},
+	{Group: "batch", Version: "v1", Resource: "cronjobs"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+	{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+}
+
 // WorkflowApplyParams are the parameters for wf_apply.
 type WorkflowApplyParams struct {
 	Namespace string                   `json:"namespace" jsonschema:"Target namespace for the workflow"`
@@ -320,19 +334,6 @@ func handleWorkflowApply(ctx context.Context, client *k8s.Client, params Workflo
 	}
 
 	// Garbage collect: delete previously-labeled resources not in new manifest set
-	// We need to list resources across known types that may carry the release label
-	knownGVRs := []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-	}
-
 	labelSelector := fmt.Sprintf("%s=%s", releaseLabelKey, params.Name)
 	for _, gvr := range knownGVRs {
 		list, err := client.Dynamic.Resource(gvr).Namespace(params.Namespace).List(ctx, metav1.ListOptions{
@@ -366,17 +367,6 @@ func handleWorkflowRemove(ctx context.Context, client *k8s.Client, params Workfl
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowRemoveResult{}, err
 	}
-	knownGVRs := []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-	}
 
 	labelSelector := fmt.Sprintf("%s=%s", releaseLabelKey, params.Name)
 	deleted := 0
@@ -407,17 +397,6 @@ func handleWorkflowRemove(ctx context.Context, client *k8s.Client, params Workfl
 func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params WorkflowStatusParams) (WorkflowStatusResult, error) {
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowStatusResult{}, err
-	}
-	knownGVRs := []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
 	}
 
 	labelSelector := fmt.Sprintf("%s=%s", releaseLabelKey, params.Name)

@@ -5,6 +5,18 @@ import (
 	"fmt"
 )
 
+// Label and naming constants used across the exoskeleton subsystem.
+const (
+	// ExoskeletonLabel is the label key marking a Secret as exoskeleton-managed.
+	ExoskeletonLabel = "tentacular.io/exoskeleton"
+
+	// ReleaseLabel is the label key holding the workflow name.
+	ReleaseLabel = "tentacular.io/release"
+
+	// ExoskeletonSecretPrefix is the naming prefix for exoskeleton credential Secrets.
+	ExoskeletonSecretPrefix = "tentacular-exoskeleton-"
+)
+
 // BuildSecretManifest constructs a Kubernetes Secret manifest containing
 // exoskeleton credentials for a workflow deployment. Each enabled service
 // gets a JSON-encoded entry keyed by service name.
@@ -12,7 +24,7 @@ import (
 // The returned manifest is an unstructured map suitable for inclusion in
 // the wf_apply manifest list.
 func BuildSecretManifest(namespace, workflow string, creds map[string]interface{}) (map[string]interface{}, error) {
-	secretName := "tentacular-exoskeleton-" + workflow
+	secretName := ExoskeletonSecretPrefix + workflow
 
 	stringData := make(map[string]interface{})
 	for svcName, svcCreds := range creds {
@@ -67,8 +79,8 @@ func BuildSecretManifest(namespace, workflow string, creds map[string]interface{
 			"name":      secretName,
 			"namespace": namespace,
 			"labels": map[string]interface{}{
-				"tentacular.io/release":     workflow,
-				"tentacular.io/exoskeleton": "true",
+				ReleaseLabel:     workflow,
+				ExoskeletonLabel: "true",
 			},
 		},
 		"type":       "Opaque",
