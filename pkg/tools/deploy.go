@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -533,7 +532,7 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 		for _, item := range list.Items {
 			ready, reason := resourceReadiness(item, gvr.Resource)
 			resources = append(resources, WorkflowResourceStatus{
-				Kind:   strings.ToTitle(gvr.Resource[:1]) + gvr.Resource[1:],
+				Kind:   item.GetKind(),
 				Name:   item.GetName(),
 				Ready:  ready,
 				Reason: reason,

@@ -15,8 +15,6 @@ metadata:
 data:
   TENTACULAR_PROXY_RECONCILER_DISABLED: "true"
   {{- if (index .Values "esm-sh" "enabled") }}
-  TENTACULAR_PROXY_SERVICE_NAME: {{ include "tentacular-platform.fullname" . }}-esm-sh
-  TENTACULAR_PROXY_DEPLOYMENT_NAME: {{ include "tentacular-platform.fullname" . }}-esm-sh
   TENTACULAR_PROXY_NAMESPACE: {{ include "tentacular-platform.namespace.support" . }}
   {{- end }}
 {{- end }}

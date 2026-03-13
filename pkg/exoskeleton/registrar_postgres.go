@@ -195,13 +195,16 @@ func pgIdent(s string) string {
 	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }
 
-// escapeLiteral escapes single quotes in a Postgres string literal.
+// escapeLiteral escapes single quotes and backslashes in a Postgres string literal.
 func escapeLiteral(s string) string {
 	var b strings.Builder
 	for _, c := range s {
-		if c == '\'' {
+		switch c {
+		case '\'':
 			b.WriteString("''")
-		} else {
+		case '\\':
+			b.WriteString(`\\`)
+		default:
 			b.WriteRune(c)
 		}
 	}

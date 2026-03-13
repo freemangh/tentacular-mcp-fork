@@ -136,6 +136,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WfLogsResult{}, err
 		}
+		if err := guard.CheckName(params.Pod); err != nil {
+			return nil, WfLogsResult{}, err
+		}
 		result, err := handleWfLogs(ctx, client, params)
 		return nil, result, err
 	})
@@ -167,6 +170,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client) {
 		Description: "Rollout restart a deployment in a managed namespace by patching the pod template with a restart timestamp. Useful after ConfigMap/Secret changes, credential rotation, or gVisor enablement.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WfRestartParams) (*mcp.CallToolResult, WfRestartResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WfRestartResult{}, err
+		}
+		if err := guard.CheckName(params.Deployment); err != nil {
 			return nil, WfRestartResult{}, err
 		}
 		result, err := handleWfRestart(ctx, client, params)
