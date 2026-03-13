@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 		// Parse into generic map to preserve all fields.
 		var workflow map[string]interface{}
 		if err := yaml.Unmarshal([]byte(wfYAML), &workflow); err != nil {
+			slog.Warn("exoskeleton: failed to parse workflow.yaml in ConfigMap", "error", err)
 			continue
 		}
 
@@ -96,7 +98,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 		}
 
 		if !modified {
-			return nil
+			continue
 		}
 
 		// Re-serialize workflow.yaml and update the ConfigMap in place.
@@ -219,6 +221,7 @@ func toStringSlice(v interface{}) ([]string, bool) {
 }
 
 // collectExoHosts returns host:port strings for each registered service.
+// The result is sorted for deterministic output.
 func collectExoHosts(creds map[string]interface{}) []string {
 	var hosts []string
 	for name, c := range creds {
@@ -239,6 +242,7 @@ func collectExoHosts(creds map[string]interface{}) []string {
 			slog.Warn("exoskeleton: unknown cred type for allow-net", "dep", name)
 		}
 	}
+	sort.Strings(hosts)
 	return hosts
 }
 

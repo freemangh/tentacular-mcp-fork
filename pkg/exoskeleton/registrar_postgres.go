@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,7 +37,7 @@ func NewPostgresRegistrar(ctx context.Context, cfg PostgresConfig) (*PostgresReg
 		sslMode = "disable"
 	}
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database, sslMode)
+		url.QueryEscape(cfg.User), url.QueryEscape(cfg.Password), cfg.Host, cfg.Port, cfg.Database, sslMode)
 	pool, err := pgxpool.New(ctx, connStr)
 	if err != nil {
 		return nil, fmt.Errorf("postgres admin connect: %w", err)

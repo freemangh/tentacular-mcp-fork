@@ -10,6 +10,7 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // ExoStatusParams are the parameters for exo_status (none required).
@@ -104,11 +105,14 @@ func registerExoskeletonTools(srv *mcp.Server, client *k8s.Client, ctrl *exoskel
 		secretName := exoskeleton.ExoskeletonSecretPrefix + params.Name
 		secret, err := client.Clientset.CoreV1().Secrets(params.Namespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
-			return nil, ExoRegistrationResult{
-				Found:     false,
-				Namespace: params.Namespace,
-				Name:      params.Name,
-			}, fmt.Errorf("exoskeleton secret %s/%s not found: %w", params.Namespace, secretName, err)
+			if apierrors.IsNotFound(err) {
+				return nil, ExoRegistrationResult{
+					Found:     false,
+					Namespace: params.Namespace,
+					Name:      params.Name,
+				}, nil
+			}
+			return nil, ExoRegistrationResult{}, fmt.Errorf("get exoskeleton secret: %w", err)
 		}
 
 		data := make(map[string]string)

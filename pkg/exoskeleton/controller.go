@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -431,6 +432,7 @@ func detectExoDeps(manifests []map[string]interface{}) []string {
 				deps = append(deps, name)
 			}
 		}
+		sort.Strings(deps)
 		return deps
 	}
 	return nil
