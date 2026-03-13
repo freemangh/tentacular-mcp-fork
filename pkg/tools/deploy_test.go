@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,18 +23,17 @@ import (
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 )
 
 // deployGVRs maps resource name to list kind for the fake dynamic client.
 var deployGVRs = map[schema.GroupVersionResource]string{
-	{Group: "apps", Version: "v1", Resource: "deployments"}:                   "DeploymentList",
-	{Group: "", Version: "v1", Resource: "services"}:                          "ServiceList",
-	{Group: "", Version: "v1", Resource: "configmaps"}:                        "ConfigMapList",
-	{Group: "", Version: "v1", Resource: "secrets"}:                           "SecretList",
-	{Group: "batch", Version: "v1", Resource: "jobs"}:                         "JobList",
-	{Group: "batch", Version: "v1", Resource: "cronjobs"}:                     "CronJobList",
+	{Group: "apps", Version: "v1", Resource: "deployments"}:                  "DeploymentList",
+	{Group: "", Version: "v1", Resource: "services"}:                         "ServiceList",
+	{Group: "", Version: "v1", Resource: "configmaps"}:                       "ConfigMapList",
+	{Group: "", Version: "v1", Resource: "secrets"}:                          "SecretList",
+	{Group: "batch", Version: "v1", Resource: "jobs"}:                        "JobList",
+	{Group: "batch", Version: "v1", Resource: "cronjobs"}:                    "CronJobList",
 	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"}: "NetworkPolicyList",
 }
 
@@ -137,11 +137,11 @@ func TestWorkflowApplyDisallowedKind(t *testing.T) {
 		_, err = handleWorkflowApply(ctx, client, WorkflowApplyParams{
 			Namespace: "managed-ns",
 			Name:      "my-app",
-			Manifests: []map[string]interface{}{
+			Manifests: []map[string]any{
 				{
 					"apiVersion": "v1",
 					"kind":       kind,
-					"metadata":   map[string]interface{}{"name": "test-resource"},
+					"metadata":   map[string]any{"name": "test-resource"},
 				},
 			},
 		})
@@ -168,7 +168,7 @@ func TestWorkflowApplyUnmanagedNamespace(t *testing.T) {
 	_, err = handleWorkflowApply(ctx, client, WorkflowApplyParams{
 		Namespace: "unmanaged-ns",
 		Name:      "my-app",
-		Manifests: []map[string]interface{}{},
+		Manifests: []map[string]any{},
 	})
 	if err == nil {
 		t.Fatal("expected error for unmanaged namespace, got nil")
@@ -280,7 +280,7 @@ func TestWorkflowApplyResultJSONNameField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestWorkflowRemoveResultJSONNameField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestWorkflowRemoveResultIncludesCleanupFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestWorkflowRemoveResultOmitsCleanupFieldsWhenEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -381,7 +381,7 @@ func TestWorkflowStatusResultJSONNameField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
@@ -477,7 +477,7 @@ func TestWorkflowApplyEmptyManifestsManagedNs(t *testing.T) {
 	result, err := handleWorkflowApply(ctx, client, WorkflowApplyParams{
 		Namespace: "my-ns",
 		Name:      "empty-app",
-		Manifests: []map[string]interface{}{},
+		Manifests: []map[string]any{},
 	})
 	if err != nil {
 		t.Fatalf("handleWorkflowApply: %v", err)
@@ -504,7 +504,7 @@ func TestWorkflowApplyResultNamePropagation(t *testing.T) {
 	result, err := handleWorkflowApply(ctx, client, WorkflowApplyParams{
 		Namespace: "my-ns",
 		Name:      deployName,
-		Manifests: []map[string]interface{}{},
+		Manifests: []map[string]any{},
 	})
 	if err != nil {
 		t.Fatalf("handleWorkflowApply: %v", err)
@@ -558,11 +558,11 @@ func TestWorkflowApplyMissingManifestName(t *testing.T) {
 	_, err := handleWorkflowApply(ctx, client, WorkflowApplyParams{
 		Namespace: "my-ns",
 		Name:      "my-app",
-		Manifests: []map[string]interface{}{
+		Manifests: []map[string]any{
 			{
 				"apiVersion": "v1",
 				"kind":       "ConfigMap",
-				"metadata":   map[string]interface{}{},
+				"metadata":   map[string]any{},
 			},
 		},
 	})
@@ -579,10 +579,10 @@ func TestWorkflowApplyMissingAPIVersion(t *testing.T) {
 	_, err := handleWorkflowApply(ctx, client, WorkflowApplyParams{
 		Namespace: "my-ns",
 		Name:      "my-app",
-		Manifests: []map[string]interface{}{
+		Manifests: []map[string]any{
 			{
 				"kind":     "ConfigMap",
-				"metadata": map[string]interface{}{"name": "test"},
+				"metadata": map[string]any{"name": "test"},
 			},
 		},
 	})
@@ -621,15 +621,15 @@ func newDeployTestClientWithDiscovery() *k8s.Client {
 // TestEnsurePSACompliance_DeploymentDefaults verifies that a Deployment without
 // security context gets PSA-restricted defaults injected.
 func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
-	dep := map[string]interface{}{
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "my-app"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+		"metadata":   map[string]any{"name": "my-app"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name":  "app",
 							"image": "myimg:v1",
 						},
@@ -639,7 +639,7 @@ func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
 		},
 	}
 
-	manifests := []map[string]interface{}{dep}
+	manifests := []map[string]any{dep}
 	ensurePSACompliance(manifests)
 
 	// Pod-level security context.
@@ -657,7 +657,7 @@ func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
 	if len(containers) != 1 {
 		t.Fatalf("expected 1 container, got %d", len(containers))
 	}
-	c := containers[0].(map[string]interface{})
+	c := containers[0].(map[string]any)
 
 	ape, _, _ := unstructured.NestedBool(c, "securityContext", "allowPrivilegeEscalation")
 	if ape {
@@ -680,7 +680,7 @@ func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
 	vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
 	foundTmpMount := false
 	for _, vm := range vms {
-		vmMap := vm.(map[string]interface{})
+		vmMap := vm.(map[string]any)
 		if vmMap["mountPath"] == "/tmp" {
 			foundTmpMount = true
 		}
@@ -692,7 +692,7 @@ func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
 	volumes, _, _ := unstructured.NestedSlice(dep, "spec", "template", "spec", "volumes")
 	foundTmpVol := false
 	for _, v := range volumes {
-		vMap := v.(map[string]interface{})
+		vMap := v.(map[string]any)
 		if vMap["name"] == "tmp" {
 			foundTmpVol = true
 		}
@@ -705,22 +705,22 @@ func TestEnsurePSACompliance_DeploymentDefaults(t *testing.T) {
 // TestEnsurePSACompliance_PreservesExisting verifies that user-specified security
 // context values are not overwritten.
 func TestEnsurePSACompliance_PreservesExisting(t *testing.T) {
-	dep := map[string]interface{}{
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "secure-app"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"securityContext": map[string]interface{}{
+		"metadata":   map[string]any{"name": "secure-app"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"securityContext": map[string]any{
 						"runAsUser":    int64(1000),
 						"runAsNonRoot": true,
 					},
-					"containers": []interface{}{
-						map[string]interface{}{
+					"containers": []any{
+						map[string]any{
 							"name":  "app",
 							"image": "myimg:v1",
-							"securityContext": map[string]interface{}{
+							"securityContext": map[string]any{
 								"allowPrivilegeEscalation": false,
 								"readOnlyRootFilesystem":   false, // User explicitly wants writable.
 								"runAsNonRoot":             true,
@@ -732,7 +732,7 @@ func TestEnsurePSACompliance_PreservesExisting(t *testing.T) {
 		},
 	}
 
-	ensurePSACompliance([]map[string]interface{}{dep})
+	ensurePSACompliance([]map[string]any{dep})
 
 	// Pod-level: user set runAsUser, it should be preserved.
 	runAsUser, found, _ := unstructured.NestedInt64(dep, "spec", "template", "spec", "securityContext", "runAsUser")
@@ -742,7 +742,7 @@ func TestEnsurePSACompliance_PreservesExisting(t *testing.T) {
 
 	// Container-level: user explicitly set readOnlyRootFilesystem=false, it should be preserved.
 	containers, _, _ := unstructured.NestedSlice(dep, "spec", "template", "spec", "containers")
-	c := containers[0].(map[string]interface{})
+	c := containers[0].(map[string]any)
 	roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
 	if roFS {
 		t.Error("expected readOnlyRootFilesystem=false to be preserved (user-specified)")
@@ -751,19 +751,19 @@ func TestEnsurePSACompliance_PreservesExisting(t *testing.T) {
 
 // TestEnsurePSACompliance_SkipsNonWorkloads verifies ConfigMaps and Services are not modified.
 func TestEnsurePSACompliance_SkipsNonWorkloads(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "my-config"},
-		"data":       map[string]interface{}{"key": "val"},
+		"metadata":   map[string]any{"name": "my-config"},
+		"data":       map[string]any{"key": "val"},
 	}
-	svc := map[string]interface{}{
+	svc := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Service",
-		"metadata":   map[string]interface{}{"name": "my-svc"},
+		"metadata":   map[string]any{"name": "my-svc"},
 	}
 
-	manifests := []map[string]interface{}{cm, svc}
+	manifests := []map[string]any{cm, svc}
 	ensurePSACompliance(manifests)
 
 	// ConfigMap should not have spec.template.spec added.
@@ -775,15 +775,15 @@ func TestEnsurePSACompliance_SkipsNonWorkloads(t *testing.T) {
 
 // TestEnsurePSACompliance_Job verifies that Job manifests also get PSA defaults.
 func TestEnsurePSACompliance_Job(t *testing.T) {
-	job := map[string]interface{}{
+	job := map[string]any{
 		"apiVersion": "batch/v1",
 		"kind":       "Job",
-		"metadata":   map[string]interface{}{"name": "my-job"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+		"metadata":   map[string]any{"name": "my-job"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name":  "worker",
 							"image": "busybox:latest",
 						},
@@ -793,7 +793,7 @@ func TestEnsurePSACompliance_Job(t *testing.T) {
 		},
 	}
 
-	ensurePSACompliance([]map[string]interface{}{job})
+	ensurePSACompliance([]map[string]any{job})
 
 	runAsNonRoot, found, _ := unstructured.NestedBool(job, "spec", "template", "spec", "securityContext", "runAsNonRoot")
 	if !found || !runAsNonRoot {
@@ -801,7 +801,7 @@ func TestEnsurePSACompliance_Job(t *testing.T) {
 	}
 
 	containers, _, _ := unstructured.NestedSlice(job, "spec", "template", "spec", "containers")
-	c := containers[0].(map[string]interface{})
+	c := containers[0].(map[string]any)
 	ape, found, _ := unstructured.NestedBool(c, "securityContext", "allowPrivilegeEscalation")
 	if !found || ape {
 		t.Error("expected Job container allowPrivilegeEscalation=false")
@@ -811,7 +811,7 @@ func TestEnsurePSACompliance_Job(t *testing.T) {
 // TestWorkflowApplyConfigMapLargeDataIntegrity verifies that ConfigMap data keys survive
 // the manifest → unstructured.Unstructured → dynamic client apply path without truncation.
 // This is a regression guard: large string values (~7KB) must not be silently truncated
-// during JSON marshaling or map[string]interface{} conversion.
+// during JSON marshaling or map[string]any conversion.
 func TestWorkflowApplyConfigMapLargeDataIntegrity(t *testing.T) {
 	client := newDeployTestClientWithDiscovery()
 	ctx := context.Background()
@@ -824,12 +824,12 @@ func TestWorkflowApplyConfigMapLargeDataIntegrity(t *testing.T) {
 	result, err := handleWorkflowApply(ctx, client, WorkflowApplyParams{
 		Namespace: "my-ns",
 		Name:      "large-data-test",
-		Manifests: []map[string]interface{}{
+		Manifests: []map[string]any{
 			{
 				"apiVersion": "v1",
 				"kind":       "ConfigMap",
-				"metadata":   map[string]interface{}{"name": "big-config"},
-				"data": map[string]interface{}{
+				"metadata":   map[string]any{"name": "big-config"},
+				"data": map[string]any{
 					"key-small-1": smallValue1,
 					"key-large":   largeValue,
 					"key-small-2": smallValue2,
@@ -855,9 +855,9 @@ func TestWorkflowApplyConfigMapLargeDataIntegrity(t *testing.T) {
 	if !found {
 		t.Fatal("ConfigMap data field missing from stored object")
 	}
-	data, ok := rawData.(map[string]interface{})
+	data, ok := rawData.(map[string]any)
 	if !ok {
-		t.Fatalf("ConfigMap data is not map[string]interface{}: %T", rawData)
+		t.Fatalf("ConfigMap data is not map[string]any: %T", rawData)
 	}
 
 	checkStringKey := func(key, want string) {

@@ -18,9 +18,9 @@ type ExoStatusParams struct{}
 // ExoStatusServiceInfo describes a single exoskeleton service's status.
 type ExoStatusServiceInfo struct {
 	Name    string `json:"name"`
+	Detail  string `json:"detail,omitempty"`
 	Enabled bool   `json:"enabled"`
 	Healthy bool   `json:"healthy"`
-	Detail  string `json:"detail,omitempty"`
 }
 
 // ExoStatusResult is the result of exo_status.
@@ -168,7 +168,7 @@ func buildServiceInfoList(ctrl *exoskeleton.Controller) []ExoStatusServiceInfo {
 // handleExoList scans for Secrets labeled with the exoskeleton label
 // across all namespaces and returns registration entries.
 func handleExoList(ctx context.Context, client *k8s.Client) (ExoListResult, error) {
-	labelSelector := fmt.Sprintf("%s=true", exoskeleton.ExoskeletonLabel)
+	labelSelector := exoskeleton.ExoskeletonLabel + "=true"
 
 	secretList, err := client.Clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,

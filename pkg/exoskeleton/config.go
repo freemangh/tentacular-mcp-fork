@@ -145,7 +145,7 @@ func (c *Config) Validate() error {
 		if c.Postgres.Password == "" {
 			missing = append(missing, "TENTACULAR_POSTGRES_ADMIN_PASSWORD")
 		}
-		problems = append(problems, fmt.Sprintf("postgres partially configured, missing: %s", strings.Join(missing, ", ")))
+		problems = append(problems, "postgres partially configured, missing: "+strings.Join(missing, ", "))
 	}
 
 	// NATS: URL set but no auth method configured
@@ -166,7 +166,7 @@ func (c *Config) Validate() error {
 		if c.RustFS.SecretKey == "" {
 			missing = append(missing, "TENTACULAR_RUSTFS_SECRET_KEY")
 		}
-		problems = append(problems, fmt.Sprintf("rustfs partially configured, missing: %s", strings.Join(missing, ", ")))
+		problems = append(problems, "rustfs partially configured, missing: "+strings.Join(missing, ", "))
 	}
 
 	// Auth: enabled flag set but missing required fields
@@ -178,7 +178,7 @@ func (c *Config) Validate() error {
 		if c.Auth.ClientID == "" {
 			missing = append(missing, "TENTACULAR_KEYCLOAK_CLIENT_ID")
 		}
-		problems = append(problems, fmt.Sprintf("auth enabled but missing: %s", strings.Join(missing, ", ")))
+		problems = append(problems, "auth enabled but missing: "+strings.Join(missing, ", "))
 	}
 
 	if len(problems) > 0 {

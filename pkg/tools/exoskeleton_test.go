@@ -73,7 +73,6 @@ func TestExoStatusResult_AllFieldsDefault(t *testing.T) {
 
 func TestExoStatusResult_ServicesSlice(t *testing.T) {
 	result := ExoStatusResult{
-		Enabled: true,
 		Services: []ExoStatusServiceInfo{
 			{Name: "postgres", Enabled: true, Healthy: true},
 			{Name: "nats", Enabled: true, Healthy: true},
@@ -99,7 +98,7 @@ func TestBuildServiceInfoList_NilController(t *testing.T) {
 	// buildServiceInfoList requires a non-nil controller; the handler
 	// short-circuits before calling it when ctrl is nil. Test that the
 	// handler returns an empty services slice for nil controller.
-	result := ExoStatusResult{Enabled: false, Services: []ExoStatusServiceInfo{}}
+	result := ExoStatusResult{Services: []ExoStatusServiceInfo{}}
 	if len(result.Services) != 0 {
 		t.Errorf("expected empty services for nil controller result, got %d", len(result.Services))
 	}
@@ -223,9 +222,9 @@ func TestDetectRegisteredServices(t *testing.T) {
 		{
 			name: "all services",
 			data: map[string][]byte{
-				"tentacular-postgres.host":    []byte("pg"),
-				"tentacular-nats.url":         []byte("nats://nats"),
-				"tentacular-rustfs.endpoint":  []byte("http://rustfs"),
+				"tentacular-postgres.host":     []byte("pg"),
+				"tentacular-nats.url":          []byte("nats://nats"),
+				"tentacular-rustfs.endpoint":   []byte("http://rustfs"),
 				"tentacular-identity.workflow": []byte("test"),
 			},
 			want: []string{"postgres", "nats", "rustfs"},

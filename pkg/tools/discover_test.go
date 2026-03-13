@@ -168,22 +168,22 @@ func TestDeploymentToListEntryNilAnnotations(t *testing.T) {
 
 func TestIsSystemNamespace(t *testing.T) {
 	tests := []struct {
+		annotations map[string]string
 		name        string
 		ns          string
-		annotations map[string]string
 		want        bool
 	}{
-		{"tentacular-system", "tentacular-system", nil, true},
-		{"tentacular-support", "tentacular-support", nil, true},
-		{"tentacular-exoskeleton", "tentacular-exoskeleton", nil, true},
-		{"kube-system", "kube-system", nil, true},
-		{"kube-public", "kube-public", nil, true},
-		{"kube-node-lease", "kube-node-lease", nil, true},
-		{"default", "default", nil, true},
-		{"user namespace", "my-workflows", nil, false},
-		{"annotated system", "custom-infra", map[string]string{"tentacular.io/system": "true"}, true},
-		{"annotated non-system", "my-ns", map[string]string{"tentacular.io/system": "false"}, false},
-		{"tent- prefix not blocked", "tent-user", nil, false},
+		{name: "tentacular-system", ns: "tentacular-system", want: true},
+		{name: "tentacular-support", ns: "tentacular-support", want: true},
+		{name: "tentacular-exoskeleton", ns: "tentacular-exoskeleton", want: true},
+		{name: "kube-system", ns: "kube-system", want: true},
+		{name: "kube-public", ns: "kube-public", want: true},
+		{name: "kube-node-lease", ns: "kube-node-lease", want: true},
+		{name: "default", ns: "default", want: true},
+		{name: "user namespace", ns: "my-workflows"},
+		{name: "annotated system", ns: "custom-infra", annotations: map[string]string{"tentacular.io/system": "true"}, want: true},
+		{name: "annotated non-system", ns: "my-ns", annotations: map[string]string{"tentacular.io/system": "false"}},
+		{name: "tent- prefix not blocked", ns: "tent-user"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

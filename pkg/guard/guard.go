@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 )
@@ -36,7 +37,7 @@ var validLabelValue = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,61}[a-zA
 // label value. Names are used in label selectors and must be safe.
 func CheckName(name string) error {
 	if name == "" {
-		return fmt.Errorf("name must not be empty")
+		return errors.New("name must not be empty")
 	}
 	if !validLabelValue.MatchString(name) {
 		return fmt.Errorf("name %q is not a valid Kubernetes label value", name)

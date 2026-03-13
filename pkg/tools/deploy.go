@@ -61,7 +61,7 @@ var knownGVRs = []schema.GroupVersionResource{
 type WorkflowApplyParams struct {
 	Namespace string                   `json:"namespace" jsonschema:"Target namespace for the workflow"`
 	Name      string                   `json:"name" jsonschema:"Deployment name for tracking resources"`
-	Manifests []map[string]interface{} `json:"manifests" jsonschema:"List of Kubernetes manifest objects to apply"`
+	Manifests []map[string]any `json:"manifests" jsonschema:"List of Kubernetes manifest objects to apply"`
 }
 
 // WorkflowApplyResult is the result of wf_apply.
@@ -264,7 +264,7 @@ func resourceKey(gvr schema.GroupVersionResource, name string) string {
 // PSA-compliant security contexts. Required fields are added only when absent
 // so user-specified values are preserved. This prevents rejection by PSA
 // restricted enforcement on managed namespaces.
-func ensurePSACompliance(manifests []map[string]interface{}) {
+func ensurePSACompliance(manifests []map[string]any) {
 	for _, m := range manifests {
 		kind, _, _ := unstructured.NestedString(m, "kind")
 
@@ -284,7 +284,7 @@ func ensurePSACompliance(manifests []map[string]interface{}) {
 
 // ensurePodSpecPSA sets PSA-restricted security context defaults on a PodSpec
 // at the given path. It only sets fields that are not already present.
-func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
+func ensurePodSpecPSA(obj map[string]any, podSpecPath []string) {
 	// Pod-level security context.
 	scPath := append(append([]string{}, podSpecPath...), "securityContext")
 	setIfAbsent(obj, true, append(append([]string{}, scPath...), "runAsNonRoot")...)
@@ -298,7 +298,7 @@ func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
 
 	hasTmpMount := false
 	for i, cRaw := range containersRaw {
-		c, ok := cRaw.(map[string]interface{})
+		c, ok := cRaw.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -306,13 +306,13 @@ func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
 		setIfAbsent(c, false, append(append([]string{}, prefix...), "allowPrivilegeEscalation")...)
 		setIfAbsent(c, true, append(append([]string{}, prefix...), "readOnlyRootFilesystem")...)
 		setIfAbsent(c, true, append(append([]string{}, prefix...), "runAsNonRoot")...)
-		setIfAbsent(c, []interface{}{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
+		setIfAbsent(c, []any{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
 		setIfAbsent(c, "RuntimeDefault", append(append([]string{}, prefix...), "seccompProfile", "type")...)
 
 		// Check if container already has a /tmp volumeMount.
 		vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
 		for _, vm := range vms {
-			vmMap, ok := vm.(map[string]interface{})
+			vmMap, ok := vm.(map[string]any)
 			if ok && vmMap["mountPath"] == "/tmp" {
 				hasTmpMount = true
 			}
@@ -321,7 +321,7 @@ func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
 		// Add /tmp volumeMount if readOnlyRootFilesystem is set and no /tmp mount exists.
 		roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
 		if roFS && !hasTmpMount {
-			vms = append(vms, map[string]interface{}{
+			vms = append(vms, map[string]any{
 				"name":      "tmp",
 				"mountPath": "/tmp",
 			})
@@ -338,16 +338,16 @@ func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
 		volumes, _, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), "volumes")...)
 		hasTmpVol := false
 		for _, v := range volumes {
-			vMap, ok := v.(map[string]interface{})
+			vMap, ok := v.(map[string]any)
 			if ok && vMap["name"] == "tmp" {
 				hasTmpVol = true
 				break
 			}
 		}
 		if !hasTmpVol {
-			volumes = append(volumes, map[string]interface{}{
+			volumes = append(volumes, map[string]any{
 				"name":     "tmp",
-				"emptyDir": map[string]interface{}{},
+				"emptyDir": map[string]any{},
 			})
 			_ = unstructured.SetNestedSlice(obj, volumes, append(append([]string{}, podSpecPath...), "volumes")...)
 		}
@@ -355,7 +355,7 @@ func ensurePodSpecPSA(obj map[string]interface{}, podSpecPath []string) {
 }
 
 // setIfAbsent sets a nested field only when it does not already exist.
-func setIfAbsent(obj map[string]interface{}, value interface{}, fields ...string) {
+func setIfAbsent(obj map[string]any, value any, fields ...string) {
 	_, found, _ := unstructured.NestedFieldNoCopy(obj, fields...)
 	if !found {
 		_ = unstructured.SetNestedField(obj, value, fields...)
@@ -365,7 +365,7 @@ func setIfAbsent(obj map[string]interface{}, value interface{}, fields ...string
 // handleWorkflowApply applies a set of Kubernetes manifests as a named deployment.
 //
 // ConfigMap data integrity note: large string values in ConfigMap data are NOT
-// truncated server-side. The manifest map[string]interface{} is wrapped directly
+// truncated server-side. The manifest map[string]any is wrapped directly
 // in unstructured.Unstructured and passed to the dynamic client without any JSON
 // round-trip or size limit in this function. If ConfigMap data appears truncated,
 // the cause is client-side (e.g. the LLM generating incomplete manifests), not
@@ -599,7 +599,7 @@ func resourceReadiness(obj unstructured.Unstructured, resource string) (bool, st
 	case "jobs":
 		conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
 		for _, c := range conditions {
-			cond, ok := c.(map[string]interface{})
+			cond, ok := c.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -636,7 +636,7 @@ type dependencyYAML struct {
 // extractModuleDeps inspects the manifests for a ConfigMap containing
 // workflow.yaml and parses jsr/npm entries from contract.dependencies.
 // Returns the unique set of module dependencies to pre-warm.
-func extractModuleDeps(manifests []map[string]interface{}) []k8s.ModuleDep {
+func extractModuleDeps(manifests []map[string]any) []k8s.ModuleDep {
 	for _, m := range manifests {
 		obj := &unstructured.Unstructured{Object: m}
 		if obj.GetKind() != "ConfigMap" {

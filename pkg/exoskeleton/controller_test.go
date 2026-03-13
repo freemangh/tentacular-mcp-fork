@@ -2,7 +2,7 @@ package exoskeleton
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -133,30 +133,33 @@ func (m *mockSPIRE) Close() { m.closed = true }
 
 // --- Helper to build manifests with workflow dependencies ---
 
-func manifestsWithDeps(deps ...string) []map[string]interface{} {
-	depsYAML := "contract:\n  dependencies:\n"
+func manifestsWithDeps(deps ...string) []map[string]any {
+	var b strings.Builder
+	b.WriteString("contract:\n  dependencies:\n")
 	for _, d := range deps {
-		depsYAML += fmt.Sprintf("    %s:\n      protocol: test\n", d)
+		b.WriteString("    ")
+		b.WriteString(d)
+		b.WriteString(":\n      protocol: test\n")
 	}
-	return []map[string]interface{}{
+	return []map[string]any{
 		{
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
-			"metadata":   map[string]interface{}{"name": "test-wf", "namespace": "tent-dev"},
-			"data":       map[string]interface{}{"workflow.yaml": depsYAML},
+			"metadata":   map[string]any{"name": "test-wf", "namespace": "tent-dev"},
+			"data":       map[string]any{"workflow.yaml": b.String()},
 		},
 		{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
-			"metadata":   map[string]interface{}{"name": "test-wf", "namespace": "tent-dev"},
-			"spec": map[string]interface{}{
-				"template": map[string]interface{}{
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+			"metadata":   map[string]any{"name": "test-wf", "namespace": "tent-dev"},
+			"spec": map[string]any{
+				"template": map[string]any{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "main",
 								"image": "test:latest",
-								"args":  []interface{}{"--allow-net=none"},
+								"args":  []any{"--allow-net=none"},
 							},
 						},
 					},
@@ -372,7 +375,7 @@ func TestProcessManifestsWithMockRustFS(t *testing.T) {
 func TestProcessManifestsPostgresRegistrationError(t *testing.T) {
 	cfg := &Config{Enabled: true}
 	pg := newMockPG()
-	pg.registerErr = fmt.Errorf("connection refused")
+	pg.registerErr = errors.New("connection refused")
 	ctrl := NewControllerWithDeps(cfg, pg, nil, nil, nil)
 
 	manifests := manifestsWithDeps("tentacular-postgres")
@@ -388,7 +391,7 @@ func TestProcessManifestsPostgresRegistrationError(t *testing.T) {
 func TestProcessManifestsNATSRegistrationError(t *testing.T) {
 	cfg := &Config{Enabled: true}
 	nats := newMockNATS()
-	nats.registerErr = fmt.Errorf("nats unreachable")
+	nats.registerErr = errors.New("nats unreachable")
 	ctrl := NewControllerWithDeps(cfg, nil, nats, nil, nil)
 
 	manifests := manifestsWithDeps("tentacular-nats")
@@ -404,7 +407,7 @@ func TestProcessManifestsNATSRegistrationError(t *testing.T) {
 func TestProcessManifestsRustFSRegistrationError(t *testing.T) {
 	cfg := &Config{Enabled: true}
 	rustfs := newMockRustFS()
-	rustfs.registerErr = fmt.Errorf("rustfs unreachable")
+	rustfs.registerErr = errors.New("rustfs unreachable")
 	ctrl := NewControllerWithDeps(cfg, nil, nil, rustfs, nil)
 
 	manifests := manifestsWithDeps("tentacular-rustfs")
@@ -471,7 +474,7 @@ func TestProcessManifestsSPIRECalledOnRegistration(t *testing.T) {
 func TestProcessManifestsSPIREErrorNonFatal(t *testing.T) {
 	cfg := &Config{Enabled: true}
 	pg := newMockPG()
-	spire := &mockSPIRE{registerErr: fmt.Errorf("spire unavailable")}
+	spire := &mockSPIRE{registerErr: errors.New("spire unavailable")}
 	ctrl := NewControllerWithDeps(cfg, pg, nil, nil, spire)
 
 	manifests := manifestsWithDeps("tentacular-postgres")
@@ -514,7 +517,7 @@ func TestCleanupPartialFailure(t *testing.T) {
 	cfg := &Config{Enabled: true, CleanupOnUndeploy: true}
 	pg := newMockPG()
 	nats := newMockNATS()
-	nats.unregisterErr = fmt.Errorf("nats unreachable")
+	nats.unregisterErr = errors.New("nats unreachable")
 	ctrl := NewControllerWithDeps(cfg, pg, nats, nil, nil)
 
 	_, err := ctrl.CleanupWithReport(context.Background(), "tent-dev", "mywf")
