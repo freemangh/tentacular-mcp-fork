@@ -2,6 +2,18 @@
 
 Umbrella Helm chart for the complete Tentacular platform. Deploys the MCP server, PostgreSQL, NATS, esm-sh module proxy, namespace management, network policies, and configurable ingress in a single `helm install`.
 
+## Exoskeleton Subsystem (Phase 1)
+
+The platform includes the exoskeleton subsystem for automated backing-service lifecycle management:
+
+- **Identity compiler** -- deterministic namespace/credential identity from workflow name
+- **Registrars** -- PostgreSQL (role/schema), NATS (account/JetStream), RustFS (bucket/policy), SPIRE (ClusterSPIFFEID)
+- **Credential injection** -- auto-generated Kubernetes Secrets with connection strings
+- **SSO/OIDC auth** -- optional Keycloak integration with deployer provenance
+- **MCP tools** -- `exo_status` (health), `exo_registration` (credential lookup), `exo_list` (enumerate registrations)
+
+When `exoskeleton.enabled: true`, the umbrella chart generates a Secret (`tentacular-exoskeleton-config`) containing all `TENTACULAR_*` environment variables and loads them into the MCP server via `envFrom`.
+
 ## Prerequisites
 
 - Kubernetes 1.28+
