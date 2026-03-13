@@ -8,6 +8,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 )
@@ -108,6 +109,9 @@ func (r *SPIRERegistrar) Unregister(ctx context.Context, id Identity, namespace 
 
 	err := r.dynamic.Resource(clusterSPIFFEIDGVR).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
 		return fmt.Errorf("delete ClusterSPIFFEID %s: %w", name, err)
 	}
 

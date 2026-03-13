@@ -79,7 +79,7 @@ func (r *PostgresRegistrar) Register(ctx context.Context, id Identity) (*Postgre
 				ALTER ROLE %s WITH PASSWORD '%s';
 			END IF;
 		END $$`,
-		role, pgIdent(role), escapeLiteral(password),
+		escapeLiteral(role), pgIdent(role), escapeLiteral(password),
 		pgIdent(role), escapeLiteral(password),
 	)
 	if _, err := tx.Exec(ctx, createRole); err != nil {

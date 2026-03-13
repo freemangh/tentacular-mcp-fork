@@ -35,6 +35,9 @@ func registerRunTools(srv *mcp.Server, client *k8s.Client) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WfRunResult{}, err
 		}
+		if err := guard.CheckName(params.Name); err != nil {
+			return nil, WfRunResult{}, err
+		}
 		result, err := handleWfRun(ctx, client, params)
 		return nil, result, err
 	})

@@ -182,10 +182,10 @@ func TestSPIREUnregisterNonExistent(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Unregister something that doesn't exist should error.
+	// Unregister something that doesn't exist should be idempotent (no error).
 	err = reg.Unregister(ctx, id, "test-ns")
-	if err == nil {
-		t.Error("expected error when unregistering non-existent resource")
+	if err != nil {
+		t.Errorf("expected no error for non-existent resource, got: %v", err)
 	}
 }
 

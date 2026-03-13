@@ -511,15 +511,13 @@ func TestCleanupWithReport_SPIREErrorIsCollected(t *testing.T) {
 	ctrl := &Controller{cfg: cfg, spire: spireReg}
 
 	// Unregister without registering first -- resource doesn't exist.
+	// SPIRE unregister is idempotent: NotFound is not an error.
 	report, err := ctrl.CleanupWithReport(context.Background(), "tent-dev", "nonexistent-wf")
-	if err == nil {
-		t.Fatal("expected error for SPIRE unregister of non-existent resource")
+	if err != nil {
+		t.Fatalf("expected no error for idempotent SPIRE unregister, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "spire") {
-		t.Errorf("error should mention spire: %v", err)
-	}
-	if report.SPIRE != "" {
-		t.Errorf("SPIRE report should be empty on error, got %q", report.SPIRE)
+	if report.SPIRE == "" {
+		t.Error("SPIRE report should be non-empty on successful cleanup")
 	}
 }
 
