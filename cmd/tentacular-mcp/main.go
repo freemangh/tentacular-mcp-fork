@@ -55,6 +55,10 @@ func main() {
 
 	// Initialize exoskeleton controller from environment configuration.
 	exoCfg := exoskeleton.LoadFromEnv()
+	if vErr := exoCfg.Validate(); vErr != nil {
+		slog.Error("exoskeleton config validation failed", "error", vErr)
+		os.Exit(1)
+	}
 	exoCtrl, err := exoskeleton.NewController(exoCfg, client)
 	if err != nil {
 		slog.Error("failed to initialize exoskeleton controller", "error", err)
@@ -95,8 +99,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Start module proxy reconciliation loop as a background goroutine
-	go reconciler.Run(ctx)
+	// Start module proxy reconciliation loop as a background goroutine.
+	// When the umbrella chart manages esm-sh, the reconciler is disabled
+	// to avoid creating a duplicate deployment with conflicting labels.
+	if os.Getenv("TENTACULAR_PROXY_RECONCILER_DISABLED") == "true" {
+		slog.Info("proxy reconciler disabled (chart-managed esm-sh)")
+	} else {
+		go reconciler.Run(ctx)
+	}
 
 	// Start cron scheduler and scan for existing workflow schedules
 	sched.Start()
