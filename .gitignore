@@ -1,10 +1,28 @@
+# Binaries
 bin/
-scratch/
 *.exe
 *.test
 *.out
+
+# Scratch (agent/dev temp files)
+scratch/
+
+# Secrets & credentials
+.secrets.yaml
+.secrets/
 .env
+
+# AI assistant configs
+.claude/
+.codex/
+.gemini/
 .mcp.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
 
 # AI assistant configs
@@ -20,3 +38,9 @@ docs/plans/
 .helm-config/
 .helm-data/
 charts/*/charts/*.tgz
+
+# Temp & logs
+*.log
+*.tmp
+coverage/
+coverage.out
