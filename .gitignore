@@ -16,4 +16,7 @@ docs/plans/
 
 # Helm build artifacts
 .helm-bin
-charts/tentacular-platform/charts/*.tgz
+.helm-cache/
+.helm-config/
+.helm-data/
+charts/*/charts/*.tgz

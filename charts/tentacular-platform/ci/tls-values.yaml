@@ -1,0 +1,58 @@
+# CI TLS test values - tests ClusterIssuer and Certificate rendering
+# Note: cert-manager CRDs must be present in the cluster for these resources
+# This file is for verifying template rendering only
+global:
+  domain: test.tentacular.local
+
+namespaces:
+  system:
+    create: true
+    name: tentacular-system
+  exoskeleton:
+    create: true
+    name: tentacular-exoskeleton
+  support:
+    create: true
+    name: tentacular-support
+
+networkPolicies:
+  enabled: true
+
+postgresql:
+  enabled: true
+  auth:
+    password: test-postgres-password
+
+nats:
+  enabled: true
+  config:
+    merge:
+      authorization:
+        token: "test-nats-token"
+
+# cert-manager subchart disabled (assumes CRDs pre-installed)
+cert-manager:
+  enabled: false
+
+# TLS resources enabled for template testing
+tls:
+  clusterIssuers:
+    create: true
+    email: test@tentacular.local
+    production: true
+  certificates:
+    mcp:
+      create: true
+      secretName: mcp-tls
+    auth:
+      create: true
+      secretName: auth-tls
+
+tentacular-mcp:
+  enabled: true
+
+esm-sh:
+  enabled: true
+
+ingress:
+  mode: none
