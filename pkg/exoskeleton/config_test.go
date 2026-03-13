@@ -2,6 +2,7 @@ package exoskeleton
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -283,4 +284,123 @@ func TestLoadFromEnv(t *testing.T) {
 		os.Unsetenv("TENTACULAR_POSTGRES_ADMIN_USER")
 		os.Unsetenv("TENTACULAR_POSTGRES_ADMIN_PASSWORD")
 	})
+}
+
+func TestValidateDisabled(t *testing.T) {
+	cfg := &Config{Enabled: false}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() on disabled config should not error: %v", err)
+	}
+}
+
+func TestValidateFullyConfigured(t *testing.T) {
+	cfg := &Config{
+		Enabled: true,
+		Postgres: PostgresConfig{
+			Host: "pg.local", User: "admin", Password: "secret",
+		},
+		NATS: NATSConfig{URL: "nats://localhost:4222", Token: "tok"},
+		RustFS: RustFSConfig{
+			Endpoint: "http://minio:9000", AccessKey: "ak", SecretKey: "sk",
+		},
+		Auth: AuthConfig{
+			Enabled: true, IssuerURL: "http://keycloak/realms/test", ClientID: "mcp",
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("Validate() on fully configured should pass: %v", err)
+	}
+}
+
+func TestValidatePartialPostgres(t *testing.T) {
+	cfg := &Config{
+		Enabled:  true,
+		Postgres: PostgresConfig{Host: "pg.local"},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for partial postgres config")
+	}
+	if !strings.Contains(err.Error(), "postgres partially configured") {
+		t.Errorf("expected postgres partial message, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "TENTACULAR_POSTGRES_ADMIN_USER") {
+		t.Errorf("expected missing user mentioned, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "TENTACULAR_POSTGRES_ADMIN_PASSWORD") {
+		t.Errorf("expected missing password mentioned, got: %v", err)
+	}
+}
+
+func TestValidateNATSNoAuth(t *testing.T) {
+	cfg := &Config{
+		Enabled: true,
+		NATS:    NATSConfig{URL: "nats://localhost:4222"},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for NATS URL with no auth")
+	}
+	if !strings.Contains(err.Error(), "no auth method") {
+		t.Errorf("expected auth method message, got: %v", err)
+	}
+}
+
+func TestValidateNATSWithSPIFFE(t *testing.T) {
+	cfg := &Config{
+		Enabled: true,
+		NATS:    NATSConfig{URL: "nats://localhost:4222", SPIFFEEnabled: true},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("NATS with SPIFFE should pass: %v", err)
+	}
+}
+
+func TestValidatePartialRustFS(t *testing.T) {
+	cfg := &Config{
+		Enabled: true,
+		RustFS:  RustFSConfig{Endpoint: "http://minio:9000"},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for partial rustfs config")
+	}
+	if !strings.Contains(err.Error(), "rustfs partially configured") {
+		t.Errorf("expected rustfs partial message, got: %v", err)
+	}
+}
+
+func TestValidateAuthEnabledMissingIssuer(t *testing.T) {
+	cfg := &Config{
+		Enabled: true,
+		Auth:    AuthConfig{Enabled: true, ClientID: "mcp"},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for auth enabled but missing issuer")
+	}
+	if !strings.Contains(err.Error(), "auth enabled but missing") {
+		t.Errorf("expected auth message, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "TENTACULAR_KEYCLOAK_ISSUER") {
+		t.Errorf("expected issuer mentioned, got: %v", err)
+	}
+}
+
+func TestValidateMultipleProblems(t *testing.T) {
+	cfg := &Config{
+		Enabled:  true,
+		Postgres: PostgresConfig{Host: "pg.local"},
+		RustFS:   RustFSConfig{Endpoint: "http://minio:9000"},
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for multiple problems")
+	}
+	if !strings.Contains(err.Error(), "postgres") {
+		t.Errorf("expected postgres mentioned: %v", err)
+	}
+	if !strings.Contains(err.Error(), "rustfs") {
+		t.Errorf("expected rustfs mentioned: %v", err)
+	}
 }

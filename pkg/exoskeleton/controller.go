@@ -15,14 +15,42 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 )
 
+// PostgresRegistrarI abstracts Postgres registration for testability.
+type PostgresRegistrarI interface {
+	Register(ctx context.Context, id Identity) (*PostgresCreds, error)
+	Unregister(ctx context.Context, id Identity) error
+	Close()
+}
+
+// NATSRegistrarI abstracts NATS registration for testability.
+type NATSRegistrarI interface {
+	Register(ctx context.Context, id Identity) (*NATSCreds, error)
+	Unregister(ctx context.Context, id Identity) error
+	Close()
+}
+
+// RustFSRegistrarI abstracts RustFS registration for testability.
+type RustFSRegistrarI interface {
+	Register(ctx context.Context, id Identity) (*RustFSCreds, error)
+	Unregister(ctx context.Context, id Identity) error
+	Close()
+}
+
+// SPIRERegistrarI abstracts SPIRE identity registration for testability.
+type SPIRERegistrarI interface {
+	Register(ctx context.Context, id Identity, namespace string) error
+	Unregister(ctx context.Context, id Identity, namespace string) error
+	Close()
+}
+
 // Controller orchestrates exoskeleton registration and cleanup across
 // all enabled backing services.
 type Controller struct {
 	cfg    *Config
-	pg     *PostgresRegistrar
-	nats   *NATSRegistrar
-	rustfs *RustFSRegistrar
-	spire  *SPIRERegistrar
+	pg     PostgresRegistrarI
+	nats   NATSRegistrarI
+	rustfs RustFSRegistrarI
+	spire  SPIRERegistrarI
 }
 
 // NewController initializes registrars for all enabled services. If the
@@ -86,6 +114,14 @@ func NewController(cfg *Config, k8sClient *k8s.Client) (*Controller, error) {
 		"spire", c.spire != nil)
 
 	return c, nil
+}
+
+// NewControllerWithDeps creates a Controller with pre-built registrar
+// implementations. This is the dependency-injection constructor used by
+// tests (with mock registrars) and by callers that manage registrar
+// lifecycle externally. Any registrar may be nil if the service is disabled.
+func NewControllerWithDeps(cfg *Config, pg PostgresRegistrarI, nats NATSRegistrarI, rustfs RustFSRegistrarI, spire SPIRERegistrarI) *Controller {
+	return &Controller{cfg: cfg, pg: pg, nats: nats, rustfs: rustfs, spire: spire}
 }
 
 // checkClusterSPIFFEIDCRD checks if the ClusterSPIFFEID CRD is

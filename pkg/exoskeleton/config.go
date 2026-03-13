@@ -1,6 +1,7 @@
 package exoskeleton
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -118,6 +119,73 @@ func (c *Config) AuthEnabled() bool {
 // identity registration is enabled.
 func (c *Config) SPIREEnabled() bool {
 	return c.Enabled && c.SPIRE.Enabled
+}
+
+// Validate checks for likely misconfiguration: a service appears partially
+// configured (some fields set, but not enough for the *Enabled() check to
+// pass). Returns an error listing every problem found. When the exoskeleton
+// is disabled, validation is skipped.
+func (c *Config) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+
+	var problems []string
+
+	// Postgres: host or user set but not enough for PostgresEnabled()
+	pgPartial := c.Postgres.Host != "" || c.Postgres.User != "" || c.Postgres.Password != ""
+	if pgPartial && !c.PostgresEnabled() {
+		var missing []string
+		if c.Postgres.Host == "" {
+			missing = append(missing, "TENTACULAR_POSTGRES_ADMIN_HOST")
+		}
+		if c.Postgres.User == "" {
+			missing = append(missing, "TENTACULAR_POSTGRES_ADMIN_USER")
+		}
+		if c.Postgres.Password == "" {
+			missing = append(missing, "TENTACULAR_POSTGRES_ADMIN_PASSWORD")
+		}
+		problems = append(problems, fmt.Sprintf("postgres partially configured, missing: %s", strings.Join(missing, ", ")))
+	}
+
+	// NATS: URL set but no auth method configured
+	if c.NATS.URL != "" && !c.NATS.SPIFFEEnabled && c.NATS.Token == "" {
+		problems = append(problems, "NATS URL set but no auth method configured (set TENTACULAR_NATS_TOKEN or TENTACULAR_NATS_SPIFFE_ENABLED)")
+	}
+
+	// RustFS: some fields set but not enough for RustFSEnabled()
+	rustPartial := c.RustFS.Endpoint != "" || c.RustFS.AccessKey != "" || c.RustFS.SecretKey != ""
+	if rustPartial && !c.RustFSEnabled() {
+		var missing []string
+		if c.RustFS.Endpoint == "" {
+			missing = append(missing, "TENTACULAR_RUSTFS_ENDPOINT")
+		}
+		if c.RustFS.AccessKey == "" {
+			missing = append(missing, "TENTACULAR_RUSTFS_ACCESS_KEY")
+		}
+		if c.RustFS.SecretKey == "" {
+			missing = append(missing, "TENTACULAR_RUSTFS_SECRET_KEY")
+		}
+		problems = append(problems, fmt.Sprintf("rustfs partially configured, missing: %s", strings.Join(missing, ", ")))
+	}
+
+	// Auth: enabled flag set but missing required fields
+	if c.Auth.Enabled && !c.AuthEnabled() {
+		var missing []string
+		if c.Auth.IssuerURL == "" {
+			missing = append(missing, "TENTACULAR_KEYCLOAK_ISSUER")
+		}
+		if c.Auth.ClientID == "" {
+			missing = append(missing, "TENTACULAR_KEYCLOAK_CLIENT_ID")
+		}
+		problems = append(problems, fmt.Sprintf("auth enabled but missing: %s", strings.Join(missing, ", ")))
+	}
+
+	if len(problems) > 0 {
+		return fmt.Errorf("exoskeleton config: %s", strings.Join(problems, "; "))
+	}
+
+	return nil
 }
 
 // envBool returns true if the named environment variable is set to a
