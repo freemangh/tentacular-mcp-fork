@@ -97,6 +97,9 @@ func registerExoskeletonTools(srv *mcp.Server, client *k8s.Client, ctrl *exoskel
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, ExoRegistrationResult{}, err
 		}
+		if err := guard.CheckName(params.Name); err != nil {
+			return nil, ExoRegistrationResult{}, err
+		}
 
 		secretName := exoskeleton.ExoskeletonSecretPrefix + params.Name
 		secret, err := client.Clientset.CoreV1().Secrets(params.Namespace).Get(ctx, secretName, metav1.GetOptions{})

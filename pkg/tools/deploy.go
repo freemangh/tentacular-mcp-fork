@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
@@ -140,6 +141,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WorkflowApplyResult{}, err
 		}
+		if err := guard.CheckName(params.Name); err != nil {
+			return nil, WorkflowApplyResult{}, err
+		}
 
 		// Extract deployer identity from request context (set by auth middleware).
 		deployer := auth.DeployerFromContext(ctx)
@@ -179,7 +183,8 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 					proxyNS = defaultProxyNamespace
 				}
 				go func() {
-					bgCtx := context.Background()
+					bgCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+					defer cancel()
 					if prewarmErr := k8s.PrewarmModules(bgCtx, client, proxyNS, deps); prewarmErr != nil {
 						slog.Warn("module pre-warm completed with errors", "error", prewarmErr)
 					}
@@ -194,6 +199,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		Description: "Remove all resources belonging to a named deployment in a namespace.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WorkflowRemoveParams) (*mcp.CallToolResult, WorkflowRemoveResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WorkflowRemoveResult{}, err
+		}
+		if err := guard.CheckName(params.Name); err != nil {
 			return nil, WorkflowRemoveResult{}, err
 		}
 		if sched != nil {
@@ -219,6 +227,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		Description: "Get status of all resources belonging to a named deployment in a namespace.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WorkflowStatusParams) (*mcp.CallToolResult, WorkflowStatusResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WorkflowStatusResult{}, err
+		}
+		if err := guard.CheckName(params.Name); err != nil {
 			return nil, WorkflowStatusResult{}, err
 		}
 		result, err := handleWorkflowStatus(ctx, client, params)
@@ -296,7 +307,7 @@ func ensurePodSpecPSA(obj map[string]any, podSpecPath []string) {
 		return
 	}
 
-	hasTmpMount := false
+	needsTmpVolume := false
 	for i, cRaw := range containersRaw {
 		c, ok := cRaw.(map[string]any)
 		if !ok {
@@ -309,24 +320,26 @@ func ensurePodSpecPSA(obj map[string]any, podSpecPath []string) {
 		setIfAbsent(c, []any{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
 		setIfAbsent(c, "RuntimeDefault", append(append([]string{}, prefix...), "seccompProfile", "type")...)
 
-		// Check if container already has a /tmp volumeMount.
+		// Check if this container already has a /tmp volumeMount.
 		vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
+		containerHasTmp := false
 		for _, vm := range vms {
 			vmMap, ok := vm.(map[string]any)
 			if ok && vmMap["mountPath"] == "/tmp" {
-				hasTmpMount = true
+				containerHasTmp = true
+				needsTmpVolume = true
 			}
 		}
 
 		// Add /tmp volumeMount if readOnlyRootFilesystem is set and no /tmp mount exists.
 		roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
-		if roFS && !hasTmpMount {
+		if roFS && !containerHasTmp {
 			vms = append(vms, map[string]any{
 				"name":      "tmp",
 				"mountPath": "/tmp",
 			})
 			_ = unstructured.SetNestedSlice(c, vms, "volumeMounts")
-			hasTmpMount = true
+			needsTmpVolume = true
 		}
 
 		containersRaw[i] = c
@@ -334,7 +347,7 @@ func ensurePodSpecPSA(obj map[string]any, podSpecPath []string) {
 	_ = unstructured.SetNestedSlice(obj, containersRaw, append(append([]string{}, podSpecPath...), "containers")...)
 
 	// Add tmp emptyDir volume if any container got a /tmp mount.
-	if hasTmpMount {
+	if needsTmpVolume {
 		volumes, _, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), "volumes")...)
 		hasTmpVol := false
 		for _, v := range volumes {
@@ -534,9 +547,13 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 	// Get deployment replicas and version from the typed API for accurate status
 	deploy, err := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 	if err == nil {
-		result.Replicas = *deploy.Spec.Replicas
+		replicas := derefInt32(deploy.Spec.Replicas)
+		if replicas == 0 {
+			replicas = 1
+		}
+		result.Replicas = replicas
 		result.Available = deploy.Status.AvailableReplicas
-		result.Ready = deploy.Status.AvailableReplicas >= *deploy.Spec.Replicas && *deploy.Spec.Replicas > 0
+		result.Ready = deploy.Status.AvailableReplicas >= replicas && replicas > 0
 		if v, ok := deploy.Labels["app.kubernetes.io/version"]; ok {
 			result.Version = v
 		}

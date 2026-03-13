@@ -114,23 +114,11 @@ func registerDiscoverTools(srv *mcp.Server, client *k8s.Client) {
 	})
 }
 
-// systemNamespacesForList is the set of namespaces that wf_list should never show.
-// These are platform infrastructure namespaces, not user workflow namespaces.
-var systemNamespacesForList = map[string]bool{
-	"tentacular-system":      true,
-	"tentacular-support":     true,
-	"tentacular-exoskeleton": true,
-	"kube-system":            true,
-	"kube-public":            true,
-	"kube-node-lease":        true,
-	"default":                true,
-}
-
 // isSystemNamespace returns true if the namespace should be filtered from wf_list results.
-// A namespace is considered system if it matches a hardcoded name or has the
+// A namespace is considered system if it matches the guard's canonical list or has the
 // tentacular.io/system annotation set to "true".
 func isSystemNamespace(ns string, annotations map[string]string) bool {
-	if systemNamespacesForList[ns] {
+	if guard.SystemNamespaces[ns] {
 		return true
 	}
 	if annotations != nil && annotations["tentacular.io/system"] == "true" {

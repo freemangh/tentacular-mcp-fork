@@ -45,10 +45,15 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
-          {{- if .Values.exoskeleton.secretRef }}
+          {{- if or .Values.exoskeleton.secretRef .Values.extraEnvFrom }}
           envFrom:
+            {{- if .Values.exoskeleton.secretRef }}
             - secretRef:
                 name: {{ .Values.exoskeleton.secretRef }}
+            {{- end }}
+            {{- range .Values.extraEnvFrom }}
+            - {{- toYaml . | nindent 14 }}
+            {{- end }}
           {{- end }}
           env:
             - name: TOKEN_PATH

@@ -13,94 +13,17 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 )
 
-// ---------- ExoStatusResult population tests ----------
+// ---------- buildServiceInfoList tests ----------
 
-func TestExoStatusResult_AllFieldsSet(t *testing.T) {
-	result := ExoStatusResult{
-		Enabled:           true,
-		CleanupOnUndeploy: true,
-		PostgresAvailable: true,
-		NATSAvailable:     true,
-		RustFSAvailable:   true,
-		SPIREAvailable:    true,
-		NATSSpiffeEnabled: true,
-		AuthEnabled:       true,
-		AuthIssuer:        "https://keycloak.example.com/realms/tentacular",
-	}
-
-	if !result.Enabled {
-		t.Error("expected Enabled=true")
-	}
-	if !result.CleanupOnUndeploy {
-		t.Error("expected CleanupOnUndeploy=true")
-	}
-	if !result.PostgresAvailable {
-		t.Error("expected PostgresAvailable=true")
-	}
-	if !result.NATSAvailable {
-		t.Error("expected NATSAvailable=true")
-	}
-	if !result.RustFSAvailable {
-		t.Error("expected RustFSAvailable=true")
-	}
-	if !result.SPIREAvailable {
-		t.Error("expected SPIREAvailable=true")
-	}
-	if !result.NATSSpiffeEnabled {
-		t.Error("expected NATSSpiffeEnabled=true")
-	}
-	if !result.AuthEnabled {
-		t.Error("expected AuthEnabled=true")
-	}
-	if result.AuthIssuer != "https://keycloak.example.com/realms/tentacular" {
-		t.Errorf("AuthIssuer = %q", result.AuthIssuer)
-	}
-}
-
-func TestExoStatusResult_AllFieldsDefault(t *testing.T) {
-	result := ExoStatusResult{}
-
-	if result.Enabled {
-		t.Error("expected Enabled=false by default")
-	}
-	if result.PostgresAvailable {
-		t.Error("expected PostgresAvailable=false by default")
-	}
-	if result.AuthIssuer != "" {
-		t.Errorf("expected empty AuthIssuer, got %q", result.AuthIssuer)
-	}
-}
-
-func TestExoStatusResult_ServicesSlice(t *testing.T) {
-	result := ExoStatusResult{
-		Services: []ExoStatusServiceInfo{
-			{Name: "postgres", Enabled: true, Healthy: true},
-			{Name: "nats", Enabled: true, Healthy: true},
-			{Name: "rustfs", Enabled: false, Healthy: false},
-			{Name: "spire", Enabled: false, Healthy: false},
-		},
-	}
-
-	if len(result.Services) != 4 {
-		t.Fatalf("expected 4 services, got %d", len(result.Services))
-	}
-	pg := result.Services[0]
-	if pg.Name != "postgres" || !pg.Enabled || !pg.Healthy {
-		t.Errorf("postgres service: %+v", pg)
-	}
-	rustfs := result.Services[2]
-	if rustfs.Enabled || rustfs.Healthy {
-		t.Errorf("expected rustfs disabled/unhealthy, got %+v", rustfs)
-	}
-}
-
+// TestBuildServiceInfoList_NilController verifies that calling buildServiceInfoList
+// on a disabled controller returns an empty slice (same as the handler's short-circuit
+// for nil ctrl).
 func TestBuildServiceInfoList_NilController(t *testing.T) {
-	// buildServiceInfoList requires a non-nil controller; the handler
-	// short-circuits before calling it when ctrl is nil. Test that the
-	// handler returns an empty services slice for nil controller.
-	result := ExoStatusResult{Services: []ExoStatusServiceInfo{}}
-	if len(result.Services) != 0 {
-		t.Errorf("expected empty services for nil controller result, got %d", len(result.Services))
+	cfg := &exoskeleton.Config{Enabled: false}
+	ctrl := exoskeleton.NewControllerWithDeps(cfg, nil, nil, nil, nil)
+	services := buildServiceInfoList(ctrl)
+	if len(services) != 0 {
+		t.Errorf("expected empty services for disabled controller, got %d", len(services))
 	}
 }
 
@@ -160,45 +83,72 @@ func TestIsSecretKey(t *testing.T) {
 	}
 }
 
-// ---------- ExoRegistrationResult tests ----------
+// ---------- exo_registration handler tests ----------
 
-func TestExoRegistrationResult_NotFound(t *testing.T) {
-	result := ExoRegistrationResult{
-		Found:     false,
-		Namespace: "tent-dev",
-		Name:      "hn-digest",
-	}
+func TestExoRegistration_SecretNotFound(t *testing.T) {
+	client := newExoListTestClient()
+	ctx := context.Background()
 
-	if result.Found {
-		t.Error("expected Found=false")
-	}
-	if result.Namespace != "tent-dev" {
-		t.Errorf("Namespace = %q", result.Namespace)
-	}
-	if result.Data != nil {
-		t.Error("expected nil Data for not-found")
+	// Look up a secret that doesn't exist via the handler's code path.
+	secretName := exoskeleton.ExoskeletonSecretPrefix + "no-such-wf"
+	_, err := client.Clientset.CoreV1().Secrets("tent-dev").Get(ctx, secretName, metav1.GetOptions{})
+	if err == nil {
+		t.Fatal("expected error for missing secret")
 	}
 }
 
-func TestExoRegistrationResult_Found(t *testing.T) {
-	result := ExoRegistrationResult{
-		Found:     true,
-		Namespace: "tent-dev",
-		Name:      "hn-digest",
-		Data: map[string]string{
-			"tentacular-postgres.host":     "pg.exo.svc",
-			"tentacular-postgres.password": "***REDACTED***",
+func TestExoRegistration_SecretFound_RedactsPasswords(t *testing.T) {
+	client := newExoListTestClient()
+	ctx := context.Background()
+
+	// Create a secret with sensitive and non-sensitive keys.
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      exoskeleton.ExoskeletonSecretPrefix + "hn-digest",
+			Namespace: "tent-dev",
+			Labels: map[string]string{
+				exoskeleton.ExoskeletonLabel: "true",
+				exoskeleton.ReleaseLabel:     "hn-digest",
+			},
+		},
+		Data: map[string][]byte{
+			"tentacular-postgres.host":     []byte("pg.exo.svc"),
+			"tentacular-postgres.password": []byte("s3cret"),
+			"tentacular-nats.url":          []byte("nats://nats:4222"),
+			"tentacular-nats.token":        []byte("tok123"),
 		},
 	}
+	_, err := client.Clientset.CoreV1().Secrets("tent-dev").Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
 
-	if !result.Found {
-		t.Error("expected Found=true")
+	// Retrieve and check redaction via isSecretKey logic.
+	got, getErr := client.Clientset.CoreV1().Secrets("tent-dev").Get(ctx, secret.Name, metav1.GetOptions{})
+	if getErr != nil {
+		t.Fatalf("get secret: %v", getErr)
 	}
-	if result.Data["tentacular-postgres.host"] != "pg.exo.svc" {
-		t.Errorf("host = %q", result.Data["tentacular-postgres.host"])
+
+	data := make(map[string]string)
+	for k, v := range got.Data {
+		if isSecretKey(k) {
+			data[k] = "***REDACTED***"
+		} else {
+			data[k] = string(v)
+		}
 	}
-	if result.Data["tentacular-postgres.password"] != "***REDACTED***" {
-		t.Errorf("password = %q, expected REDACTED", result.Data["tentacular-postgres.password"])
+
+	if data["tentacular-postgres.host"] != "pg.exo.svc" {
+		t.Errorf("host = %q, want pg.exo.svc", data["tentacular-postgres.host"])
+	}
+	if data["tentacular-postgres.password"] != "***REDACTED***" {
+		t.Errorf("password = %q, want REDACTED", data["tentacular-postgres.password"])
+	}
+	if data["tentacular-nats.url"] != "nats://nats:4222" {
+		t.Errorf("nats url = %q, want nats://nats:4222", data["tentacular-nats.url"])
+	}
+	if data["tentacular-nats.token"] != "***REDACTED***" {
+		t.Errorf("nats token = %q, want REDACTED", data["tentacular-nats.token"])
 	}
 }
 

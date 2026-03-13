@@ -109,6 +109,9 @@ tolerations: []
 # -- Affinity rules for pod scheduling
 affinity: {}
 
+# -- Extra environment variable sources (e.g., ConfigMaps) to add to the pod via envFrom.
+extraEnvFrom: []
+
 # -- Exoskeleton SSO/OIDC authentication configuration.
 exoskeletonAuth:
   # -- Enable OIDC authentication (Keycloak SSO)

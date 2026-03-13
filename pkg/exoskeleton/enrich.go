@@ -184,7 +184,7 @@ func patchAllowNetInSlice(container map[string]interface{}, field string, hosts 
 		}
 		// Append hosts to the existing value.
 		existing := strings.TrimPrefix(arg, "--allow-net=")
-		if existing == "" {
+		if existing == "" || existing == "none" {
 			slice[i] = "--allow-net=" + strings.Join(hosts, ",")
 		} else {
 			slice[i] = arg + "," + strings.Join(hosts, ",")

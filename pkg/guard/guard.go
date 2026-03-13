@@ -6,10 +6,11 @@ import (
 	"regexp"
 )
 
-// systemNamespaces is the set of namespaces that tentacular must never touch.
+// SystemNamespaces is the set of namespaces that tentacular must never touch.
 // These are either Kubernetes control-plane namespaces or the tentacular
-// server's own namespace.
-var systemNamespaces = map[string]bool{
+// server's own namespace. Exported so that other packages (e.g., discover)
+// can reuse the canonical list.
+var SystemNamespaces = map[string]bool{
 	"tentacular-system":      true,
 	"tentacular-support":     true,
 	"tentacular-exoskeleton": true,
@@ -23,7 +24,7 @@ var systemNamespaces = map[string]bool{
 // system namespace. All tool handlers must call this before performing
 // operations.
 func CheckNamespace(namespace string) error {
-	if systemNamespaces[namespace] {
+	if SystemNamespaces[namespace] {
 		return fmt.Errorf("operations on namespace %q are not permitted", namespace)
 	}
 	return nil
