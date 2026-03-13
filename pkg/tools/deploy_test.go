@@ -337,8 +337,8 @@ func TestWorkflowRemoveResultIncludesCleanupFields(t *testing.T) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if v, ok := m["exo_cleaned_up"]; !ok || v != true {
-		t.Errorf("expected exo_cleaned_up=true, got %v", v)
+	if v, ok := m["exo_cleaned_up"].(bool); !ok || !v {
+		t.Errorf("expected exo_cleaned_up=true, got %v", m["exo_cleaned_up"])
 	}
 	if v, ok := m["exo_cleanup_details"]; !ok || v != "postgres schema dropped, rustfs user removed" {
 		t.Errorf("expected exo_cleanup_details to match, got %v", v)

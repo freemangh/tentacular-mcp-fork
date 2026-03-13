@@ -8,7 +8,7 @@ import (
 // all three services (postgres, nats, rustfs) contains the expected
 // keys from each service plus the identity fields.
 func TestBuildSecretManifestAllThreeServices(t *testing.T) {
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{
 			Host:     "pg.local",
 			Port:     "5432",
@@ -40,7 +40,7 @@ func TestBuildSecretManifestAllThreeServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildSecretManifest returned error: %v", err)
 	}
-	sd := manifest["stringData"].(map[string]interface{})
+	sd := manifest["stringData"].(map[string]any)
 
 	// Postgres keys
 	pgKeys := []string{
@@ -109,7 +109,7 @@ func TestBuildSecretManifestAllThreeServices(t *testing.T) {
 // TestBuildSecretManifestFallbackJSON verifies the JSON fallback for
 // an unknown credential type.
 func TestBuildSecretManifestFallbackJSON(t *testing.T) {
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-unknown": map[string]string{"key": "value"},
 	}
 
@@ -117,7 +117,7 @@ func TestBuildSecretManifestFallbackJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildSecretManifest returned error: %v", err)
 	}
-	sd := manifest["stringData"].(map[string]interface{})
+	sd := manifest["stringData"].(map[string]any)
 
 	val, ok := sd["tentacular-unknown"]
 	if !ok {

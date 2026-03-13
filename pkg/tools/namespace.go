@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -47,13 +48,13 @@ type NsGetParams struct {
 
 // NsGetResult is the result of ns_get.
 type NsGetResult struct {
-	Name        string            `json:"name"`
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
-	Status      string            `json:"status"`
-	Managed     bool              `json:"managed"`
+	Labels      map[string]string      `json:"labels"`
+	Annotations map[string]string      `json:"annotations"`
 	Quota       *k8s.QuotaSummary      `json:"quota,omitempty"`
 	LimitRange  *k8s.LimitRangeSummary `json:"limitRange,omitempty"`
+	Name        string                 `json:"name"`
+	Status      string                 `json:"status"`
+	Managed     bool                   `json:"managed"`
 }
 
 // NsUpdateParams are the parameters for ns_update.
@@ -66,8 +67,8 @@ type NsUpdateParams struct {
 
 // NsUpdateResult is the result of ns_update.
 type NsUpdateResult struct {
-	Name            string   `json:"name"`
-	Updated         []string `json:"updated"`
+	Name    string   `json:"name"`
+	Updated []string `json:"updated"`
 }
 
 // NsListParams are the parameters for ns_list (empty).
@@ -281,7 +282,7 @@ func handleNsUpdate(ctx context.Context, client *k8s.Client, params NsUpdatePara
 	}
 
 	if len(params.Labels) == 0 && len(params.Annotations) == 0 && params.QuotaPreset == "" {
-		return NsUpdateResult{}, fmt.Errorf("at least one of labels, annotations, or quota_preset must be provided")
+		return NsUpdateResult{}, errors.New("at least one of labels, annotations, or quota_preset must be provided")
 	}
 
 	updated := []string{}
@@ -293,14 +294,14 @@ func handleNsUpdate(ctx context.Context, client *k8s.Client, params NsUpdatePara
 			return NsUpdateResult{}, fmt.Errorf("cannot change the %s label", k8s.ManagedByLabel)
 		}
 
-		patchMeta := map[string]interface{}{}
+		patchMeta := map[string]any{}
 		if len(params.Labels) > 0 {
 			patchMeta["labels"] = params.Labels
 		}
 		if len(params.Annotations) > 0 {
 			patchMeta["annotations"] = params.Annotations
 		}
-		patchBody, err := json.Marshal(map[string]interface{}{"metadata": patchMeta})
+		patchBody, err := json.Marshal(map[string]any{"metadata": patchMeta})
 		if err != nil {
 			return NsUpdateResult{}, fmt.Errorf("marshal patch: %w", err)
 		}

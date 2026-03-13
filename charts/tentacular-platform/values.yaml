@@ -167,7 +167,8 @@ exoskeleton:
   enabled: true
   # -- Use an existing Secret instead of the auto-generated one.
   # When set, the chart will not create the tentacular-exoskeleton-config Secret.
-  # You must also set tentacular-mcp.exoskeletonSecretName to your secret name.
+  # You must also set both tentacular-mcp.exoskeletonSecretName and
+  # tentacular-mcp.exoskeleton.secretRef to your secret name.
   existingSecret: ""
   # -- PostgreSQL SSL mode for tentacle connections
   postgresSSLMode: "prefer"
@@ -179,6 +180,12 @@ exoskeleton:
     # -- SPIRE class name for ClusterSPIFFEID resources
     className: "tentacular-system-spire"
   nats:
+    # -- External NATS URL (used when nats.enabled=false to point at an external NATS deployment).
+    # When nats.enabled=true, this is ignored and the bundled NATS URL is auto-generated.
+    url: ""
+    # -- NATS auth token for external NATS (used when nats.enabled=false and spiffeEnabled=false).
+    # When nats.enabled=true, the token is read from nats.config.merge.authorization.token instead.
+    token: ""
     # -- Enable NATS SPIFFE mTLS authentication
     spiffeEnabled: false
     # -- Name of the NATS authorization ConfigMap

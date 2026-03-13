@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -16,38 +17,39 @@ import (
 // ClusterProfile contains a point-in-time capability snapshot of the cluster.
 type ClusterProfile struct {
 	GeneratedAt    time.Time          `json:"generatedAt"`
+	LimitRange     *LimitRangeSummary `json:"limitRange,omitempty"`
+	Quota          *QuotaSummary      `json:"quota,omitempty"`
 	K8sVersion     string             `json:"k8sVersion"`
 	Distribution   string             `json:"distribution"`
-	Nodes          []NodeInfo         `json:"nodes"`
-	RuntimeClasses []RuntimeClassInfo `json:"runtimeClasses"`
-	GVisor         bool               `json:"gvisor"`
-	CNI            CNIInfo            `json:"cni"`
-	NetworkPolicy  NetPolInfo         `json:"networkPolicy"`
-	StorageClasses []StorageClassInfo `json:"storageClasses"`
-	RWXNote        string             `json:"rwxNote"`
-	CSIDrivers     []string           `json:"csiDrivers"`
-	Ingress        []string           `json:"ingress"`
-	Extensions     ExtensionSet       `json:"extensions"`
-	Namespace      string             `json:"namespace"`
-	Quota          *QuotaSummary      `json:"quota,omitempty"`
-	LimitRange     *LimitRangeSummary `json:"limitRange,omitempty"`
 	PodSecurity    string             `json:"podSecurity"`
+	Namespace      string             `json:"namespace"`
+	RWXNote        string             `json:"rwxNote"`
+	CNI            CNIInfo            `json:"cni"`
+	RuntimeClasses []RuntimeClassInfo `json:"runtimeClasses"`
+	Ingress        []string           `json:"ingress"`
+	CSIDrivers     []string           `json:"csiDrivers"`
+	StorageClasses []StorageClassInfo `json:"storageClasses"`
+	Nodes          []NodeInfo         `json:"nodes"`
 	Guidance       []string           `json:"guidance"`
+	Warnings       []string           `json:"warnings,omitempty"`
+	Extensions     ExtensionSet       `json:"extensions"`
+	NetworkPolicy  NetPolInfo         `json:"networkPolicy"`
+	GVisor         bool               `json:"gvisor"`
 }
 
 // NodeInfo describes a single cluster node.
 type NodeInfo struct {
+	Labels           map[string]string `json:"labels"`
+	Allocatable      map[string]string `json:"allocatable"`
+	Capacity         map[string]string `json:"capacity"`
 	Name             string            `json:"name"`
-	Ready            bool              `json:"ready"`
 	OS               string            `json:"os"`
 	Arch             string            `json:"arch"`
 	KubeletVersion   string            `json:"kubeletVersion"`
 	KernelVersion    string            `json:"kernelVersion"`
 	ContainerRuntime string            `json:"containerRuntime"`
-	Labels           map[string]string `json:"labels"`
 	Taints           []string          `json:"taints"`
-	Allocatable      map[string]string `json:"allocatable"`
-	Capacity         map[string]string `json:"capacity"`
+	Ready            bool              `json:"ready"`
 }
 
 // RuntimeClassInfo describes a RuntimeClass.
@@ -76,14 +78,15 @@ type NetPolInfo struct {
 type StorageClassInfo struct {
 	Name                 string `json:"name"`
 	Provisioner          string `json:"provisioner"`
-	IsDefault            bool   `json:"isDefault"`
 	ReclaimPolicy        string `json:"reclaimPolicy"`
+	IsDefault            bool   `json:"isDefault"`
 	AllowVolumeExpansion bool   `json:"allowVolumeExpansion"`
 	RWXCapable           bool   `json:"rwxCapable"`
 }
 
 // ExtensionSet records which well-known CRD-based extensions are installed.
 type ExtensionSet struct {
+	OtherCRDGroups  []string `json:"otherCRDGroups"`
 	Istio           bool     `json:"istio"`
 	CertManager     bool     `json:"certManager"`
 	PrometheusOp    bool     `json:"prometheusOp"`
@@ -91,7 +94,6 @@ type ExtensionSet struct {
 	ArgoCD          bool     `json:"argoCD"`
 	GatewayAPI      bool     `json:"gatewayAPI"`
 	MetricsServer   bool     `json:"metricsServer"`
-	OtherCRDGroups  []string `json:"otherCRDGroups"`
 }
 
 // QuotaSummary is a simplified view of a ResourceQuota.
@@ -138,21 +140,15 @@ func ProfileCluster(ctx context.Context, client *Client, namespace string) (*Clu
 	if err := profileCNI(ctx, client, profile); err != nil {
 		return nil, err
 	}
-	if err := profileNetworkPolicy(ctx, client, profile); err != nil {
-		return nil, err
-	}
+	profileNetworkPolicy(ctx, client, profile)
 	if err := profileStorageClasses(ctx, client, profile); err != nil {
 		return nil, err
 	}
 	if err := profileCSIDrivers(ctx, client, profile); err != nil {
 		return nil, err
 	}
-	if err := profileIngress(ctx, client, profile); err != nil {
-		return nil, err
-	}
-	if err := profileExtensions(ctx, client, profile); err != nil {
-		return nil, err
-	}
+	profileIngress(ctx, client, profile)
+	profileExtensions(ctx, client, profile)
 	if err := profileNamespaceDetails(ctx, client, profile, namespace); err != nil {
 		return nil, err
 	}
@@ -162,7 +158,7 @@ func ProfileCluster(ctx context.Context, client *Client, namespace string) (*Clu
 	return profile, nil
 }
 
-func profileVersion(ctx context.Context, client *Client, profile *ClusterProfile) error {
+func profileVersion(_ context.Context, client *Client, profile *ClusterProfile) error {
 	info, err := client.Clientset.Discovery().ServerVersion()
 	if err != nil {
 		return fmt.Errorf("get server version: %w", err)
@@ -190,9 +186,9 @@ func profileNodes(ctx context.Context, client *Client, profile *ClusterProfile) 
 		for k, v := range n.Status.Allocatable {
 			alloc[string(k)] = v.String()
 		}
-		cap := make(map[string]string)
+		capacity := make(map[string]string)
 		for k, v := range n.Status.Capacity {
-			cap[string(k)] = v.String()
+			capacity[string(k)] = v.String()
 		}
 
 		var taints []string
@@ -211,7 +207,7 @@ func profileNodes(ctx context.Context, client *Client, profile *ClusterProfile) 
 			Labels:           n.Labels,
 			Taints:           taints,
 			Allocatable:      alloc,
-			Capacity:         cap,
+			Capacity:         capacity,
 		})
 	}
 
@@ -294,7 +290,7 @@ func profileCNI(ctx context.Context, client *Client, profile *ClusterProfile) er
 	return nil
 }
 
-func profileNetworkPolicy(ctx context.Context, client *Client, profile *ClusterProfile) error {
+func profileNetworkPolicy(ctx context.Context, client *Client, profile *ClusterProfile) {
 	netpols, err := client.Clientset.NetworkingV1().NetworkPolicies("").List(ctx, metav1.ListOptions{})
 	if err == nil {
 		profile.NetworkPolicy = NetPolInfo{
@@ -302,9 +298,10 @@ func profileNetworkPolicy(ctx context.Context, client *Client, profile *ClusterP
 			InUse:     len(netpols.Items) > 0,
 		}
 	} else {
+		slog.Warn("network policy detection degraded", "error", err)
 		profile.NetworkPolicy = NetPolInfo{Supported: profile.CNI.NetworkPolicySupported}
+		profile.Warnings = append(profile.Warnings, fmt.Sprintf("network policy inspection failed: %v — inUse may be inaccurate", err))
 	}
-	return nil
 }
 
 func profileStorageClasses(ctx context.Context, client *Client, profile *ClusterProfile) error {
@@ -369,11 +366,13 @@ func profileCSIDrivers(ctx context.Context, client *Client, profile *ClusterProf
 	return nil
 }
 
-func profileIngress(ctx context.Context, client *Client, profile *ClusterProfile) error {
+func profileIngress(ctx context.Context, client *Client, profile *ClusterProfile) {
 	allPods, err := client.Clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		// Non-fatal: ingress detection is best-effort.
-		return nil
+		slog.Warn("ingress detection skipped", "error", err)
+		profile.Warnings = append(profile.Warnings, fmt.Sprintf("ingress detection skipped: %v — ingress list may be incomplete", err))
+		return
 	}
 
 	seen := map[string]bool{}
@@ -398,12 +397,11 @@ func profileIngress(ctx context.Context, client *Client, profile *ClusterProfile
 		profile.Ingress = append(profile.Ingress, k)
 	}
 	sort.Strings(profile.Ingress)
-	return nil
 }
 
-func profileExtensions(ctx context.Context, client *Client, profile *ClusterProfile) error {
+func profileExtensions(ctx context.Context, client *Client, profile *ClusterProfile) {
 	if client.Dynamic == nil {
-		return nil
+		return
 	}
 
 	crdGVR := schema.GroupVersionResource{
@@ -414,7 +412,9 @@ func profileExtensions(ctx context.Context, client *Client, profile *ClusterProf
 	crdList, err := client.Dynamic.Resource(crdGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		// Non-fatal: extension detection is best-effort.
-		return nil
+		slog.Warn("extension detection skipped", "error", err)
+		profile.Warnings = append(profile.Warnings, fmt.Sprintf("extension detection skipped: %v — extensions may be incomplete", err))
+		return
 	}
 
 	profile.Extensions = classifyExtensions(crdList)
@@ -426,8 +426,6 @@ func profileExtensions(ctx context.Context, client *Client, profile *ClusterProf
 	if err == nil && len(msPods.Items) > 0 {
 		profile.Extensions.MetricsServer = true
 	}
-
-	return nil
 }
 
 func classifyExtensions(crdList *unstructured.UnstructuredList) ExtensionSet {

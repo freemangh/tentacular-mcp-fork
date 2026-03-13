@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/randybias/tentacular-mcp/pkg/auth"
 	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
@@ -23,8 +24,8 @@ type Server struct {
 	scheduler     *scheduler.Scheduler
 	exoCtrl       *exoskeleton.Controller
 	oidcValidator *exoskeleton.OIDCValidator
-	token         string
 	logger        *slog.Logger
+	token         string
 }
 
 // New creates a new MCP server with all tools registered.
@@ -73,10 +74,10 @@ func (s *Server) Handler() http.Handler {
 	return auth.DualAuthMiddleware(s.token, s.oidcValidator, mux)
 }
 
-func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+func (*Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errchkjson // health handler writes a constant payload; write errors are non-actionable
 }
 
 // registerTools registers all MCP tools by delegating to the tools package.

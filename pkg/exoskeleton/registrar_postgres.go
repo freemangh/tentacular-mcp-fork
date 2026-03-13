@@ -159,7 +159,7 @@ func (r *PostgresRegistrar) Unregister(ctx context.Context, id Identity) error {
 		return fmt.Errorf("drop schema %s: %w", schema, err)
 	}
 
-	dropRole := fmt.Sprintf("DROP ROLE IF EXISTS %s", pgIdent(role))
+	dropRole := "DROP ROLE IF EXISTS " + pgIdent(role)
 	if _, err := tx.Exec(ctx, dropRole); err != nil {
 		return fmt.Errorf("drop role %s: %w", role, err)
 	}
@@ -198,12 +198,14 @@ func pgIdent(s string) string {
 // escapeLiteral escapes single quotes in a Postgres string literal.
 func escapeLiteral(s string) string {
 	result := ""
+	var resultSb201 strings.Builder
 	for _, c := range s {
 		if c == '\'' {
-			result += "''"
+			resultSb201.WriteString("''")
 		} else {
-			result += string(c)
+			resultSb201.WriteString(string(c))
 		}
 	}
+	result += resultSb201.String()
 	return result
 }

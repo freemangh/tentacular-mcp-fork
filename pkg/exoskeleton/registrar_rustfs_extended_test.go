@@ -23,8 +23,8 @@ type adminCallRecord struct {
 
 // orderedAdminRecorder records calls in order (thread-safe).
 type orderedAdminRecorder struct {
-	mu    sync.Mutex
 	calls []adminCallRecord
+	mu    sync.Mutex
 }
 
 func (r *orderedAdminRecorder) append(rec adminCallRecord) {
@@ -231,6 +231,21 @@ func TestRustFSCreds_Fields(t *testing.T) {
 	}
 	if creds.Bucket != "tentacular" {
 		t.Errorf("Bucket = %q", creds.Bucket)
+	}
+	if creds.Endpoint != "http://rustfs:9000" {
+		t.Errorf("Endpoint = %q", creds.Endpoint)
+	}
+	if creds.AccessKey != "tn_ns_wf" {
+		t.Errorf("AccessKey = %q", creds.AccessKey)
+	}
+	if creds.SecretKey != "secret123" {
+		t.Errorf("SecretKey = %q", creds.SecretKey)
+	}
+	if creds.Prefix != "ns/test/tentacles/wf/" {
+		t.Errorf("Prefix = %q", creds.Prefix)
+	}
+	if creds.Region != "us-east-1" {
+		t.Errorf("Region = %q", creds.Region)
 	}
 }
 

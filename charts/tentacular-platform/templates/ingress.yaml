@@ -19,7 +19,7 @@ spec:
   tls:
     - hosts:
         - {{ .Values.ingress.mcp.hostname | default (printf "mcp.%s" .Values.global.domain) }}
-        {{- if and .Values.ingress.auth.enabled .Values.ingress.auth.hostname }}
+        {{- if .Values.ingress.auth.enabled }}
         - {{ .Values.ingress.auth.hostname | default (printf "auth.%s" .Values.global.domain) }}
         {{- end }}
       secretName: {{ .Values.ingress.tls.secretName | default "tentacular-tls" }}

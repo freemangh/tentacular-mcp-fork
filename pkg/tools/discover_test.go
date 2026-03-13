@@ -71,17 +71,39 @@ func TestDerefInt32Value(t *testing.T) {
 	}
 }
 
+// --- replicaCount ---
+
+func TestReplicaCountNil(t *testing.T) {
+	if replicaCount(nil) != 1 {
+		t.Error("expected 1 for nil pointer (Kubernetes default)")
+	}
+}
+
+func TestReplicaCountValue(t *testing.T) {
+	v := int32(5)
+	if replicaCount(&v) != 5 {
+		t.Errorf("expected 5, got %d", replicaCount(&v))
+	}
+}
+
+func TestReplicaCountZero(t *testing.T) {
+	v := int32(0)
+	if replicaCount(&v) != 0 {
+		t.Error("expected 0 for explicit zero")
+	}
+}
+
 // --- wrapListError / wrapGetError ---
 
 func TestWrapListErrorWithNamespace(t *testing.T) {
-	err := wrapListError("deployments", "my-ns", errFake)
+	err := wrapListError("my-ns", errFake)
 	if !strings.Contains(err.Error(), `namespace "my-ns"`) {
 		t.Errorf("expected namespace in error, got: %v", err)
 	}
 }
 
 func TestWrapListErrorAllNamespaces(t *testing.T) {
-	err := wrapListError("deployments", "", errFake)
+	err := wrapListError("", errFake)
 	if !strings.Contains(err.Error(), "all namespaces") {
 		t.Errorf("expected 'all namespaces' in error, got: %v", err)
 	}
@@ -91,7 +113,7 @@ var errFake = &fakeError{}
 
 type fakeError struct{}
 
-func (e *fakeError) Error() string { return "fake error" }
+func (*fakeError) Error() string { return "fake error" }
 
 // --- deploymentToListEntry ---
 

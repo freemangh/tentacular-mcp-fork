@@ -174,36 +174,36 @@ func manifestsWithDeps(deps ...string) []map[string]any {
 func TestDetectExoDeps(t *testing.T) {
 	tests := []struct {
 		name      string
-		manifests []map[string]interface{}
+		manifests []map[string]any
 		wantDeps  int
 	}{
 		{
 			name: "no configmap",
-			manifests: []map[string]interface{}{
-				{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"}},
+			manifests: []map[string]any{
+				{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]any{"name": "test"}},
 			},
 			wantDeps: 0,
 		},
 		{
 			name: "configmap without workflow.yaml",
-			manifests: []map[string]interface{}{
+			manifests: []map[string]any{
 				{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
-					"metadata":   map[string]interface{}{"name": "test"},
-					"data":       map[string]interface{}{"other.yaml": "foo: bar"},
+					"metadata":   map[string]any{"name": "test"},
+					"data":       map[string]any{"other.yaml": "foo: bar"},
 				},
 			},
 			wantDeps: 0,
 		},
 		{
 			name: "workflow with tentacular deps",
-			manifests: []map[string]interface{}{
+			manifests: []map[string]any{
 				{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
-					"metadata":   map[string]interface{}{"name": "test"},
-					"data": map[string]interface{}{
+					"metadata":   map[string]any{"name": "test"},
+					"data": map[string]any{
 						"workflow.yaml": `
 contract:
   dependencies:
@@ -221,12 +221,12 @@ contract:
 		},
 		{
 			name: "workflow without tentacular deps",
-			manifests: []map[string]interface{}{
+			manifests: []map[string]any{
 				{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
-					"metadata":   map[string]interface{}{"name": "test"},
-					"data": map[string]interface{}{
+					"metadata":   map[string]any{"name": "test"},
+					"data": map[string]any{
 						"workflow.yaml": `
 contract:
   dependencies:
@@ -263,10 +263,10 @@ func TestControllerDisabled(t *testing.T) {
 	}
 
 	// ProcessManifests should pass through unchanged
-	manifests := []map[string]interface{}{
-		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]interface{}{"name": "test"}},
+	manifests := []map[string]any{
+		{"apiVersion": "v1", "kind": "ConfigMap", "metadata": map[string]any{"name": "test"}},
 	}
-	result, err := ctrl.ProcessManifests(nil, "ns", "wf", manifests)
+	result, err := ctrl.ProcessManifests(context.TODO(), "ns", "wf", manifests)
 	if err != nil {
 		t.Fatalf("ProcessManifests: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestControllerDisabled(t *testing.T) {
 	}
 
 	// Cleanup should be a no-op
-	if err := ctrl.Cleanup(nil, "ns", "wf"); err != nil {
+	if err := ctrl.Cleanup(context.TODO(), "ns", "wf"); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 }

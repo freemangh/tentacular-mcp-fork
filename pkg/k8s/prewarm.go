@@ -50,7 +50,7 @@ func PrewarmModules(ctx context.Context, client *Client, proxyNamespace string, 
 	var errs []error
 
 	for _, dep := range deps {
-		dep := dep // capture loop variable
+		// capture loop variable
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -53,7 +53,7 @@ func TestRunWorkflowDirectHTTP(t *testing.T) {
 		t.Errorf("expected payload {\"filter\":\"ai\"}, got %s", capturedBody)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("failed to parse output: %v", err)
 	}

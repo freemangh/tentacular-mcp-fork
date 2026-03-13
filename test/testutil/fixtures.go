@@ -27,8 +27,8 @@ func ManagedNamespace(name string) *corev1.Namespace {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				ManagedByLabel:                              ManagedByValue,
-				"pod-security.kubernetes.io/enforce":        "restricted",
+				ManagedByLabel:                               ManagedByValue,
+				"pod-security.kubernetes.io/enforce":         "restricted",
 				"pod-security.kubernetes.io/enforce-version": "latest",
 			},
 		},

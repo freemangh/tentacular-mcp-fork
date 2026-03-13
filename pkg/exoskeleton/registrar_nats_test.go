@@ -79,7 +79,7 @@ func TestTokenModeUnregister(t *testing.T) {
 }
 
 func TestSPIFFEModeRegisterCreatesConfigMap(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -92,9 +92,11 @@ func TestSPIFFEModeRegisterCreatesConfigMap(t *testing.T) {
 
 	// Create the namespace so the ConfigMap can live in it.
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id, _ := CompileIdentity("tent-dev", "hn-digest")
 	creds, err := r.Register(ctx, id)
@@ -137,7 +139,7 @@ func TestSPIFFEModeRegisterCreatesConfigMap(t *testing.T) {
 }
 
 func TestSPIFFEModeRegisterMultipleTentacles(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -149,9 +151,11 @@ func TestSPIFFEModeRegisterMultipleTentacles(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id1, _ := CompileIdentity("tent-dev", "hn-digest")
 	id2, _ := CompileIdentity("tent-dev", "ai-roundup")
@@ -184,7 +188,7 @@ func TestSPIFFEModeRegisterMultipleTentacles(t *testing.T) {
 }
 
 func TestSPIFFEModeReRegisterUpdatesEntry(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -196,9 +200,11 @@ func TestSPIFFEModeReRegisterUpdatesEntry(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id, _ := CompileIdentity("tent-dev", "hn-digest")
 
@@ -220,7 +226,7 @@ func TestSPIFFEModeReRegisterUpdatesEntry(t *testing.T) {
 }
 
 func TestSPIFFEModeUnregisterRemovesEntry(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -232,16 +238,22 @@ func TestSPIFFEModeUnregisterRemovesEntry(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id1, _ := CompileIdentity("tent-dev", "hn-digest")
 	id2, _ := CompileIdentity("tent-dev", "ai-roundup")
 
 	// Register both.
-	r.Register(ctx, id1)
-	r.Register(ctx, id2)
+	if _, err := r.Register(ctx, id1); err != nil {
+		t.Fatalf("Register id1: %v", err)
+	}
+	if _, err := r.Register(ctx, id2); err != nil {
+		t.Fatalf("Register id2: %v", err)
+	}
 
 	// Unregister id1.
 	if err := r.Unregister(ctx, id1); err != nil {
@@ -261,7 +273,7 @@ func TestSPIFFEModeUnregisterRemovesEntry(t *testing.T) {
 }
 
 func TestSPIFFEModeUnregisterMissingConfigMap(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -282,7 +294,7 @@ func TestSPIFFEModeUnregisterMissingConfigMap(t *testing.T) {
 }
 
 func TestSPIFFEModeUnregisterMissingEntry(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -294,15 +306,19 @@ func TestSPIFFEModeUnregisterMissingEntry(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id1, _ := CompileIdentity("tent-dev", "hn-digest")
 	id2, _ := CompileIdentity("tent-dev", "ai-roundup")
 
 	// Register id1 only.
-	r.Register(ctx, id1)
+	if _, err := r.Register(ctx, id1); err != nil {
+		t.Fatalf("Register id1: %v", err)
+	}
 
 	// Unregister id2 (not registered) should succeed.
 	if err := r.Unregister(ctx, id2); err != nil {
@@ -333,7 +349,7 @@ func TestNewNATSRegistrarSPIFFERequiresClientset(t *testing.T) {
 }
 
 func TestNewNATSRegistrarSPIFFEWithClientset(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	cfg := NATSConfig{
 		URL:            "nats://nats.local:4222",
 		SPIFFEEnabled:  true,
@@ -409,7 +425,7 @@ func TestRenderAuthzConfigSortsDeterministically(t *testing.T) {
 }
 
 func TestConfigMapLabels(t *testing.T) {
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	r := &NATSRegistrar{
 		clientset: cs,
 		cfg: NATSConfig{
@@ -421,12 +437,16 @@ func TestConfigMapLabels(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id, _ := CompileIdentity("tent-dev", "hn-digest")
-	r.Register(ctx, id)
+	if _, err := r.Register(ctx, id); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	cm, _ := cs.CoreV1().ConfigMaps("tentacular-exoskeleton").Get(
 		ctx, "nats-tentacular-authz", metav1.GetOptions{})
@@ -441,11 +461,13 @@ func TestConfigMapLabels(t *testing.T) {
 
 func TestDualModeSelection(t *testing.T) {
 	// Token mode returns token, SPIFFE mode does not.
-	cs := fake.NewSimpleClientset()
+	cs := fake.NewClientset()
 	ctx := context.Background()
-	cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	if _, err := cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: "tentacular-exoskeleton"},
-	}, metav1.CreateOptions{})
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
 
 	id, _ := CompileIdentity("tent-dev", "test-wf")
 

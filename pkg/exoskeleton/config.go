@@ -8,19 +8,19 @@ import (
 
 // Config holds all exoskeleton configuration, loaded from environment variables.
 type Config struct {
-	Enabled           bool
-	CleanupOnUndeploy bool
 	Postgres          PostgresConfig
-	NATS              NATSConfig
 	RustFS            RustFSConfig
+	NATS              NATSConfig
 	Auth              AuthConfig
 	SPIRE             SPIREConfig
+	Enabled           bool
+	CleanupOnUndeploy bool
 }
 
 // SPIREConfig holds SPIRE identity registration configuration.
 type SPIREConfig struct {
+	ClassName string
 	Enabled   bool
-	ClassName string // default: "tentacular-system-spire"
 }
 
 // PostgresConfig holds admin connection details for the Postgres registrar.
@@ -36,10 +36,10 @@ type PostgresConfig struct {
 // NATSConfig holds connection details for the NATS registrar.
 type NATSConfig struct {
 	URL            string
-	Token          string // for token mode
-	SPIFFEEnabled  bool   // use SPIFFE mTLS instead of token
-	AuthzConfigMap string // ConfigMap name for NATS authz (default: "nats-tentacular-authz")
-	AuthzNamespace string // Namespace of the ConfigMap (default: "tentacular-exoskeleton")
+	Token          string
+	AuthzConfigMap string
+	AuthzNamespace string
+	SPIFFEEnabled  bool
 }
 
 // RustFSConfig holds admin connection details for the RustFS (MinIO-compatible) registrar.
@@ -148,9 +148,11 @@ func (c *Config) Validate() error {
 		problems = append(problems, "postgres partially configured, missing: "+strings.Join(missing, ", "))
 	}
 
-	// NATS: URL set but no auth method configured
+	// NATS: URL set but no auth method configured — this is an error.
+	// The NATS registrar supports two auth modes: token and SPIFFE mTLS.
+	// Anonymous connections are not permitted.
 	if c.NATS.URL != "" && !c.NATS.SPIFFEEnabled && c.NATS.Token == "" {
-		problems = append(problems, "NATS URL set but no auth method configured (set TENTACULAR_NATS_TOKEN or TENTACULAR_NATS_SPIFFE_ENABLED)")
+		problems = append(problems, "nats URL configured but no auth method set; provide TENTACULAR_NATS_TOKEN or enable TENTACULAR_NATS_SPIFFE_ENABLED")
 	}
 
 	// RustFS: some fields set but not enough for RustFSEnabled()

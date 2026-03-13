@@ -125,8 +125,8 @@ func TestControllerAccessors_AllDisabled(t *testing.T) {
 func TestCleanupReport_Summary(t *testing.T) {
 	tests := []struct {
 		name   string
-		report CleanupReport
 		want   string
+		report CleanupReport
 	}{
 		{
 			name:   "no services",
@@ -278,8 +278,9 @@ func TestCleanupWithReport_WithSPIRE(t *testing.T) {
 
 // makeWorkflowManifests builds a set of manifests with a ConfigMap containing
 // the given deps and a Deployment with --allow-net.
-func makeWorkflowManifests(deps ...string) []map[string]interface{} {
+func makeWorkflowManifests(deps ...string) []map[string]any {
 	var depYAML string
+	var depYAMLSb283 strings.Builder
 	for _, d := range deps {
 		protocol := "postgresql"
 		if strings.Contains(d, "nats") {
@@ -288,8 +289,9 @@ func makeWorkflowManifests(deps ...string) []map[string]interface{} {
 		if strings.Contains(d, "rustfs") {
 			protocol = "s3"
 		}
-		depYAML += "    " + d + ":\n      protocol: " + protocol + "\n"
+		depYAMLSb283.WriteString("    " + d + ":\n      protocol: " + protocol + "\n")
 	}
+	depYAML += depYAMLSb283.String()
 
 	wfYAML := "name: test-workflow\nversion: \"1.0\"\ncontract:\n  dependencies:\n" + depYAML +
 		"triggers:\n  - type: http\nnodes:\n  ingest:\n    path: nodes/ingest.ts\n"
@@ -297,7 +299,7 @@ func makeWorkflowManifests(deps ...string) []map[string]interface{} {
 	cm := makeConfigMapManifest(wfYAML)
 	dep := makeDeploymentManifest([]string{"run", "--allow-net=api.example.com:443", "main.ts"})
 
-	return []map[string]interface{}{cm, dep}
+	return []map[string]any{cm, dep}
 }
 
 func TestProcessManifests_DisabledPostgres_Rejects(t *testing.T) {
@@ -373,7 +375,7 @@ func TestProcessManifests_NATSTokenMode(t *testing.T) {
 	if secret["kind"] != "Secret" {
 		t.Errorf("expected Secret kind, got %v", secret["kind"])
 	}
-	metadata := secret["metadata"].(map[string]interface{})
+	metadata := secret["metadata"].(map[string]any)
 	if metadata["name"] != "tentacular-exoskeleton-hn-digest" {
 		t.Errorf("secret name = %v", metadata["name"])
 	}
@@ -449,7 +451,7 @@ contract:
       protocol: custom
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
 	cfg := &Config{Enabled: true}
 	ctrl := &Controller{cfg: cfg}
@@ -580,7 +582,7 @@ contract:
       protocol: s3
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
 	_, err := ctrl.ProcessManifests(context.Background(), "ns", "wf", manifests)
 	if err == nil {
@@ -623,7 +625,7 @@ func TestProcessManifests_NATSSPIFFEMode(t *testing.T) {
 
 	// Secret should not contain a token in SPIFFE mode.
 	secret := result[2]
-	stringData := secret["stringData"].(map[string]interface{})
+	stringData := secret["stringData"].(map[string]any)
 	if _, hasToken := stringData["tentacular-nats.token"]; hasToken {
 		t.Error("SPIFFE mode should not include a token in the secret")
 	}
@@ -650,15 +652,15 @@ func TestNewController_Disabled(t *testing.T) {
 // ---------- detectExoDeps with invalid YAML ----------
 
 func TestDetectExoDeps_InvalidYAML(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test"},
+		"data": map[string]any{
 			"workflow.yaml": "{{invalid yaml}}",
 		},
 	}
-	deps := detectExoDeps([]map[string]interface{}{cm})
+	deps := detectExoDeps([]map[string]any{cm})
 	if len(deps) != 0 {
 		t.Errorf("expected 0 deps for invalid YAML, got %v", deps)
 	}
@@ -667,11 +669,11 @@ func TestDetectExoDeps_InvalidYAML(t *testing.T) {
 // ---------- detectExoDeps with nil contract ----------
 
 func TestDetectExoDeps_NilContract(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test"},
+		"data": map[string]any{
 			"workflow.yaml": `
 name: no-contract
 triggers:
@@ -679,7 +681,7 @@ triggers:
 `,
 		},
 	}
-	deps := detectExoDeps([]map[string]interface{}{cm})
+	deps := detectExoDeps([]map[string]any{cm})
 	if len(deps) != 0 {
 		t.Errorf("expected 0 deps for nil contract, got %v", deps)
 	}
@@ -757,7 +759,8 @@ func TestProcessManifests_EmptyNamespaceReturnsError(t *testing.T) {
 
 func TestCleanupWithReport_EmptyNameReturnsError(t *testing.T) {
 	fakeCS := fake.NewClientset()
-	cfg := &Config{Enabled: true, CleanupOnUndeploy: true,
+	cfg := &Config{
+		Enabled: true, CleanupOnUndeploy: true,
 		NATS: NATSConfig{URL: "nats://localhost:4222"},
 	}
 	ctrl := &Controller{

@@ -524,7 +524,7 @@ func TestWfEventsTimestampFormatting(t *testing.T) {
 		Reason:        "Scheduled",
 		Message:       "Successfully assigned pod",
 		Count:         1,
-		LastTimestamp:  now,
+		LastTimestamp: now,
 	}
 	_, err := client.Clientset.CoreV1().Events("my-ns").Create(ctx, event, metav1.CreateOptions{})
 	if err != nil {
@@ -561,7 +561,7 @@ func TestWfEventsDefaultLimit(t *testing.T) {
 	ctx := context.Background()
 
 	// Create 3 events
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		event := &corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("event-%d", i),

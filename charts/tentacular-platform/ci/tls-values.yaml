@@ -50,6 +50,8 @@ tls:
 
 tentacular-mcp:
   enabled: true
+  auth:
+    token: "test-mcp-auth-token"
 
 esm-sh:
   enabled: true

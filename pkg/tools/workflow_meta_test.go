@@ -345,10 +345,10 @@ func TestWfDescribeAnnotationsMapOnlyTentacular(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("ann-wf", "ann-ns", map[string]string{
-		"tentacular.dev/owner":           "platform-team",
-		"tentacular.dev/team":            "infra",
+		"tentacular.dev/owner":               "platform-team",
+		"tentacular.dev/team":                "infra",
 		"kubectl.kubernetes.io/last-applied": "{}",
-		"deployment.kubernetes.io/revision": "1",
+		"deployment.kubernetes.io/revision":  "1",
 	})
 	_, _ = client.Clientset.AppsV1().Deployments("ann-ns").Create(ctx, dep, metav1.CreateOptions{})
 

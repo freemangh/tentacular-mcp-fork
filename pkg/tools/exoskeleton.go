@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // ExoStatusParams are the parameters for exo_status (none required).
@@ -26,6 +27,8 @@ type ExoStatusServiceInfo struct {
 
 // ExoStatusResult is the result of exo_status.
 type ExoStatusResult struct {
+	AuthIssuer        string                 `json:"auth_issuer,omitempty"`
+	Services          []ExoStatusServiceInfo `json:"services"`
 	Enabled           bool                   `json:"enabled"`
 	CleanupOnUndeploy bool                   `json:"cleanup_on_undeploy"`
 	PostgresAvailable bool                   `json:"postgres_available"`
@@ -34,8 +37,6 @@ type ExoStatusResult struct {
 	SPIREAvailable    bool                   `json:"spire_available"`
 	NATSSpiffeEnabled bool                   `json:"nats_spiffe_enabled"`
 	AuthEnabled       bool                   `json:"auth_enabled"`
-	AuthIssuer        string                 `json:"auth_issuer,omitempty"`
-	Services          []ExoStatusServiceInfo `json:"services"`
 }
 
 // ExoRegistrationParams are the parameters for exo_registration.
@@ -46,10 +47,10 @@ type ExoRegistrationParams struct {
 
 // ExoRegistrationResult is the result of exo_registration.
 type ExoRegistrationResult struct {
-	Found     bool              `json:"found"`
+	Data      map[string]string `json:"data,omitempty"`
 	Namespace string            `json:"namespace"`
 	Name      string            `json:"name"`
-	Data      map[string]string `json:"data,omitempty"`
+	Found     bool              `json:"found"`
 }
 
 // ExoListParams are the parameters for exo_list (none required).

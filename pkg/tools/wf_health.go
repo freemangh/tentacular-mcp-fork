@@ -40,8 +40,8 @@ type WfHealthResult struct {
 	Namespace string `json:"namespace"`
 	Status    string `json:"status"`
 	Reason    string `json:"reason,omitempty"`
-	PodReady  bool   `json:"pod_ready"`
 	Detail    string `json:"detail,omitempty"`
+	PodReady  bool   `json:"pod_ready"`
 }
 
 // WfHealthNsParams are the parameters for wf_health_ns.
@@ -67,10 +67,10 @@ type WfHealthNsEntry struct {
 // WfHealthNsResult is the result of wf_health_ns.
 type WfHealthNsResult struct {
 	Namespace string            `json:"namespace"`
-	Summary   WfHealthNsSummary `json:"summary"`
 	Workflows []WfHealthNsEntry `json:"workflows"`
-	Truncated bool              `json:"truncated"`
+	Summary   WfHealthNsSummary `json:"summary"`
 	Total     int               `json:"total"`
+	Truncated bool              `json:"truncated"`
 }
 
 func registerWfHealthTools(srv *mcp.Server, client *k8s.Client) {
@@ -114,7 +114,7 @@ func handleWfHealth(ctx context.Context, client *k8s.Client, params WfHealthPara
 			Name:      params.Name,
 			Namespace: params.Namespace,
 			Status:    "red",
-			Reason:    fmt.Sprintf("0/%d replicas ready", derefInt32(dep.Spec.Replicas)),
+			Reason:    fmt.Sprintf("0/%d replicas ready", replicaCount(dep.Spec.Replicas)),
 			PodReady:  false,
 		}, nil
 	}
@@ -184,7 +184,7 @@ func handleWfHealthNs(ctx context.Context, client *k8s.Client, params WfHealthNs
 
 		if !podReady {
 			status = "red"
-			reason = fmt.Sprintf("0/%d replicas ready", derefInt32(dep.Spec.Replicas))
+			reason = fmt.Sprintf("0/%d replicas ready", replicaCount(dep.Spec.Replicas))
 		} else {
 			detail, probeErr := wfHealthProbe(name, params.Namespace, false)
 			if probeErr != nil {

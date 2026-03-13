@@ -39,7 +39,7 @@ func (s *Scheduler) ScanWorkflows(ctx context.Context) error {
 				wfName = deploy.Name
 			}
 
-			if err := s.Register(ns.Name, wfName, schedule); err != nil {
+			if err := s.Register(ns.Name, wfName, schedule); err != nil { //nolint:contextcheck // Register is a cron-scheduler method that does not accept context
 				s.logger.Warn("failed to register cron schedule",
 					"namespace", ns.Name,
 					"workflow", wfName,

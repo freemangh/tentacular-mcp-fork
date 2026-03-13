@@ -21,9 +21,9 @@ type WfRunParams struct {
 
 // WfRunResult is the result of wf_run.
 type WfRunResult struct {
+	Output     map[string]any `json:"output"`
 	Name       string         `json:"name"`
 	Namespace  string         `json:"namespace"`
-	Output     map[string]any `json:"output"`
 	DurationMs int64          `json:"duration_ms"`
 }
 

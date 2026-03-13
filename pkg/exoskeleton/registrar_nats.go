@@ -2,6 +2,7 @@ package exoskeleton
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -27,8 +28,8 @@ type NATSCreds struct {
 // natsAuthzEntry represents a single user entry in the NATS authorization
 // configuration. Used for structured manipulation of the ConfigMap data.
 type natsAuthzEntry struct {
-	User       string   // SPIFFE URI
-	PublishAllow  []string
+	User           string // SPIFFE URI
+	PublishAllow   []string
 	SubscribeAllow []string
 }
 
@@ -47,7 +48,7 @@ type NATSRegistrar struct {
 func NewNATSRegistrar(ctx context.Context, cfg NATSConfig, clientset kubernetes.Interface) (*NATSRegistrar, error) {
 	if cfg.SPIFFEEnabled {
 		if clientset == nil {
-			return nil, fmt.Errorf("nats spiffe mode requires a kubernetes clientset")
+			return nil, errors.New("nats spiffe mode requires a kubernetes clientset")
 		}
 		slog.Info("nats: SPIFFE mode enabled",
 			"authzConfigMap", cfg.AuthzConfigMap,
@@ -334,15 +335,15 @@ func renderAuthzConfig(entries []natsAuthzEntry) string {
 			b.WriteString(",\n")
 		}
 		b.WriteString("    {\n")
-		b.WriteString(fmt.Sprintf("      user = %q\n", e.User))
+		fmt.Fprintf(&b, "      user = %q\n", e.User)
 		b.WriteString("      permissions = {\n")
 
 		b.WriteString("        publish = {\n")
-		b.WriteString(fmt.Sprintf("          allow = [%s]\n", quoteSubjects(e.PublishAllow)))
+		fmt.Fprintf(&b, "          allow = [%s]\n", quoteSubjects(e.PublishAllow))
 		b.WriteString("        }\n")
 
 		b.WriteString("        subscribe = {\n")
-		b.WriteString(fmt.Sprintf("          allow = [%s]\n", quoteSubjects(e.SubscribeAllow)))
+		fmt.Fprintf(&b, "          allow = [%s]\n", quoteSubjects(e.SubscribeAllow))
 		b.WriteString("        }\n")
 
 		b.WriteString("      }\n")
@@ -365,4 +366,4 @@ func quoteSubjects(subjects []string) string {
 }
 
 // Close is a no-op since we don't hold a persistent connection.
-func (r *NATSRegistrar) Close() {}
+func (*NATSRegistrar) Close() {}

@@ -17,7 +17,7 @@ type ClusterPreflightParams struct {
 // ClusterPreflightResult is the result of cluster_preflight.
 type ClusterPreflightResult struct {
 	Checks  []k8s.CheckResult `json:"checks"`
-	AllPass bool               `json:"allPass"`
+	AllPass bool              `json:"allPass"`
 }
 
 // ClusterProfileParams are the parameters for cluster_profile.

@@ -49,8 +49,17 @@ func TestProxyStatus_NotInstalled(t *testing.T) {
 	if result.Installed {
 		t.Error("expected installed=false before reconcile")
 	}
+	if result.Ready {
+		t.Error("expected ready=false before reconcile")
+	}
 	if result.Namespace != "tentacular-support" {
 		t.Errorf("expected namespace=tentacular-support, got %q", result.Namespace)
+	}
+	if result.Image != "" {
+		t.Errorf("expected empty image before reconcile, got %q", result.Image)
+	}
+	if result.Storage != "" {
+		t.Errorf("expected empty storage before reconcile, got %q", result.Storage)
 	}
 }
 
@@ -75,6 +84,11 @@ func TestProxyStatus_InstalledAfterReconcile(t *testing.T) {
 	if !result.Installed {
 		t.Error("expected installed=true after reconcile")
 	}
+	// Ready may or may not be true depending on fake client behavior.
+	_ = result.Ready
+	if result.Namespace != "tentacular-support" {
+		t.Errorf("expected namespace=tentacular-support, got %q", result.Namespace)
+	}
 	if result.Image == "" {
 		t.Error("expected non-empty image")
 	}
@@ -90,16 +104,16 @@ func TestProxyStatus_CustomNamespace(t *testing.T) {
 
 	st := reconciler.GetStatus(ctx)
 	result := ProxyStatusResult{
-		Installed: st.Installed,
 		Namespace: reconciler.Namespace(),
 	}
+	_ = st // status checked via namespace propagation
 
 	if result.Namespace != "my-custom-ns" {
 		t.Errorf("expected namespace=my-custom-ns, got %q", result.Namespace)
 	}
 }
 
-// cancelAfterReconcile returns a context that is cancelled immediately,
+// cancelAfterReconcile returns a context that is canceled immediately,
 // causing the reconciler's Run loop to exit after the initial reconcile.
 func cancelAfterReconcile(parent context.Context) context.Context {
 	ctx, cancel := context.WithCancel(parent)

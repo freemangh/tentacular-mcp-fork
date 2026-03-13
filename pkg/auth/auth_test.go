@@ -14,20 +14,24 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+
 	"github.com/randybias/tentacular-mcp/pkg/auth"
 	"github.com/randybias/tentacular-mcp/pkg/exoskeleton"
 )
 
-const testToken = "super-secret-token"
+const (
+	testToken = "super-secret-token"
+	testKeyID = "test-key-1"
+)
 
 // okHandler is a trivial HTTP handler that returns 200 OK.
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 })
 
-func makeRequest(t *testing.T, handler http.Handler, method, path, authHeader string) *httptest.ResponseRecorder {
+func makeRequest(t *testing.T, handler http.Handler, path, authHeader string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, path, nil)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
 	}
@@ -38,7 +42,7 @@ func makeRequest(t *testing.T, handler http.Handler, method, path, authHeader st
 
 func TestMiddleware_ValidToken(t *testing.T) {
 	h := auth.Middleware(testToken, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/some/path", "Bearer "+testToken)
+	rr := makeRequest(t, h, "/some/path", "Bearer "+testToken)
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
@@ -46,7 +50,7 @@ func TestMiddleware_ValidToken(t *testing.T) {
 
 func TestMiddleware_MissingToken(t *testing.T) {
 	h := auth.Middleware(testToken, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/some/path", "")
+	rr := makeRequest(t, h, "/some/path", "")
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rr.Code)
 	}
@@ -54,7 +58,7 @@ func TestMiddleware_MissingToken(t *testing.T) {
 
 func TestMiddleware_InvalidToken(t *testing.T) {
 	h := auth.Middleware(testToken, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/some/path", "Bearer wrong-token")
+	rr := makeRequest(t, h, "/some/path", "Bearer wrong-token")
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rr.Code)
 	}
@@ -62,7 +66,7 @@ func TestMiddleware_InvalidToken(t *testing.T) {
 
 func TestMiddleware_MissingBearerPrefix(t *testing.T) {
 	h := auth.Middleware(testToken, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/some/path", testToken)
+	rr := makeRequest(t, h, "/some/path", testToken)
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for missing Bearer prefix, got %d", rr.Code)
 	}
@@ -71,7 +75,7 @@ func TestMiddleware_MissingBearerPrefix(t *testing.T) {
 func TestMiddleware_HealthzBypassesAuth(t *testing.T) {
 	h := auth.Middleware(testToken, okHandler)
 	// No Authorization header on /healthz should still succeed.
-	rr := makeRequest(t, h, http.MethodGet, "/healthz", "")
+	rr := makeRequest(t, h, "/healthz", "")
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200 for /healthz without auth, got %d", rr.Code)
 	}
@@ -80,7 +84,7 @@ func TestMiddleware_HealthzBypassesAuth(t *testing.T) {
 func TestLoadToken_Success(t *testing.T) {
 	dir := t.TempDir()
 	tokenFile := filepath.Join(dir, "token")
-	if err := os.WriteFile(tokenFile, []byte("  mytoken\n"), 0600); err != nil {
+	if err := os.WriteFile(tokenFile, []byte("  mytoken\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	tok, err := auth.LoadToken(tokenFile)
@@ -102,7 +106,7 @@ func TestLoadToken_FileMissing(t *testing.T) {
 func TestLoadToken_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	tokenFile := filepath.Join(dir, "empty-token")
-	if err := os.WriteFile(tokenFile, []byte("   \n"), 0600); err != nil {
+	if err := os.WriteFile(tokenFile, []byte("   \n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := auth.LoadToken(tokenFile)
@@ -115,12 +119,12 @@ func TestLoadToken_EmptyFile(t *testing.T) {
 
 // testKeycloakServer creates an httptest.Server that serves OIDC discovery
 // and JWKS endpoints using the given RSA key.
-func testKeycloakServer(t *testing.T, key *rsa.PrivateKey, keyID string) *httptest.Server {
+func testKeycloakServer(t *testing.T, key *rsa.PrivateKey) *httptest.Server {
 	t.Helper()
 
 	jwk := jose.JSONWebKey{
 		Key:       &key.PublicKey,
-		KeyID:     keyID,
+		KeyID:     testKeyID,
 		Algorithm: string(jose.RS256),
 		Use:       "sig",
 	}
@@ -130,20 +134,20 @@ func testKeycloakServer(t *testing.T, key *rsa.PrivateKey, keyID string) *httpte
 	var issuerURL string
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		discovery := map[string]interface{}{
-			"issuer":                 issuerURL,
-			"authorization_endpoint": issuerURL + "/protocol/openid-connect/auth",
-			"token_endpoint":         issuerURL + "/protocol/openid-connect/token",
-			"jwks_uri":               issuerURL + "/protocol/openid-connect/certs",
+		discovery := map[string]any{
+			"issuer":                                issuerURL,
+			"authorization_endpoint":                issuerURL + "/protocol/openid-connect/auth",
+			"token_endpoint":                        issuerURL + "/protocol/openid-connect/token",
+			"jwks_uri":                              issuerURL + "/protocol/openid-connect/certs",
 			"id_token_signing_alg_values_supported": []string{"RS256"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(discovery)
+		_ = json.NewEncoder(w).Encode(discovery)
 	})
 
 	mux.HandleFunc("/protocol/openid-connect/certs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(jwks)
+		_ = json.NewEncoder(w).Encode(jwks)
 	})
 
 	srv := httptest.NewServer(mux)
@@ -152,7 +156,7 @@ func testKeycloakServer(t *testing.T, key *rsa.PrivateKey, keyID string) *httpte
 }
 
 // signTestToken creates a signed JWT for testing.
-func signTestToken(t *testing.T, key *rsa.PrivateKey, keyID string, claims map[string]interface{}) string {
+func signTestToken(t *testing.T, key *rsa.PrivateKey, keyID string, claims map[string]any) string {
 	t.Helper()
 
 	signerOpts := jose.SignerOptions{}
@@ -184,7 +188,7 @@ func signTestToken(t *testing.T, key *rsa.PrivateKey, keyID string, claims map[s
 func TestDualAuthMiddleware_NilValidator_BearerToken(t *testing.T) {
 	// When validator is nil, should behave like basic Middleware.
 	h := auth.DualAuthMiddleware(testToken, nil, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/some/path", "Bearer "+testToken)
+	rr := makeRequest(t, h, "/some/path", "Bearer "+testToken)
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
@@ -192,7 +196,7 @@ func TestDualAuthMiddleware_NilValidator_BearerToken(t *testing.T) {
 
 func TestDualAuthMiddleware_NilValidator_InvalidToken(t *testing.T) {
 	h := auth.DualAuthMiddleware(testToken, nil, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/some/path", "Bearer wrong")
+	rr := makeRequest(t, h, "/some/path", "Bearer wrong")
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rr.Code)
 	}
@@ -203,9 +207,8 @@ func TestDualAuthMiddleware_OIDCToken_SetsDeployerContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := exoskeleton.NewOIDCValidator(exoskeleton.AuthConfig{
@@ -218,7 +221,7 @@ func TestDualAuthMiddleware_OIDCToken_SetsDeployerContext(t *testing.T) {
 	}
 
 	now := time.Now()
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"iss":               srv.URL,
 		"aud":               "tentacular-mcp",
 		"azp":               "tentacular-mcp",
@@ -229,7 +232,7 @@ func TestDualAuthMiddleware_OIDCToken_SetsDeployerContext(t *testing.T) {
 		"iat":               jwt.NewNumericDate(now),
 		"exp":               jwt.NewNumericDate(now.Add(time.Hour)),
 	}
-	token := signTestToken(t, key, keyID, claims)
+	token := signTestToken(t, key, testKeyID, claims)
 
 	// Handler that checks for DeployerInfo in context.
 	var gotDeployer *exoskeleton.DeployerInfo
@@ -239,7 +242,7 @@ func TestDualAuthMiddleware_OIDCToken_SetsDeployerContext(t *testing.T) {
 	})
 
 	h := auth.DualAuthMiddleware(testToken, validator, checkHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/mcp", "Bearer "+token)
+	rr := makeRequest(t, h, "/mcp", "Bearer "+token)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -260,9 +263,8 @@ func TestDualAuthMiddleware_BearerFallback_WithValidator(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := exoskeleton.NewOIDCValidator(exoskeleton.AuthConfig{
@@ -282,7 +284,7 @@ func TestDualAuthMiddleware_BearerFallback_WithValidator(t *testing.T) {
 	})
 
 	h := auth.DualAuthMiddleware(testToken, validator, checkHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/mcp", "Bearer "+testToken)
+	rr := makeRequest(t, h, "/mcp", "Bearer "+testToken)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -300,9 +302,8 @@ func TestDualAuthMiddleware_HealthzBypass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := exoskeleton.NewOIDCValidator(exoskeleton.AuthConfig{
@@ -315,7 +316,7 @@ func TestDualAuthMiddleware_HealthzBypass(t *testing.T) {
 	}
 
 	h := auth.DualAuthMiddleware(testToken, validator, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/healthz", "")
+	rr := makeRequest(t, h, "/healthz", "")
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200 for /healthz, got %d", rr.Code)
 	}
@@ -326,9 +327,8 @@ func TestDualAuthMiddleware_InvalidBothPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := exoskeleton.NewOIDCValidator(exoskeleton.AuthConfig{
@@ -341,7 +341,7 @@ func TestDualAuthMiddleware_InvalidBothPaths(t *testing.T) {
 	}
 
 	h := auth.DualAuthMiddleware(testToken, validator, okHandler)
-	rr := makeRequest(t, h, http.MethodGet, "/mcp", "Bearer totally-wrong-token")
+	rr := makeRequest(t, h, "/mcp", "Bearer totally-wrong-token")
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rr.Code)
 	}

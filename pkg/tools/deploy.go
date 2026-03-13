@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -60,8 +61,8 @@ var knownGVRs = []schema.GroupVersionResource{
 
 // WorkflowApplyParams are the parameters for wf_apply.
 type WorkflowApplyParams struct {
-	Namespace string                   `json:"namespace" jsonschema:"Target namespace for the workflow"`
-	Name      string                   `json:"name" jsonschema:"Deployment name for tracking resources"`
+	Namespace string           `json:"namespace" jsonschema:"Target namespace for the workflow"`
+	Name      string           `json:"name" jsonschema:"Deployment name for tracking resources"`
 	Manifests []map[string]any `json:"manifests" jsonschema:"List of Kubernetes manifest objects to apply"`
 }
 
@@ -84,9 +85,9 @@ type WorkflowRemoveParams struct {
 type WorkflowRemoveResult struct {
 	Name              string `json:"name"`
 	Namespace         string `json:"namespace"`
+	ExoCleanupDetails string `json:"exo_cleanup_details,omitempty"`
 	Deleted           int    `json:"deleted"`
 	ExoCleanedUp      bool   `json:"exo_cleaned_up,omitempty"`
-	ExoCleanupDetails string `json:"exo_cleanup_details,omitempty"`
 }
 
 // WorkflowStatusParams are the parameters for wf_status.
@@ -100,16 +101,16 @@ type WorkflowStatusParams struct {
 type WorkflowResourceStatus struct {
 	Kind   string `json:"kind"`
 	Name   string `json:"name"`
-	Ready  bool   `json:"ready"`
 	Reason string `json:"reason,omitempty"`
+	Ready  bool   `json:"ready"`
 }
 
 // WorkflowPodInfo is a single pod in the status response.
 type WorkflowPodInfo struct {
 	Name     string `json:"name"`
 	Phase    string `json:"phase"`
-	Ready    bool   `json:"ready"`
 	NodeName string `json:"nodeName,omitempty"`
+	Ready    bool   `json:"ready"`
 }
 
 // WorkflowEventInfo is a single event in the status response.
@@ -125,12 +126,12 @@ type WorkflowStatusResult struct {
 	Name      string                   `json:"name"`
 	Namespace string                   `json:"namespace"`
 	Version   string                   `json:"version,omitempty"`
-	Ready     bool                     `json:"ready"`
-	Replicas  int32                    `json:"replicas"`
-	Available int32                    `json:"available"`
 	Resources []WorkflowResourceStatus `json:"resources"`
 	Pods      []WorkflowPodInfo        `json:"pods,omitempty"`
 	Events    []WorkflowEventInfo      `json:"events,omitempty"`
+	Replicas  int32                    `json:"replicas"`
+	Available int32                    `json:"available"`
+	Ready     bool                     `json:"ready"`
 }
 
 func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.Scheduler, exoCtrl *exoskeleton.Controller) {
@@ -182,7 +183,7 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 				if proxyNS == "" {
 					proxyNS = defaultProxyNamespace
 				}
-				go func() {
+				go func() { //nolint:gosec,contextcheck // G118: goroutine intentionally outlives the request to pre-warm modules in the background
 					bgCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 					defer cancel()
 					if prewarmErr := k8s.PrewarmModules(bgCtx, client, proxyNS, deps); prewarmErr != nil {
@@ -238,7 +239,7 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 }
 
 // resolveGVR derives the GroupVersionResource from apiVersion and kind using the discovery client.
-func resolveGVR(ctx context.Context, client *k8s.Client, apiVersion, kind string) (schema.GroupVersionResource, error) {
+func resolveGVR(_ context.Context, client *k8s.Client, apiVersion, kind string) (schema.GroupVersionResource, error) {
 	_, resourceLists, err := client.Clientset.Discovery().ServerGroupsAndResources()
 	if err != nil && resourceLists == nil {
 		return schema.GroupVersionResource{}, fmt.Errorf("discovery failed: %w", err)
@@ -402,7 +403,7 @@ func handleWorkflowApply(ctx context.Context, client *k8s.Client, params Workflo
 		apiVersion := obj.GetAPIVersion()
 		kind := obj.GetKind()
 		if apiVersion == "" || kind == "" {
-			return WorkflowApplyResult{}, fmt.Errorf("manifest missing apiVersion or kind")
+			return WorkflowApplyResult{}, errors.New("manifest missing apiVersion or kind")
 		}
 
 		if !allowedKinds[kind] {
@@ -549,13 +550,15 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 	// Get deployment replicas and version from the typed API for accurate status
 	deploy, err := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 	if err == nil {
-		replicas := derefInt32(deploy.Spec.Replicas)
-		if replicas == 0 {
-			replicas = 1
-		}
+		replicas := replicaCount(deploy.Spec.Replicas)
 		result.Replicas = replicas
 		result.Available = deploy.Status.AvailableReplicas
-		result.Ready = deploy.Status.AvailableReplicas >= replicas && replicas > 0
+		if deploy.Spec.Replicas != nil && replicas == 0 {
+			// Deliberately scaled to zero — the desired state is met.
+			result.Ready = true
+		} else {
+			result.Ready = deploy.Status.AvailableReplicas >= replicas
+		}
 		if v, ok := deploy.Labels["app.kubernetes.io/version"]; ok {
 			result.Version = v
 		}
@@ -585,7 +588,7 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 		}
 
 		eventList, err := client.Clientset.CoreV1().Events(params.Namespace).List(ctx, metav1.ListOptions{
-			FieldSelector: fmt.Sprintf("involvedObject.name=%s", params.Name),
+			FieldSelector: "involvedObject.name=" + params.Name,
 		})
 		if err == nil {
 			for _, e := range eventList.Items {
@@ -607,9 +610,13 @@ func resourceReadiness(obj unstructured.Unstructured, resource string) (bool, st
 	switch resource {
 	case "deployments":
 		readyReplicas, _, _ := unstructured.NestedInt64(obj.Object, "status", "readyReplicas")
-		replicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "replicas")
-		if replicas == 0 {
-			replicas = 1
+		replicas, found, _ := unstructured.NestedInt64(obj.Object, "spec", "replicas")
+		if !found {
+			replicas = 1 // Kubernetes defaults omitted replicas to 1
+		}
+		if found && replicas == 0 {
+			// Deliberately scaled to zero — the desired state is met.
+			return true, ""
 		}
 		if readyReplicas >= replicas {
 			return true, ""
@@ -709,7 +716,7 @@ func syncCronSchedule(ctx context.Context, client *k8s.Client, sched *scheduler.
 		return
 	}
 
-	if err := sched.Register(namespace, name, schedule); err != nil {
+	if err := sched.Register(namespace, name, schedule); err != nil { //nolint:contextcheck // Register is a cron-scheduler method that does not accept context
 		slog.Warn("failed to register cron schedule", "workflow", namespace+"/"+name, "error", err)
 	}
 }

@@ -42,8 +42,8 @@ type CredRotateParams struct {
 // CredRotateResult is the result of cred_rotate.
 type CredRotateResult struct {
 	Namespace string `json:"namespace"`
-	Rotated   bool   `json:"rotated"`
 	Message   string `json:"message"`
+	Rotated   bool   `json:"rotated"`
 }
 
 func registerCredentialTools(srv *mcp.Server, client *k8s.Client) {

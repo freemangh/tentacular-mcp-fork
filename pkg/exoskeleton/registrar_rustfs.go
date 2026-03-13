@@ -22,11 +22,11 @@ import (
 // RustFS uses /rustfs/admin/v3/ instead of MinIO's /minio/admin/v3/.
 // Auth is AWS SigV4 with service "s3".
 type rustfsAdmin struct {
-	endpoint   string // scheme + host, e.g. "http://localhost:9000"
+	httpClient *http.Client
+	endpoint   string
 	accessKey  string
 	secretKey  string
 	region     string
-	httpClient *http.Client
 }
 
 // newRustFSAdmin creates a new RustFS admin HTTP client.
@@ -203,11 +203,11 @@ func (r *RustFSRegistrar) Register(ctx context.Context, id Identity) (*RustFSCre
 		return nil, fmt.Errorf("check bucket %s: %w", bucket, err)
 	}
 	if !exists {
-		if err := r.s3.MakeBucket(ctx, bucket, minio.MakeBucketOptions{Region: r.cfg.Region}); err != nil {
+		if mkErr := r.s3.MakeBucket(ctx, bucket, minio.MakeBucketOptions{Region: r.cfg.Region}); mkErr != nil {
 			// Ignore "already exists" errors from race conditions.
-			errResp := minio.ToErrorResponse(err)
+			errResp := minio.ToErrorResponse(mkErr)
 			if errResp.Code != "BucketAlreadyOwnedByYou" && errResp.Code != "BucketAlreadyExists" {
-				return nil, fmt.Errorf("create bucket %s: %w", bucket, err)
+				return nil, fmt.Errorf("create bucket %s: %w", bucket, mkErr)
 			}
 		}
 	}
@@ -221,8 +221,8 @@ func (r *RustFSRegistrar) Register(ctx context.Context, id Identity) (*RustFSCre
 	}
 
 	// Create or update the IAM user using the deterministic userName as access key.
-	if err := r.admin.AddUser(ctx, userName, secretKey); err != nil {
-		return nil, fmt.Errorf("add user %s: %w", userName, err)
+	if addErr := r.admin.AddUser(ctx, userName, secretKey); addErr != nil {
+		return nil, fmt.Errorf("add user %s: %w", userName, addErr)
 	}
 
 	// Build a canned policy scoped to the prefix.
@@ -298,7 +298,7 @@ func (r *RustFSRegistrar) Unregister(ctx context.Context, id Identity) error {
 }
 
 // Close is a no-op since the clients don't hold persistent connections.
-func (r *RustFSRegistrar) Close() {}
+func (*RustFSRegistrar) Close() {}
 
 // s3PolicyDoc represents a MinIO/S3 IAM policy document.
 type s3PolicyDoc struct {
@@ -307,17 +307,17 @@ type s3PolicyDoc struct {
 }
 
 type s3PolicyStmt struct {
-	Effect    string      `json:"Effect"`
-	Action    []string    `json:"Action"`
-	Resource  interface{} `json:"Resource,omitempty"`
-	Condition interface{} `json:"Condition,omitempty"`
+	Resource  any      `json:"Resource,omitempty"`
+	Condition any      `json:"Condition,omitempty"`
+	Effect    string   `json:"Effect"`
+	Action    []string `json:"Action"`
 }
 
 // buildS3Policy creates an IAM policy granting GetObject, PutObject,
 // DeleteObject on objects under the prefix, and ListBucket with a
 // prefix condition.
 func buildS3Policy(bucket, prefix string) s3PolicyDoc {
-	arnBucket := fmt.Sprintf("arn:aws:s3:::%s", bucket)
+	arnBucket := "arn:aws:s3:::" + bucket
 	arnPrefix := fmt.Sprintf("arn:aws:s3:::%s/%s*", bucket, prefix)
 
 	return s3PolicyDoc{
@@ -332,7 +332,7 @@ func buildS3Policy(bucket, prefix string) s3PolicyDoc {
 				Effect:   "Allow",
 				Action:   []string{"s3:ListBucket"},
 				Resource: arnBucket,
-				Condition: map[string]interface{}{
+				Condition: map[string]any{
 					"StringLike": map[string]string{
 						"s3:prefix": prefix + "*",
 					},

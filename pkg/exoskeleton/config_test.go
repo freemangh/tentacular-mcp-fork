@@ -337,12 +337,14 @@ func TestValidateNATSNoAuth(t *testing.T) {
 		Enabled: true,
 		NATS:    NATSConfig{URL: "nats://localhost:4222"},
 	}
+	// NATS without any auth method (no token, no SPIFFE) must be rejected.
+	// The registrar supports only two modes: token and SPIFFE mTLS.
 	err := cfg.Validate()
 	if err == nil {
-		t.Fatal("expected error for NATS URL with no auth")
+		t.Fatal("expected error for NATS URL without auth method")
 	}
-	if !strings.Contains(err.Error(), "no auth method") {
-		t.Errorf("expected auth method message, got: %v", err)
+	if !strings.Contains(err.Error(), "nats URL configured but no auth method") {
+		t.Errorf("expected nats auth message, got: %v", err)
 	}
 }
 

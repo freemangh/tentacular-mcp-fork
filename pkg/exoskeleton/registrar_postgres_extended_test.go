@@ -1,14 +1,10 @@
 package exoskeleton
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ---------- generateHexPassword extended tests ----------
@@ -39,7 +35,7 @@ func TestGenerateHexPassword_HexOnly(t *testing.T) {
 
 func TestGenerateHexPassword_Uniqueness(t *testing.T) {
 	seen := make(map[string]bool)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		pw, err := generateHexPassword(32)
 		if err != nil {
 			t.Fatalf("generateHexPassword: %v", err)
@@ -92,27 +88,6 @@ func TestEscapeLiteral_Extended(t *testing.T) {
 		}
 	}
 }
-
-// ---------- Mock pgExecutor for SQL generation tests ----------
-
-// pgExecutor is the interface for executing SQL against Postgres.
-type pgExecutor interface {
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	Begin(ctx context.Context) (pgx.Tx, error)
-}
-
-// mockTx records SQL statements executed within a transaction.
-type mockTx struct {
-	stmts []string
-}
-
-func (m *mockTx) Exec(_ context.Context, sql string, _ ...any) (pgconn.CommandTag, error) {
-	m.stmts = append(m.stmts, sql)
-	return pgconn.NewCommandTag("OK"), nil
-}
-
-func (m *mockTx) Commit(_ context.Context) error { return nil }
-func (m *mockTx) Rollback(_ context.Context) error { return nil }
 
 // ---------- Register SQL generation tests ----------
 
@@ -222,7 +197,7 @@ func buildUnregisterSQL(role, schema string) []string {
 	revoke := fmt.Sprintf("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s FROM %s",
 		pgIdent(schema), pgIdent(role))
 	dropSchema := fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pgIdent(schema))
-	dropRole := fmt.Sprintf("DROP ROLE IF EXISTS %s", pgIdent(role))
+	dropRole := "DROP ROLE IF EXISTS " + pgIdent(role)
 	return []string{revoke, dropSchema, dropRole}
 }
 
@@ -281,6 +256,21 @@ func TestPostgresCreds_Fields(t *testing.T) {
 	}
 	if creds.Host != "pg.example.com" {
 		t.Errorf("Host = %q", creds.Host)
+	}
+	if creds.Port != "5432" {
+		t.Errorf("Port = %q", creds.Port)
+	}
+	if creds.Database != "tentacular" {
+		t.Errorf("Database = %q", creds.Database)
+	}
+	if creds.User != "tn_ns_wf" {
+		t.Errorf("User = %q", creds.User)
+	}
+	if creds.Password != "secret" {
+		t.Errorf("Password = %q", creds.Password)
+	}
+	if creds.Schema != "tn_ns_wf" {
+		t.Errorf("Schema = %q", creds.Schema)
 	}
 }
 

@@ -29,8 +29,8 @@ spec:
         protocol: HTTP
       hosts:
         - {{ $mcpHost | quote }}
-        {{- if and .Values.ingress.auth.enabled .Values.ingress.auth.hostname }}
-        - {{ .Values.ingress.auth.hostname | quote }}
+        {{- if .Values.ingress.auth.enabled }}
+        - {{ .Values.ingress.auth.hostname | default (printf "auth.%s" .Values.global.domain) | quote }}
         {{- end }}
     {{- if .Values.ingress.tls.enabled }}
     - port:
@@ -42,8 +42,8 @@ spec:
         credentialName: {{ .Values.ingress.tls.secretName | default "tentacular-tls" }}
       hosts:
         - {{ $mcpHost | quote }}
-        {{- if and .Values.ingress.auth.enabled .Values.ingress.auth.hostname }}
-        - {{ .Values.ingress.auth.hostname | quote }}
+        {{- if .Values.ingress.auth.enabled }}
+        - {{ .Values.ingress.auth.hostname | default (printf "auth.%s" .Values.global.domain) | quote }}
         {{- end }}
     {{- end }}
     {{- end }}
@@ -67,7 +67,7 @@ spec:
             host: {{ .Release.Name }}-tentacular-mcp.{{ include "tentacular-platform.namespace.system" . }}.svc.cluster.local
             port:
               number: 8080
-{{- if and .Values.ingress.auth.enabled .Values.ingress.auth.hostname }}
+{{- if .Values.ingress.auth.enabled }}
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService
@@ -79,7 +79,7 @@ metadata:
     app.kubernetes.io/component: istio-virtualservice
 spec:
   hosts:
-    - {{ .Values.ingress.auth.hostname | quote }}
+    - {{ .Values.ingress.auth.hostname | default (printf "auth.%s" .Values.global.domain) | quote }}
   gateways:
     - {{ $gatewayName }}
   http:

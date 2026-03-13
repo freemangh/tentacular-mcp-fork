@@ -15,8 +15,8 @@ import (
 // enrichContractDeps updates the workflow.yaml inside the ConfigMap manifest
 // with resolved host/port/database/user/subject/container/auth fields from
 // the registered credentials. It preserves all other fields in the workflow
-// by using a generic map[string]interface{} for round-trip parse/serialize.
-func enrichContractDeps(manifests []map[string]interface{}, creds map[string]interface{}) error {
+// by using a generic map[string]any for round-trip parse/serialize.
+func enrichContractDeps(manifests []map[string]any, creds map[string]any) error {
 	for _, m := range manifests {
 		obj := &unstructured.Unstructured{Object: m}
 		if obj.GetKind() != "ConfigMap" {
@@ -33,7 +33,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 		}
 
 		// Parse into generic map to preserve all fields.
-		var workflow map[string]interface{}
+		var workflow map[string]any
 		if err := yaml.Unmarshal([]byte(wfYAML), &workflow); err != nil {
 			slog.Warn("exoskeleton: failed to parse workflow.yaml in ConfigMap", "error", err)
 			continue
@@ -43,7 +43,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 		if !ok {
 			continue
 		}
-		contract, ok := contractRaw.(map[string]interface{})
+		contract, ok := contractRaw.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -51,7 +51,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 		if !ok {
 			continue
 		}
-		deps, ok := depsRaw.(map[string]interface{})
+		deps, ok := depsRaw.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -66,7 +66,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 				continue
 			}
 
-			depMap, ok := depVal.(map[string]interface{})
+			depMap, ok := depVal.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -110,7 +110,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 		// Update the data map in the manifest directly.
 		dataMap, _, _ := unstructured.NestedMap(obj.Object, "data")
 		if dataMap == nil {
-			dataMap = make(map[string]interface{})
+			dataMap = make(map[string]any)
 		}
 		dataMap["workflow.yaml"] = string(enriched)
 		if err := unstructured.SetNestedField(obj.Object, dataMap, "data"); err != nil {
@@ -126,7 +126,7 @@ func enrichContractDeps(manifests []map[string]interface{}, creds map[string]int
 // patchDeploymentAllowNet scans manifests for a Deployment and appends
 // exoskeleton service hosts to any --allow-net=... flag in the first
 // container's args or command. Only adds hosts for services that have creds.
-func patchDeploymentAllowNet(manifests []map[string]interface{}, creds map[string]interface{}) {
+func patchDeploymentAllowNet(manifests []map[string]any, creds map[string]any) {
 	hosts := collectExoHosts(creds)
 	if len(hosts) == 0 {
 		return
@@ -145,7 +145,7 @@ func patchDeploymentAllowNet(manifests []map[string]interface{}, creds map[strin
 			continue
 		}
 
-		container, ok := containers[0].(map[string]interface{})
+		container, ok := containers[0].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -170,7 +170,7 @@ func patchDeploymentAllowNet(manifests []map[string]interface{}, creds map[strin
 
 // patchAllowNetInSlice finds a --allow-net=... entry in the named string
 // slice field and appends the given hosts. Returns true if patching occurred.
-func patchAllowNetInSlice(container map[string]interface{}, field string, hosts []string) bool {
+func patchAllowNetInSlice(container map[string]any, field string, hosts []string) bool {
 	rawSlice, ok := container[field]
 	if !ok {
 		return false
@@ -191,8 +191,8 @@ func patchAllowNetInSlice(container map[string]interface{}, field string, hosts 
 		} else {
 			slice[i] = arg + "," + strings.Join(hosts, ",")
 		}
-		// Convert back to []interface{} for unstructured.
-		result := make([]interface{}, len(slice))
+		// Convert back to []any for unstructured.
+		result := make([]any, len(slice))
 		for j, s := range slice {
 			result[j] = s
 		}
@@ -202,10 +202,10 @@ func patchAllowNetInSlice(container map[string]interface{}, field string, hosts 
 	return false
 }
 
-// toStringSlice converts an interface{} (expected []interface{} of strings)
+// toStringSlice converts an any (expected []any of strings)
 // to a []string.
-func toStringSlice(v interface{}) ([]string, bool) {
-	raw, ok := v.([]interface{})
+func toStringSlice(v any) ([]string, bool) {
+	raw, ok := v.([]any)
 	if !ok {
 		return nil, false
 	}
@@ -222,7 +222,7 @@ func toStringSlice(v interface{}) ([]string, bool) {
 
 // collectExoHosts returns host:port strings for each registered service.
 // The result is sorted for deterministic output.
-func collectExoHosts(creds map[string]interface{}) []string {
+func collectExoHosts(creds map[string]any) []string {
 	var hosts []string
 	for name, c := range creds {
 		switch v := c.(type) {
@@ -250,7 +250,7 @@ func collectExoHosts(creds map[string]interface{}) []string {
 // For "nats://host:4222" returns ("host", "4222").
 // For "http://host:9000" returns ("host", "9000").
 // For "host:5432" returns ("host", "5432").
-func parseHostPort(rawURL string) (string, string) {
+func parseHostPort(rawURL string) (host, port string) {
 	// Try parsing as a full URL first.
 	u, err := url.Parse(rawURL)
 	if err == nil && u.Host != "" {
@@ -266,7 +266,7 @@ func parseHostPort(rawURL string) (string, string) {
 }
 
 // AnnotateDeployer adds provenance annotations to each Deployment manifest.
-func (c *Controller) AnnotateDeployer(manifests []map[string]interface{}, deployer DeployerInfo) []map[string]interface{} {
+func (*Controller) AnnotateDeployer(manifests []map[string]any, deployer DeployerInfo) []map[string]any {
 	now := time.Now().UTC().Format(time.RFC3339)
 	deployedBy := deployer.Email
 	if deployedBy == "" {

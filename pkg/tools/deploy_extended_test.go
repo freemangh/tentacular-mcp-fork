@@ -16,9 +16,9 @@ import (
 
 func TestResourceReadiness_DeploymentReady(t *testing.T) {
 	obj := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"spec":   map[string]interface{}{"replicas": int64(2)},
-			"status": map[string]interface{}{"readyReplicas": int64(2)},
+		Object: map[string]any{
+			"spec":   map[string]any{"replicas": int64(2)},
+			"status": map[string]any{"readyReplicas": int64(2)},
 		},
 	}
 	ready, msg := resourceReadiness(obj, "deployments")
@@ -29,9 +29,9 @@ func TestResourceReadiness_DeploymentReady(t *testing.T) {
 
 func TestResourceReadiness_DeploymentNotReady(t *testing.T) {
 	obj := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"spec":   map[string]interface{}{"replicas": int64(3)},
-			"status": map[string]interface{}{"readyReplicas": int64(1)},
+		Object: map[string]any{
+			"spec":   map[string]any{"replicas": int64(3)},
+			"status": map[string]any{"readyReplicas": int64(1)},
 		},
 	}
 	ready, msg := resourceReadiness(obj, "deployments")
@@ -43,26 +43,57 @@ func TestResourceReadiness_DeploymentNotReady(t *testing.T) {
 	}
 }
 
-func TestResourceReadiness_DeploymentZeroReplicas(t *testing.T) {
+func TestResourceReadiness_DeploymentUnsetReplicas(t *testing.T) {
 	obj := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"spec":   map[string]interface{}{},
-			"status": map[string]interface{}{"readyReplicas": int64(1)},
+		Object: map[string]any{
+			"spec":   map[string]any{},
+			"status": map[string]any{"readyReplicas": int64(1)},
 		},
 	}
-	// When replicas is 0 (unset), defaults to 1.
+	// When replicas is absent, Kubernetes defaults to 1.
 	ready, _ := resourceReadiness(obj, "deployments")
 	if !ready {
 		t.Error("expected ready when readyReplicas(1) >= default(1)")
 	}
 }
 
+func TestResourceReadiness_DeploymentUnsetReplicasNotReady(t *testing.T) {
+	obj := unstructured.Unstructured{
+		Object: map[string]any{
+			"spec":   map[string]any{},
+			"status": map[string]any{},
+		},
+	}
+	// When replicas is absent (defaults to 1) and no ready replicas, not ready.
+	ready, msg := resourceReadiness(obj, "deployments")
+	if ready {
+		t.Error("expected not ready when readyReplicas(0) < default(1)")
+	}
+	if msg != "0/1 replicas ready" {
+		t.Errorf("msg = %q, want %q", msg, "0/1 replicas ready")
+	}
+}
+
+func TestResourceReadiness_DeploymentExplicitZeroReplicas(t *testing.T) {
+	obj := unstructured.Unstructured{
+		Object: map[string]any{
+			"spec":   map[string]any{"replicas": int64(0)},
+			"status": map[string]any{},
+		},
+	}
+	// Explicitly scaled to zero — the desired state is met.
+	ready, _ := resourceReadiness(obj, "deployments")
+	if !ready {
+		t.Error("expected ready when explicitly scaled to zero")
+	}
+}
+
 func TestResourceReadiness_JobComplete(t *testing.T) {
 	obj := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{
+		Object: map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
 						"type":   "Complete",
 						"status": "True",
 					},
@@ -78,10 +109,10 @@ func TestResourceReadiness_JobComplete(t *testing.T) {
 
 func TestResourceReadiness_JobFailed(t *testing.T) {
 	obj := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{
+		Object: map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
 						"type":   "Failed",
 						"status": "True",
 					},
@@ -100,8 +131,8 @@ func TestResourceReadiness_JobFailed(t *testing.T) {
 
 func TestResourceReadiness_JobInProgress(t *testing.T) {
 	obj := unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"status": map[string]interface{}{},
+		Object: map[string]any{
+			"status": map[string]any{},
 		},
 	}
 	ready, msg := resourceReadiness(obj, "jobs")
@@ -114,7 +145,7 @@ func TestResourceReadiness_JobInProgress(t *testing.T) {
 }
 
 func TestResourceReadiness_DefaultPresenceReady(t *testing.T) {
-	obj := unstructured.Unstructured{Object: map[string]interface{}{}}
+	obj := unstructured.Unstructured{Object: map[string]any{}}
 
 	for _, resource := range []string{"services", "configmaps", "secrets", "networkpolicies", "cronjobs"} {
 		ready, _ := resourceReadiness(obj, resource)
@@ -127,11 +158,11 @@ func TestResourceReadiness_DefaultPresenceReady(t *testing.T) {
 // ---------- extractModuleDeps tests ----------
 
 func TestExtractModuleDeps_JsrAndNpm(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test-code"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test-code"},
+		"data": map[string]any{
 			"workflow.yaml": `
 name: test-wf
 contract:
@@ -150,7 +181,7 @@ contract:
 `,
 		},
 	}
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 	deps := extractModuleDeps(manifests)
 
 	if len(deps) != 2 {
@@ -171,11 +202,11 @@ contract:
 }
 
 func TestExtractModuleDeps_NoDeps(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test-code"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test-code"},
+		"data": map[string]any{
 			"workflow.yaml": `
 name: test-wf
 contract:
@@ -185,30 +216,30 @@ contract:
 `,
 		},
 	}
-	deps := extractModuleDeps([]map[string]interface{}{cm})
+	deps := extractModuleDeps([]map[string]any{cm})
 	if len(deps) != 0 {
 		t.Errorf("expected 0 module deps, got %d", len(deps))
 	}
 }
 
 func TestExtractModuleDeps_NoConfigMap(t *testing.T) {
-	dep := map[string]interface{}{
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "test"},
+		"metadata":   map[string]any{"name": "test"},
 	}
-	deps := extractModuleDeps([]map[string]interface{}{dep})
+	deps := extractModuleDeps([]map[string]any{dep})
 	if deps != nil {
 		t.Errorf("expected nil deps, got %v", deps)
 	}
 }
 
 func TestExtractModuleDeps_DeduplicatesDeps(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test-code"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test-code"},
+		"data": map[string]any{
 			"workflow.yaml": `
 name: test-wf
 contract:
@@ -224,18 +255,18 @@ contract:
 `,
 		},
 	}
-	deps := extractModuleDeps([]map[string]interface{}{cm})
+	deps := extractModuleDeps([]map[string]any{cm})
 	if len(deps) != 1 {
 		t.Errorf("expected 1 deduplicated dep, got %d", len(deps))
 	}
 }
 
 func TestExtractModuleDeps_NoContract(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test-code"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test-code"},
+		"data": map[string]any{
 			"workflow.yaml": `
 name: test-wf
 triggers:
@@ -243,7 +274,7 @@ triggers:
 `,
 		},
 	}
-	deps := extractModuleDeps([]map[string]interface{}{cm})
+	deps := extractModuleDeps([]map[string]any{cm})
 	if deps != nil {
 		t.Errorf("expected nil deps, got %v", deps)
 	}
@@ -262,8 +293,8 @@ func TestHandleWorkflowStatus_Basic(t *testing.T) {
 			Name:      "my-wf",
 			Namespace: "my-ns",
 			Labels: map[string]string{
-				k8s.ManagedByLabel:        k8s.ManagedByValue,
-				"tentacular.io/release":   "my-wf",
+				k8s.ManagedByLabel:          k8s.ManagedByValue,
+				"tentacular.io/release":     "my-wf",
 				"app.kubernetes.io/version": "2.0",
 			},
 		},

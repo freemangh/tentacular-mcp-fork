@@ -23,10 +23,10 @@ const (
 //
 // The returned manifest is an unstructured map suitable for inclusion in
 // the wf_apply manifest list.
-func BuildSecretManifest(namespace, workflow string, creds map[string]interface{}) (map[string]interface{}, error) {
+func BuildSecretManifest(namespace, workflow string, creds map[string]any) (map[string]any, error) {
 	secretName := ExoskeletonSecretPrefix + workflow
 
-	stringData := make(map[string]interface{})
+	stringData := make(map[string]any)
 	for svcName, svcCreds := range creds {
 		// Marshal per-service creds to a flat key-value map.
 		switch c := svcCreds.(type) {
@@ -72,13 +72,13 @@ func BuildSecretManifest(namespace, workflow string, creds map[string]interface{
 	stringData["tentacular-identity.namespace"] = namespace
 	stringData["tentacular-identity.workflow"] = workflow
 
-	return map[string]interface{}{
+	return map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Secret",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      secretName,
 			"namespace": namespace,
-			"labels": map[string]interface{}{
+			"labels": map[string]any{
 				ReleaseLabel:     workflow,
 				ExoskeletonLabel: "true",
 			},

@@ -13,11 +13,11 @@ type ProxyStatusParams struct{}
 
 // ProxyStatusResult is the result of proxy_status.
 type ProxyStatusResult struct {
-	Installed bool   `json:"installed"`
-	Ready     bool   `json:"ready"`
 	Namespace string `json:"namespace"`
 	Image     string `json:"image"`
 	Storage   string `json:"storage"`
+	Installed bool   `json:"installed"`
+	Ready     bool   `json:"ready"`
 }
 
 func registerProxyTools(srv *mcp.Server, reconciler *proxy.Reconciler) {

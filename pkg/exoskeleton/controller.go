@@ -2,6 +2,7 @@ package exoskeleton
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -150,7 +151,7 @@ func checkClusterSPIFFEIDCRD(ctx context.Context, client *k8s.Client) bool {
 //
 // When the exoskeleton is disabled or no tentacular-* dependencies are
 // declared, the manifests are returned unchanged.
-func (c *Controller) ProcessManifests(ctx context.Context, namespace, name string, manifests []map[string]interface{}) ([]map[string]interface{}, error) {
+func (c *Controller) ProcessManifests(ctx context.Context, namespace, name string, manifests []map[string]any) ([]map[string]any, error) {
 	if !c.cfg.Enabled {
 		return manifests, nil
 	}
@@ -166,7 +167,7 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 	if err != nil {
 		return nil, fmt.Errorf("exoskeleton identity: %w", err)
 	}
-	creds := make(map[string]interface{})
+	creds := make(map[string]any)
 
 	// NOTE: Registrars are called sequentially. If an earlier registrar
 	// succeeds but a later one fails (e.g., Postgres succeeds, NATS fails),
@@ -178,7 +179,7 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 		switch dep {
 		case "tentacular-postgres":
 			if c.pg == nil {
-				return nil, fmt.Errorf("workflow requires tentacular-postgres but TENTACULAR_EXOSKELETON_POSTGRES is not enabled or not configured")
+				return nil, errors.New("workflow requires tentacular-postgres but TENTACULAR_EXOSKELETON_POSTGRES is not enabled or not configured")
 			}
 			pgCreds, err := c.pg.Register(ctx, id)
 			if err != nil {
@@ -188,7 +189,7 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 
 		case "tentacular-nats":
 			if c.nats == nil {
-				return nil, fmt.Errorf("workflow requires tentacular-nats but TENTACULAR_EXOSKELETON_NATS is not enabled or not configured")
+				return nil, errors.New("workflow requires tentacular-nats but TENTACULAR_EXOSKELETON_NATS is not enabled or not configured")
 			}
 			natsCreds, err := c.nats.Register(ctx, id)
 			if err != nil {
@@ -198,7 +199,7 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 
 		case "tentacular-rustfs":
 			if c.rustfs == nil {
-				return nil, fmt.Errorf("workflow requires tentacular-rustfs but TENTACULAR_EXOSKELETON_RUSTFS is not enabled or not configured")
+				return nil, errors.New("workflow requires tentacular-rustfs but TENTACULAR_EXOSKELETON_RUSTFS is not enabled or not configured")
 			}
 			rustfsCreds, err := c.rustfs.Register(ctx, id)
 			if err != nil {
@@ -243,11 +244,11 @@ func (c *Controller) ProcessManifests(ctx context.Context, namespace, name strin
 
 // CleanupReport describes what the exoskeleton cleanup performed.
 type CleanupReport struct {
+	Postgres  string
+	NATS      string
+	RustFS    string
+	SPIRE     string
 	Performed bool
-	Postgres  string // e.g. "schema dropped"
-	NATS      string // e.g. "no-op"
-	RustFS    string // e.g. "user removed"
-	SPIRE     string // e.g. "identity removed"
 }
 
 // Summary returns a human-readable description of cleanup actions.
@@ -402,13 +403,13 @@ func (c *Controller) AuthIssuer() string {
 // dependencies from a workflow ConfigMap.
 type contractDeps struct {
 	Contract *struct {
-		Dependencies map[string]interface{} `yaml:"dependencies"`
+		Dependencies map[string]any `yaml:"dependencies"`
 	} `yaml:"contract"`
 }
 
 // detectExoDeps scans manifests for a ConfigMap containing workflow.yaml
 // and returns any dependency names with the "tentacular-" prefix.
-func detectExoDeps(manifests []map[string]interface{}) []string {
+func detectExoDeps(manifests []map[string]any) []string {
 	for _, m := range manifests {
 		obj := &unstructured.Unstructured{Object: m}
 		if obj.GetKind() != "ConfigMap" {
