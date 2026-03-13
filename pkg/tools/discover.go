@@ -121,7 +121,7 @@ func registerDiscoverTools(srv *mcp.Server, client *k8s.Client) {
 // A namespace is considered system if it matches the guard's canonical list or has the
 // tentacular.io/system annotation set to "true".
 func isSystemNamespace(ns string, annotations map[string]string) bool {
-	if guard.SystemNamespaces[ns] {
+	if guard.IsSystemNamespace(ns) {
 		return true
 	}
 	if annotations != nil && annotations["tentacular.io/system"] == "true" {

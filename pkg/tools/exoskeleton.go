@@ -22,7 +22,6 @@ type ExoStatusServiceInfo struct {
 	Name    string `json:"name"`
 	Detail  string `json:"detail,omitempty"`
 	Enabled bool   `json:"enabled"`
-	Healthy bool   `json:"healthy"`
 }
 
 // ExoStatusResult is the result of exo_status.
@@ -153,22 +152,18 @@ func buildServiceInfoList(ctrl *exoskeleton.Controller) []ExoStatusServiceInfo {
 		{
 			Name:    "postgres",
 			Enabled: ctrl.PostgresAvailable(),
-			Healthy: ctrl.PostgresAvailable(),
 		},
 		{
 			Name:    "nats",
 			Enabled: ctrl.NATSAvailable(),
-			Healthy: ctrl.NATSAvailable(),
 		},
 		{
 			Name:    "rustfs",
 			Enabled: ctrl.RustFSAvailable(),
-			Healthy: ctrl.RustFSAvailable(),
 		},
 		{
 			Name:    "spire",
 			Enabled: ctrl.SPIREAvailable(),
-			Healthy: ctrl.SPIREAvailable(),
 		},
 	}
 }
@@ -187,6 +182,9 @@ func handleExoList(ctx context.Context, client *k8s.Client) (ExoListResult, erro
 
 	entries := make([]ExoListEntry, 0, len(secretList.Items))
 	for _, s := range secretList.Items {
+		if guard.IsSystemNamespace(s.Namespace) {
+			continue
+		}
 		workflow := s.Labels[exoskeleton.ReleaseLabel]
 		created := ""
 		if !s.CreationTimestamp.IsZero() {
