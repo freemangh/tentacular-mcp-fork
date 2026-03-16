@@ -43,7 +43,7 @@ func RunWorkflow(ctx context.Context, client *Client, namespace, name string, in
 
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("trigger workflow %s/%s: %w (last error: %v)", namespace, name, ctx.Err(), lastErr)
+			return nil, fmt.Errorf("trigger workflow %s/%s: %w (last error: %w)", namespace, name, ctx.Err(), lastErr)
 		case <-time.After(runRetryInterval):
 		}
 	}

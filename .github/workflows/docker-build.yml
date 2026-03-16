@@ -91,5 +91,5 @@ jobs:
             VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
-          cache-from: type=registry,ref=ghcr.io/randybias/tentacular-mcp:buildcache
-          cache-to: type=registry,ref=ghcr.io/randybias/tentacular-mcp:buildcache,mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max

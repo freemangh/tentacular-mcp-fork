@@ -137,7 +137,7 @@ func TestRunWorkflowNonTwoxxStatusReturnsError(t *testing.T) {
 }
 
 // TestRunWorkflowRetriesOnDialError verifies that dial errors are retried until
-// the context is cancelled, and that the call succeeds once the server is up.
+// the context is canceled, and that the call succeeds once the server is up.
 func TestRunWorkflowRetriesOnDialError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -178,7 +178,7 @@ func TestRunWorkflowRetriesOnDialError(t *testing.T) {
 	}
 }
 
-// TestRunWorkflowContextCancelledDuringRetry verifies that a cancelled context
+// TestRunWorkflowContextCancelledDuringRetry verifies that a canceled context
 // stops the retry loop and returns an error.
 func TestRunWorkflowContextCancelledDuringRetry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
