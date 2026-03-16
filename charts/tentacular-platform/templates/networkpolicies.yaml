@@ -296,5 +296,31 @@ spec:
         - namespaceSelector:
             matchLabels:
               app.kubernetes.io/managed-by: tentacular
+---
+{{- end }}
+{{/*
+Allow ingress to the MCP pod on port 8080 when NodePort mode is used.
+NodePort traffic is SNAT'd by kube-proxy so it arrives from the node IP;
+omitting `from` permits traffic from any source (external and intra-cluster).
+*/}}
+{{- if and .Values.namespaces.system.create (eq .Values.ingress.mode "nodeport") }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-mcp-nodeport
+  namespace: {{ include "tentacular-platform.namespace.system" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tentacular-mcp
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
 {{- end }}
 {{- end }}
