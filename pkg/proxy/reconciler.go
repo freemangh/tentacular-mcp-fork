@@ -21,9 +21,9 @@ const (
 // from MCP server startup.
 type Reconciler struct {
 	client   *k8s.Client
+	logger   *slog.Logger
 	opts     Options
 	interval time.Duration
-	logger   *slog.Logger
 }
 
 // NewReconciler creates a new proxy Reconciler.
@@ -40,7 +40,7 @@ func NewReconciler(client *k8s.Client, opts Options, logger *slog.Logger) *Recon
 	}
 }
 
-// Run starts the reconciliation loop and blocks until ctx is cancelled.
+// Run starts the reconciliation loop and blocks until ctx is canceled.
 func (r *Reconciler) Run(ctx context.Context) {
 	r.logger.Info("proxy reconciler starting", "namespace", r.opts.Namespace, "image", r.opts.image(), "interval", r.interval)
 
@@ -119,10 +119,10 @@ func (r *Reconciler) reconcileService(ctx context.Context) error {
 
 // Status returns the current installation and readiness state of the proxy.
 type Status struct {
-	Installed bool
-	Ready     bool
 	Image     string
 	Storage   string
+	Installed bool
+	Ready     bool
 }
 
 // Namespace returns the namespace the reconciler is managing.

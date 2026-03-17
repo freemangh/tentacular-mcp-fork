@@ -41,8 +41,8 @@ type AuditNetpolParams struct {
 // NetpolInfo is a single network policy in the audit result.
 type NetpolInfo struct {
 	Name        string   `json:"name"`
-	Types       []string `json:"types"`
 	PodSelector string   `json:"pod_selector"`
+	Types       []string `json:"types"`
 }
 
 // AuditNetpolFinding is a single netpol audit finding.
@@ -54,9 +54,9 @@ type AuditNetpolFinding struct {
 
 // AuditNetpolResult is the result of audit_netpol.
 type AuditNetpolResult struct {
-	DefaultDeny bool                 `json:"default_deny"`
 	Policies    []NetpolInfo         `json:"policies"`
 	Findings    []AuditNetpolFinding `json:"findings"`
+	DefaultDeny bool                 `json:"default_deny"`
 }
 
 // AuditPsaParams are the parameters for audit_psa.
@@ -73,11 +73,11 @@ type AuditPsaFinding struct {
 
 // AuditPsaResult is the result of audit_psa.
 type AuditPsaResult struct {
-	Compliant bool              `json:"compliant"`
 	Enforce   string            `json:"enforce"`
 	Audit     string            `json:"audit"`
 	Warn      string            `json:"warn"`
 	Findings  []AuditPsaFinding `json:"findings"`
+	Compliant bool              `json:"compliant"`
 }
 
 func registerAuditTools(srv *mcp.Server, client *k8s.Client) {
@@ -139,7 +139,7 @@ func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacPa
 	}
 
 	for _, role := range roles.Items {
-		roleName := fmt.Sprintf("Role/%s", role.Name)
+		roleName := "Role/" + role.Name
 		findings = auditRules(findings, roleName, role.Rules)
 	}
 
@@ -151,8 +151,8 @@ func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacPa
 	for _, rb := range rbs.Items {
 		if rb.RoleRef.Kind == "ClusterRole" {
 			findings = append(findings, AuditFinding{
-				Role:        fmt.Sprintf("RoleBinding/%s", rb.Name),
-				Rule:        fmt.Sprintf("binds ClusterRole/%s", rb.RoleRef.Name),
+				Role:        "RoleBinding/" + rb.Name,
+				Rule:        "binds ClusterRole/" + rb.RoleRef.Name,
 				Severity:    "low",
 				Reason:      "RoleBinding references a ClusterRole; review cluster-level permissions",
 				Remediation: "Replace with a namespaced Role if the required permissions are namespace-scoped.",
@@ -169,7 +169,7 @@ func handleAuditRbac(ctx context.Context, client *k8s.Client, params AuditRbacPa
 		for _, subj := range crb.Subjects {
 			if subj.Kind == "ServiceAccount" && subj.Namespace == params.Namespace {
 				findings = append(findings, AuditFinding{
-					Role:        fmt.Sprintf("ClusterRoleBinding/%s", crb.Name),
+					Role:        "ClusterRoleBinding/" + crb.Name,
 					Rule:        fmt.Sprintf("binds ClusterRole/%s to SA %s/%s", crb.RoleRef.Name, params.Namespace, subj.Name),
 					Severity:    "medium",
 					Reason:      "service account in namespace has cluster-wide permissions",

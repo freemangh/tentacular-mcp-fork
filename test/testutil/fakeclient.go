@@ -9,7 +9,7 @@ import (
 
 // NewFakeClient returns a k8s.Client backed by a fake Kubernetes clientset.
 // Use this in unit tests to avoid hitting a real cluster.
-func NewFakeClient(objects ...interface{}) *k8s.Client {
+func NewFakeClient(objects ...any) *k8s.Client {
 	cs := fake.NewClientset()
 	_ = objects // objects passed as runtime.Object in typed helpers below
 	return k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake-cluster:6443"}, nil)

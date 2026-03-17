@@ -5,7 +5,7 @@ import (
 )
 
 func TestBuildSecretManifest(t *testing.T) {
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{
 			Host:     "pg.local",
 			Port:     "5432",
@@ -37,7 +37,7 @@ func TestBuildSecretManifest(t *testing.T) {
 	}
 
 	// Check metadata
-	meta, ok := manifest["metadata"].(map[string]interface{})
+	meta, ok := manifest["metadata"].(map[string]any)
 	if !ok {
 		t.Fatal("metadata is not a map")
 	}
@@ -48,7 +48,7 @@ func TestBuildSecretManifest(t *testing.T) {
 		t.Errorf("namespace = %v, want tent-dev", meta["namespace"])
 	}
 
-	labels, ok := meta["labels"].(map[string]interface{})
+	labels, ok := meta["labels"].(map[string]any)
 	if !ok {
 		t.Fatal("labels is not a map")
 	}
@@ -60,7 +60,7 @@ func TestBuildSecretManifest(t *testing.T) {
 	}
 
 	// Check stringData keys
-	sd, ok := manifest["stringData"].(map[string]interface{})
+	sd, ok := manifest["stringData"].(map[string]any)
 	if !ok {
 		t.Fatal("stringData is not a map")
 	}
@@ -97,7 +97,7 @@ func TestBuildSecretManifest(t *testing.T) {
 }
 
 func TestBuildSecretManifestRustFS(t *testing.T) {
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-rustfs": &RustFSCreds{
 			Endpoint:  "http://minio:9000",
 			AccessKey: "ak123",
@@ -113,7 +113,7 @@ func TestBuildSecretManifestRustFS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildSecretManifest returned error: %v", err)
 	}
-	sd := manifest["stringData"].(map[string]interface{})
+	sd := manifest["stringData"].(map[string]any)
 
 	if sd["tentacular-rustfs.endpoint"] != "http://minio:9000" {
 		t.Errorf("endpoint = %v", sd["tentacular-rustfs.endpoint"])
@@ -127,11 +127,11 @@ func TestBuildSecretManifestRustFS(t *testing.T) {
 }
 
 func TestBuildSecretManifestEmpty(t *testing.T) {
-	manifest, err := BuildSecretManifest("tent-dev", "myapp", map[string]interface{}{})
+	manifest, err := BuildSecretManifest("tent-dev", "myapp", map[string]any{})
 	if err != nil {
 		t.Fatalf("BuildSecretManifest returned error: %v", err)
 	}
-	sd := manifest["stringData"].(map[string]interface{})
+	sd := manifest["stringData"].(map[string]any)
 
 	// Should still have identity fields
 	if sd["tentacular-identity.namespace"] != "tent-dev" {

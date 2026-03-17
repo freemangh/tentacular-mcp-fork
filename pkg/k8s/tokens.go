@@ -1,12 +1,11 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"text/template"
-
-	"bytes"
 
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

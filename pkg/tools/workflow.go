@@ -28,10 +28,10 @@ type WfPodsParams struct {
 type WfPodInfo struct {
 	Name     string   `json:"name"`
 	Phase    string   `json:"phase"`
-	Ready    bool     `json:"ready"`
-	Restarts int32    `json:"restarts"`
-	Images   []string `json:"images"`
 	Age      string   `json:"age"`
+	Images   []string `json:"images"`
+	Restarts int32    `json:"restarts"`
+	Ready    bool     `json:"ready"`
 }
 
 // WfPodsResult is the result of wf_pods.
@@ -66,8 +66,8 @@ type WfEventInfo struct {
 	Reason   string `json:"reason"`
 	Message  string `json:"message"`
 	Object   string `json:"object"`
-	Count    int32  `json:"count"`
 	LastSeen string `json:"last_seen"`
+	Count    int32  `json:"count"`
 }
 
 // WfEventsResult is the result of wf_events.
@@ -136,6 +136,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WfLogsResult{}, err
 		}
+		if err := guard.CheckName(params.Pod); err != nil {
+			return nil, WfLogsResult{}, err
+		}
 		result, err := handleWfLogs(ctx, client, params)
 		return nil, result, err
 	})
@@ -167,6 +170,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client) {
 		Description: "Rollout restart a deployment in a managed namespace by patching the pod template with a restart timestamp. Useful after ConfigMap/Secret changes, credential rotation, or gVisor enablement.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WfRestartParams) (*mcp.CallToolResult, WfRestartResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WfRestartResult{}, err
+		}
+		if err := guard.CheckName(params.Deployment); err != nil {
 			return nil, WfRestartResult{}, err
 		}
 		result, err := handleWfRestart(ctx, client, params)
@@ -389,11 +395,11 @@ func handleWfRestart(ctx context.Context, client *k8s.Client, params WfRestartPa
 
 	// Rollout restart: patch the pod template annotation with a timestamp.
 	// This is the same mechanism as `kubectl rollout restart`.
-	restartAnnotation := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"annotations": map[string]interface{}{
+	restartAnnotation := map[string]any{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"metadata": map[string]any{
+					"annotations": map[string]any{
 						"tentacular.io/restartedAt": time.Now().UTC().Format(time.RFC3339),
 					},
 				},

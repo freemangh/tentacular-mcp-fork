@@ -180,10 +180,13 @@ func TestWfRunResult_Fields(t *testing.T) {
 	if result.Name != "my-wf" {
 		t.Errorf("expected name=my-wf, got %q", result.Name)
 	}
+	if result.Namespace != "user-ns" {
+		t.Errorf("expected namespace=user-ns, got %q", result.Namespace)
+	}
 	if result.DurationMs != 1234 {
 		t.Errorf("expected duration=1234, got %d", result.DurationMs)
 	}
-	if result.Output["ok"] != true {
+	if v, ok := result.Output["ok"].(bool); !ok || !v {
 		t.Errorf("unexpected output: %v", result.Output)
 	}
 }

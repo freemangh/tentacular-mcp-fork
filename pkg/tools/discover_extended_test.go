@@ -2,7 +2,7 @@ package tools
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -173,8 +173,8 @@ func TestContainsTag(t *testing.T) {
 		{"etl,daily,reporting", "missing", false},
 		{"single", "single", true},
 		{"single", "other", false},
-		{"", "", true},                   // empty tag matches empty split
-		{" etl , daily ", "etl", true},   // containsTag trims spaces
+		{"", "", true},                    // empty tag matches empty split
+		{" etl , daily ", "etl", true},    // containsTag trims spaces
 		{" etl , daily ", " etl ", false}, // exact match after trim won't match with outer spaces
 	}
 
@@ -183,18 +183,6 @@ func TestContainsTag(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("containsTag(%q, %q) = %v, want %v", tt.csv, tt.tag, got, tt.want)
 		}
-	}
-}
-
-// ---------- derefInt32 tests ----------
-
-func TestDerefInt32(t *testing.T) {
-	val := int32(5)
-	if got := derefInt32(&val); got != 5 {
-		t.Errorf("derefInt32(&5) = %d", got)
-	}
-	if got := derefInt32(nil); got != 0 {
-		t.Errorf("derefInt32(nil) = %d", got)
 	}
 }
 
@@ -285,19 +273,19 @@ func TestWfList_DeployerAnnotations(t *testing.T) {
 // ---------- wrapListError / wrapGetError tests ----------
 
 func TestWrapListError(t *testing.T) {
-	err := wrapListError("deployments", "", fmt.Errorf("test"))
+	err := wrapListError("", errors.New("test"))
 	if err.Error() != "list deployments across all namespaces: test" {
 		t.Errorf("got: %v", err)
 	}
 
-	err = wrapListError("deployments", "my-ns", fmt.Errorf("test"))
+	err = wrapListError("my-ns", errors.New("test"))
 	if err.Error() != `list deployments in namespace "my-ns": test` {
 		t.Errorf("got: %v", err)
 	}
 }
 
 func TestWrapGetError(t *testing.T) {
-	err := wrapGetError("deployment", "my-wf", "my-ns", fmt.Errorf("not found"))
+	err := wrapGetError("deployment", "my-wf", "my-ns", errors.New("not found"))
 	if err.Error() != `get deployment "my-wf" in namespace "my-ns": not found` {
 		t.Errorf("got: %v", err)
 	}

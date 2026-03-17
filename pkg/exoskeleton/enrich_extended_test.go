@@ -10,7 +10,7 @@ import (
 // ---------- collectExoHosts extended tests ----------
 
 func TestCollectExoHosts_AllServices(t *testing.T) {
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg.exo.svc", Port: "5432"},
 		"tentacular-nats":     &NATSCreds{URL: "nats://nats.exo.svc:4222"},
 		"tentacular-rustfs":   &RustFSCreds{Endpoint: "http://rustfs.exo.svc:9000"},
@@ -34,14 +34,14 @@ func TestCollectExoHosts_AllServices(t *testing.T) {
 }
 
 func TestCollectExoHosts_Empty(t *testing.T) {
-	hosts := collectExoHosts(map[string]interface{}{})
+	hosts := collectExoHosts(map[string]any{})
 	if len(hosts) != 0 {
 		t.Errorf("expected 0 hosts, got %d", len(hosts))
 	}
 }
 
 func TestCollectExoHosts_UnknownType(t *testing.T) {
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-unknown": "not-a-struct",
 	}
 	// Should not panic, just log a warning.
@@ -54,16 +54,16 @@ func TestCollectExoHosts_UnknownType(t *testing.T) {
 // ---------- patchDeploymentAllowNet with command field ----------
 
 func TestPatchDeploymentAllowNet_CommandField(t *testing.T) {
-	iArgs := []interface{}{"deno", "run", "--allow-net=existing.host:443", "main.ts"}
-	dep := map[string]interface{}{
+	iArgs := []any{"deno", "run", "--allow-net=existing.host:443", "main.ts"}
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "test"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+		"metadata":   map[string]any{"name": "test"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name":    "deno",
 							"image":   "denoland/deno:latest",
 							"command": iArgs,
@@ -73,15 +73,15 @@ func TestPatchDeploymentAllowNet_CommandField(t *testing.T) {
 			},
 		},
 	}
-	manifests := []map[string]interface{}{dep}
-	creds := map[string]interface{}{
+	manifests := []map[string]any{dep}
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 
 	patchDeploymentAllowNet(manifests, creds)
 
-	containers, _, _ := getContainers(dep)
-	container := containers[0].(map[string]interface{})
+	containers := getContainers(dep)
+	container := containers[0].(map[string]any)
 	cmdSlice, ok := toStringSlice(container["command"])
 	if !ok {
 		t.Fatal("expected command to be string slice")
@@ -99,15 +99,15 @@ func TestPatchDeploymentAllowNet_CommandField(t *testing.T) {
 
 func TestPatchDeploymentAllowNet_EmptyAllowNet(t *testing.T) {
 	dep := makeDeploymentManifest([]string{"run", "--allow-net=", "main.ts"})
-	manifests := []map[string]interface{}{dep}
-	creds := map[string]interface{}{
+	manifests := []map[string]any{dep}
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 
 	patchDeploymentAllowNet(manifests, creds)
 
-	containers, _, _ := getContainers(dep)
-	container := containers[0].(map[string]interface{})
+	containers := getContainers(dep)
+	container := containers[0].(map[string]any)
 	args, _ := toStringSlice(container["args"])
 	for _, arg := range args {
 		if arg == "--allow-net=pg:5432" {
@@ -127,14 +127,14 @@ func TestToStringSlice_NonInterface(t *testing.T) {
 }
 
 func TestToStringSlice_NonStringElements(t *testing.T) {
-	_, ok := toStringSlice([]interface{}{1, 2, 3})
+	_, ok := toStringSlice([]any{1, 2, 3})
 	if ok {
 		t.Error("expected false for non-string elements")
 	}
 }
 
 func TestToStringSlice_Valid(t *testing.T) {
-	result, ok := toStringSlice([]interface{}{"a", "b", "c"})
+	result, ok := toStringSlice([]any{"a", "b", "c"})
 	if !ok {
 		t.Fatal("expected true for valid string slice")
 	}
@@ -146,20 +146,20 @@ func TestToStringSlice_Valid(t *testing.T) {
 // ---------- patchDeploymentAllowNet with no containers ----------
 
 func TestPatchDeploymentAllowNet_NoContainers(t *testing.T) {
-	dep := map[string]interface{}{
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "test"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{},
+		"metadata":   map[string]any{"name": "test"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{},
 				},
 			},
 		},
 	}
-	manifests := []map[string]interface{}{dep}
-	creds := map[string]interface{}{
+	manifests := []map[string]any{dep}
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 	// Should not panic.
@@ -198,7 +198,7 @@ func TestParseHostPort_HostOnly(t *testing.T) {
 
 func TestAnnotateDeployer_EmptyAgentType(t *testing.T) {
 	dep := makeDeploymentManifest([]string{"run"})
-	manifests := []map[string]interface{}{dep}
+	manifests := []map[string]any{dep}
 
 	cfg := &Config{Enabled: true}
 	ctrl := &Controller{cfg: cfg}
@@ -225,8 +225,8 @@ triggers:
   - type: http
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
-	creds := map[string]interface{}{
+	manifests := []map[string]any{cm}
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 
@@ -239,13 +239,13 @@ triggers:
 // ---------- enrichContractDeps edge: no data in ConfigMap ----------
 
 func TestEnrichContractDeps_NoData(t *testing.T) {
-	cm := map[string]interface{}{
+	cm := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test"},
+		"metadata":   map[string]any{"name": "test"},
 	}
-	manifests := []map[string]interface{}{cm}
-	creds := map[string]interface{}{}
+	manifests := []map[string]any{cm}
+	creds := map[string]any{}
 
 	if err := enrichContractDeps(manifests, creds); err != nil {
 		t.Fatalf("enrichContractDeps: %v", err)
@@ -261,8 +261,8 @@ contract:
   timeout: 30s
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
-	creds := map[string]interface{}{
+	manifests := []map[string]any{cm}
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 
@@ -274,18 +274,18 @@ contract:
 // ---------- enrichContractDeps edge: non-ConfigMap manifests ----------
 
 func TestEnrichContractDeps_MixedManifests(t *testing.T) {
-	dep := map[string]interface{}{
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "test"},
+		"metadata":   map[string]any{"name": "test"},
 	}
-	svc := map[string]interface{}{
+	svc := map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Service",
-		"metadata":   map[string]interface{}{"name": "test"},
+		"metadata":   map[string]any{"name": "test"},
 	}
-	manifests := []map[string]interface{}{dep, svc}
-	creds := map[string]interface{}{}
+	manifests := []map[string]any{dep, svc}
+	creds := map[string]any{}
 
 	if err := enrichContractDeps(manifests, creds); err != nil {
 		t.Fatalf("enrichContractDeps: %v", err)
@@ -295,22 +295,22 @@ func TestEnrichContractDeps_MixedManifests(t *testing.T) {
 // ---------- patchDeploymentAllowNet with non-container map ----------
 
 func TestPatchDeploymentAllowNet_InvalidContainerType(t *testing.T) {
-	dep := map[string]interface{}{
+	dep := map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "test"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
+		"metadata":   map[string]any{"name": "test"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
 						"not-a-map", // invalid container type
 					},
 				},
 			},
 		},
 	}
-	manifests := []map[string]interface{}{dep}
-	creds := map[string]interface{}{
+	manifests := []map[string]any{dep}
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 	// Should not panic.
@@ -320,7 +320,7 @@ func TestPatchDeploymentAllowNet_InvalidContainerType(t *testing.T) {
 // ---------- patchAllowNetInSlice with no args field ----------
 
 func TestPatchAllowNetInSlice_MissingField(t *testing.T) {
-	container := map[string]interface{}{
+	container := map[string]any{
 		"name":  "deno",
 		"image": "denoland/deno:latest",
 	}
@@ -334,13 +334,13 @@ func TestPatchAllowNetInSlice_MissingField(t *testing.T) {
 
 func TestPatchDeploymentAllowNet_EmptyCreds(t *testing.T) {
 	dep := makeDeploymentManifest([]string{"run", "--allow-net=api:443", "main.ts"})
-	manifests := []map[string]interface{}{dep}
+	manifests := []map[string]any{dep}
 
 	// Empty creds should not modify anything.
-	patchDeploymentAllowNet(manifests, map[string]interface{}{})
+	patchDeploymentAllowNet(manifests, map[string]any{})
 
-	containers, _, _ := getContainers(dep)
-	container := containers[0].(map[string]interface{})
+	containers := getContainers(dep)
+	container := containers[0].(map[string]any)
 	args, _ := toStringSlice(container["args"])
 	for _, arg := range args {
 		if arg == "--allow-net=api:443" {

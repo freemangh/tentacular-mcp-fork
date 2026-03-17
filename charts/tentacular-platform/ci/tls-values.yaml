@@ -1,0 +1,76 @@
+# CI TLS test values - tests ClusterIssuer and Certificate rendering
+# Usage: helm install tentacular charts/tentacular-platform/ \
+#   -f charts/tentacular-platform/ci/tls-values.yaml \
+#   -n tentacular-system --create-namespace
+# Note: cert-manager CRDs must be present in the cluster for these resources
+# This file is for verifying template rendering only
+global:
+  domain: test.tentacular.local
+
+namespaces:
+  system:
+    create: true
+    name: tentacular-system
+  exoskeleton:
+    create: true
+    name: tentacular-exoskeleton
+  support:
+    create: true
+    name: tentacular-support
+
+networkPolicies:
+  enabled: true
+
+postgresql:
+  enabled: true
+  image:
+    # Bitnami removed versioned tags; use latest until chart is updated
+    tag: latest
+  auth:
+    password: test-postgres-password
+  primary:
+    persistence:
+      enabled: false
+
+nats:
+  enabled: true
+  config:
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        dir: /data
+        pvc:
+          enabled: false
+    merge:
+      authorization:
+        token: "test-nats-token"
+
+# cert-manager subchart disabled (assumes CRDs pre-installed)
+cert-manager:
+  enabled: false
+
+# TLS resources enabled for template testing
+tls:
+  clusterIssuers:
+    create: true
+    email: test@tentacular.local
+    production: true
+  certificates:
+    mcp:
+      create: true
+      secretName: mcp-tls
+    auth:
+      create: true
+      secretName: auth-tls
+
+tentacular-mcp:
+  enabled: true
+  auth:
+    token: "test-mcp-auth-token"
+
+esm-sh:
+  enabled: true
+
+ingress:
+  mode: none

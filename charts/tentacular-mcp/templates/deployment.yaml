@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "tentacular-mcp.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "tentacular-mcp.namespace" . }}
   labels:
     {{- include "tentacular-mcp.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
@@ -45,9 +45,20 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          {{- if or .Values.exoskeleton.secretRef .Values.extraEnvFrom }}
+          envFrom:
+            {{- if .Values.exoskeleton.secretRef }}
+            - secretRef:
+                name: {{ .Values.exoskeleton.secretRef }}
+            {{- end }}
+            {{- range .Values.extraEnvFrom }}
+            - {{- toYaml . | nindent 14 }}
+            {{- end }}
+          {{- end }}
           env:
             - name: TOKEN_PATH
               value: /etc/tentacular-mcp/token
+            {{- if not .Values.exoskeleton.secretRef }}
             {{- if .Values.exoskeletonAuth.enabled }}
             - name: TENTACULAR_EXOSKELETON_AUTH_ENABLED
               value: "true"
@@ -166,6 +177,14 @@ spec:
                   name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
                   key: nats-token
             {{- end }}
+            {{- if .Values.exoskeleton.nats.spiffeEnabled }}
+            - name: TENTACULAR_NATS_SPIFFE_ENABLED
+              value: "true"
+            - name: TENTACULAR_NATS_AUTHZ_CONFIGMAP
+              value: {{ .Values.exoskeleton.nats.authzConfigMap | quote }}
+            - name: TENTACULAR_NATS_AUTHZ_NAMESPACE
+              value: {{ .Values.exoskeleton.nats.authzNamespace | quote }}
+            {{- end }}
             {{- if .Values.exoskeleton.rustfs.existingSecret }}
             - name: TENTACULAR_RUSTFS_ENDPOINT
               valueFrom:
@@ -218,6 +237,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "tentacular-mcp.fullname" . }}-exoskeleton
                   key: rustfs-region
+            {{- end }}
+            {{- if .Values.exoskeleton.spire.enabled }}
+            - name: TENTACULAR_EXOSKELETON_SPIRE_ENABLED
+              value: "true"
+            - name: TENTACULAR_SPIRE_CLASS_NAME
+              value: {{ .Values.exoskeleton.spire.className | quote }}
+            {{- end }}
             {{- end }}
             {{- end }}
           volumeMounts:

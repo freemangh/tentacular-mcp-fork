@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"gopkg.in/yaml.v3"
 
 	"github.com/randybias/tentacular-mcp/pkg/guard"
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
@@ -19,10 +19,10 @@ import (
 // minimalWorkflow holds only the fields needed for MCP describe reporting.
 // It is separate from the main spec package to avoid a cross-repo dependency.
 type minimalWorkflow struct {
-	Name     string                    `yaml:"name"`
-	Version  string                    `yaml:"version"`
-	Triggers []minimalTrigger          `yaml:"triggers"`
-	Nodes    map[string]minimalNode    `yaml:"nodes"`
+	Nodes    map[string]minimalNode `yaml:"nodes"`
+	Name     string                 `yaml:"name"`
+	Version  string                 `yaml:"version"`
+	Triggers []minimalTrigger       `yaml:"triggers"`
 }
 
 type minimalTrigger struct {
@@ -51,8 +51,8 @@ type WfListEntry struct {
 	Environment string `json:"environment,omitempty"`
 	DeployedBy  string `json:"deployed_by,omitempty"`
 	DeployedVia string `json:"deployed_via,omitempty"`
-	Ready       bool   `json:"ready"`
 	Age         string `json:"age"`
+	Ready       bool   `json:"ready"`
 }
 
 // WfListResult is the result of wf_list.
@@ -68,24 +68,24 @@ type WfDescribeParams struct {
 
 // WfDescribeResult is the result of wf_describe.
 type WfDescribeResult struct {
-	Name          string            `json:"name"`
-	Namespace     string            `json:"namespace"`
-	Version       string            `json:"version"`
+	Annotations   map[string]string `json:"annotations,omitempty"`
+	DeployedVia   string            `json:"deployed_via,omitempty"`
+	Age           string            `json:"age"`
 	Owner         string            `json:"owner,omitempty"`
 	Team          string            `json:"team,omitempty"`
-	Tags          []string          `json:"tags,omitempty"`
+	Namespace     string            `json:"namespace"`
 	Environment   string            `json:"environment,omitempty"`
 	DeployedBy    string            `json:"deployed_by,omitempty"`
-	DeployedVia   string            `json:"deployed_via,omitempty"`
-	DeployedAt    string            `json:"deployed_at,omitempty"`
-	Ready         bool              `json:"ready"`
-	Replicas      int32             `json:"replicas"`
-	ReadyReplicas int32             `json:"ready_replicas"`
+	Name          string            `json:"name"`
+	Version       string            `json:"version"`
 	Image         string            `json:"image"`
-	Age           string            `json:"age"`
+	DeployedAt    string            `json:"deployed_at,omitempty"`
 	Nodes         []string          `json:"nodes,omitempty"`
 	Triggers      []string          `json:"triggers,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
+	Tags          []string          `json:"tags,omitempty"`
+	ReadyReplicas int32             `json:"ready_replicas"`
+	Replicas      int32             `json:"replicas"`
+	Ready         bool              `json:"ready"`
 }
 
 func registerDiscoverTools(srv *mcp.Server, client *k8s.Client) {
@@ -109,9 +109,25 @@ func registerDiscoverTools(srv *mcp.Server, client *k8s.Client) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WfDescribeResult{}, err
 		}
+		if err := guard.CheckName(params.Name); err != nil {
+			return nil, WfDescribeResult{}, err
+		}
 		result, err := handleWfDescribe(ctx, client, params)
 		return nil, result, err
 	})
+}
+
+// isSystemNamespace returns true if the namespace should be filtered from wf_list results.
+// A namespace is considered system if it matches the guard's canonical list or has the
+// tentacular.io/system annotation set to "true".
+func isSystemNamespace(ns string, annotations map[string]string) bool {
+	if guard.IsSystemNamespace(ns) {
+		return true
+	}
+	if annotations != nil && annotations["tentacular.io/system"] == "true" {
+		return true
+	}
+	return false
 }
 
 func handleWfList(ctx context.Context, client *k8s.Client, params WfListParams) (WfListResult, error) {
@@ -120,11 +136,28 @@ func handleWfList(ctx context.Context, client *k8s.Client, params WfListParams) 
 		LabelSelector: "app.kubernetes.io/managed-by=tentacular",
 	})
 	if err != nil {
-		return WfListResult{}, wrapListError("deployments", ns, err)
+		return WfListResult{}, wrapListError(ns, err)
+	}
+
+	// When listing across all namespaces, build a cache of namespace annotations
+	// so we can filter out system namespaces efficiently.
+	nsAnnotations := map[string]map[string]string{}
+	if ns == "" {
+		nsList, nsErr := client.Clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		if nsErr == nil {
+			for _, n := range nsList.Items {
+				nsAnnotations[n.Name] = n.Annotations
+			}
+		}
 	}
 
 	entries := make([]WfListEntry, 0, len(depList.Items))
 	for _, dep := range depList.Items {
+		// Filter out system namespaces when listing across all namespaces
+		if ns == "" && isSystemNamespace(dep.Namespace, nsAnnotations[dep.Namespace]) {
+			continue
+		}
+
 		entry := deploymentToListEntry(dep)
 
 		// Apply optional client-side filters
@@ -193,7 +226,7 @@ func handleWfDescribe(ctx context.Context, client *k8s.Client, params WfDescribe
 		DeployedVia:   ann["tentacular.io/deployed-via"],
 		DeployedAt:    ann["tentacular.io/deployed-at"],
 		Ready:         dep.Status.ReadyReplicas >= 1,
-		Replicas:      derefInt32(dep.Spec.Replicas),
+		Replicas:      replicaCount(dep.Spec.Replicas),
 		ReadyReplicas: dep.Status.ReadyReplicas,
 		Image:         image,
 		Age:           age,
@@ -268,18 +301,20 @@ func containsTag(tagsCSV, tag string) bool {
 	return false
 }
 
-func derefInt32(p *int32) int32 {
+// replicaCount returns the effective replica count for a Deployment,
+// normalizing nil (omitted) to Kubernetes' default of 1.
+func replicaCount(p *int32) int32 {
 	if p == nil {
-		return 0
+		return 1
 	}
 	return *p
 }
 
-func wrapListError(resource, namespace string, err error) error {
+func wrapListError(namespace string, err error) error {
 	if namespace == "" {
-		return fmt.Errorf("list %s across all namespaces: %w", resource, err)
+		return fmt.Errorf("list deployments across all namespaces: %w", err)
 	}
-	return fmt.Errorf("list %s in namespace %q: %w", resource, namespace, err)
+	return fmt.Errorf("list deployments in namespace %q: %w", namespace, err)
 }
 
 func wrapGetError(resource, name, namespace string, err error) error {

@@ -22,10 +22,10 @@ const CronAnnotation = "tentacular.dev/cron-schedule"
 
 // entry tracks a registered workflow schedule.
 type entry struct {
-	cronID    cron.EntryID
 	namespace string
 	name      string
 	schedule  string
+	cronID    cron.EntryID
 }
 
 // Scheduler manages cron schedules for tentacular workflows.
@@ -33,8 +33,8 @@ type Scheduler struct {
 	cron    *cron.Cron
 	client  *k8s.Client
 	logger  *slog.Logger
+	entries map[string]entry
 	mu      sync.Mutex
-	entries map[string]entry // key: "namespace/name"
 }
 
 // New creates a new Scheduler.
@@ -131,7 +131,7 @@ func (s *Scheduler) trigger(namespace, name string) {
 	}
 
 	// Log a brief summary of the output
-	var result map[string]interface{}
+	var result map[string]any
 	if json.Unmarshal(output, &result) == nil {
 		if success, ok := result["success"].(bool); ok {
 			s.logger.Info("cron trigger completed", "workflow", namespace+"/"+name, "success", success)

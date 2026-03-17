@@ -25,13 +25,13 @@ type NodeConditionInfo struct {
 // HealthNodeInfo is a single node in the health result.
 type HealthNodeInfo struct {
 	Name           string              `json:"name"`
-	Ready          bool                `json:"ready"`
 	CPUCapacity    string              `json:"cpu_capacity"`
 	MemCapacity    string              `json:"mem_capacity"`
 	CPUAllocatable string              `json:"cpu_allocatable"`
 	MemAllocatable string              `json:"mem_allocatable"`
 	KubeletVersion string              `json:"kubelet_version"`
 	Conditions     []NodeConditionInfo `json:"conditions"`
+	Ready          bool                `json:"ready"`
 }
 
 // HealthNodesResult is the result of health_nodes.
@@ -46,16 +46,16 @@ type HealthNsUsageParams struct {
 
 // HealthNsUsageResult is the result of health_ns_usage.
 type HealthNsUsageResult struct {
-	Namespace  string  `json:"namespace"`
-	CPUUsed    string  `json:"cpu_used"`
-	CPULimit   string  `json:"cpu_limit"`
-	MemUsed    string  `json:"mem_used"`
-	MemLimit   string  `json:"mem_limit"`
-	PodCount   int64   `json:"pod_count"`
-	PodLimit   int64   `json:"pod_limit"`
-	CPUPct     float64 `json:"cpu_pct"`
-	MemPct     float64 `json:"mem_pct"`
-	PodPct     float64 `json:"pod_pct"`
+	Namespace string  `json:"namespace"`
+	CPUUsed   string  `json:"cpu_used"`
+	CPULimit  string  `json:"cpu_limit"`
+	MemUsed   string  `json:"mem_used"`
+	MemLimit  string  `json:"mem_limit"`
+	PodCount  int64   `json:"pod_count"`
+	PodLimit  int64   `json:"pod_limit"`
+	CPUPct    float64 `json:"cpu_pct"`
+	MemPct    float64 `json:"mem_pct"`
+	PodPct    float64 `json:"pod_pct"`
 }
 
 // HealthClusterSummaryParams are the parameters for health_cluster_summary (empty, cluster-scoped).
@@ -63,15 +63,15 @@ type HealthClusterSummaryParams struct{}
 
 // HealthClusterSummaryResult is the result of health_cluster_summary.
 type HealthClusterSummaryResult struct {
-	TotalNodes     int    `json:"total_nodes"`
-	ReadyNodes     int    `json:"ready_nodes"`
-	TotalPods      int    `json:"total_pods"`
 	CPUCapacity    string `json:"cpu_capacity"`
 	CPUAllocatable string `json:"cpu_allocatable"`
 	CPURequested   string `json:"cpu_requested"`
 	MemCapacity    string `json:"mem_capacity"`
 	MemAllocatable string `json:"mem_allocatable"`
 	MemRequested   string `json:"mem_requested"`
+	TotalNodes     int    `json:"total_nodes"`
+	ReadyNodes     int    `json:"ready_nodes"`
+	TotalPods      int    `json:"total_pods"`
 }
 
 func registerHealthTools(srv *mcp.Server, client *k8s.Client) {

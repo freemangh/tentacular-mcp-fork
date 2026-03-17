@@ -1,0 +1,92 @@
+# Development profile - single-node dev cluster
+# Usage: helm install tentacular charts/tentacular-platform/ \
+#   -f charts/tentacular-platform/ci/dev-values.yaml \
+#   -n tentacular-system --create-namespace
+global:
+  domain: dev.tentacular.local
+
+namespaces:
+  system:
+    create: true
+  exoskeleton:
+    create: true
+  support:
+    create: true
+
+networkPolicies:
+  enabled: true
+
+postgresql:
+  enabled: true
+  image:
+    # Bitnami removed versioned tags; use latest until chart is updated
+    tag: latest
+  auth:
+    password: dev-postgres-password
+  primary:
+    persistence:
+      # Use emptyDir for dev clusters without a StorageClass.
+      # Data is lost on pod restart — acceptable for development.
+      enabled: false
+
+nats:
+  enabled: true
+  config:
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        dir: /data
+        pvc:
+          # Use emptyDir for dev clusters without a StorageClass.
+          # JetStream data is lost on pod restart — acceptable for development.
+          enabled: false
+    merge:
+      authorization:
+        token: "dev-nats-token"
+
+cert-manager:
+  enabled: false
+
+tls:
+  clusterIssuers:
+    create: false
+
+tentacular-mcp:
+  enabled: true
+  namespace:
+    create: false
+  auth:
+    token: "dev-mcp-auth-token"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  exoskeletonSecretName: tentacular-exoskeleton-config
+  extraEnvFrom:
+    - configMapRef:
+        name: tentacular-proxy-config
+        optional: true
+
+exoskeleton:
+  enabled: true
+  postgresSSLMode: "disable"
+
+esm-sh:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 125m
+      memory: 128Mi
+
+ingress:
+  mode: nodeport
+  nodeport:
+    mcp: 30080

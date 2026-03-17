@@ -2,10 +2,11 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
@@ -43,11 +44,25 @@ var allowedKinds = map[string]bool{
 	"Ingress":               true,
 }
 
+// knownGVRs is the set of GroupVersionResources used for garbage collection,
+// removal, and status checks across workflow lifecycle operations.
+var knownGVRs = []schema.GroupVersionResource{
+	{Group: "apps", Version: "v1", Resource: "deployments"},
+	{Group: "", Version: "v1", Resource: "services"},
+	{Group: "", Version: "v1", Resource: "configmaps"},
+	{Group: "", Version: "v1", Resource: "secrets"},
+	{Group: "batch", Version: "v1", Resource: "jobs"},
+	{Group: "batch", Version: "v1", Resource: "cronjobs"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+	{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+}
+
 // WorkflowApplyParams are the parameters for wf_apply.
 type WorkflowApplyParams struct {
-	Namespace string                   `json:"namespace" jsonschema:"Target namespace for the workflow"`
-	Name      string                   `json:"name" jsonschema:"Deployment name for tracking resources"`
-	Manifests []map[string]interface{} `json:"manifests" jsonschema:"List of Kubernetes manifest objects to apply"`
+	Namespace string           `json:"namespace" jsonschema:"Target namespace for the workflow"`
+	Name      string           `json:"name" jsonschema:"Deployment name for tracking resources"`
+	Manifests []map[string]any `json:"manifests" jsonschema:"List of Kubernetes manifest objects to apply"`
 }
 
 // WorkflowApplyResult is the result of wf_apply.
@@ -69,9 +84,9 @@ type WorkflowRemoveParams struct {
 type WorkflowRemoveResult struct {
 	Name              string `json:"name"`
 	Namespace         string `json:"namespace"`
+	ExoCleanupDetails string `json:"exo_cleanup_details,omitempty"`
 	Deleted           int    `json:"deleted"`
 	ExoCleanedUp      bool   `json:"exo_cleaned_up,omitempty"`
-	ExoCleanupDetails string `json:"exo_cleanup_details,omitempty"`
 }
 
 // WorkflowStatusParams are the parameters for wf_status.
@@ -85,16 +100,16 @@ type WorkflowStatusParams struct {
 type WorkflowResourceStatus struct {
 	Kind   string `json:"kind"`
 	Name   string `json:"name"`
-	Ready  bool   `json:"ready"`
 	Reason string `json:"reason,omitempty"`
+	Ready  bool   `json:"ready"`
 }
 
 // WorkflowPodInfo is a single pod in the status response.
 type WorkflowPodInfo struct {
 	Name     string `json:"name"`
 	Phase    string `json:"phase"`
-	Ready    bool   `json:"ready"`
 	NodeName string `json:"nodeName,omitempty"`
+	Ready    bool   `json:"ready"`
 }
 
 // WorkflowEventInfo is a single event in the status response.
@@ -110,12 +125,12 @@ type WorkflowStatusResult struct {
 	Name      string                   `json:"name"`
 	Namespace string                   `json:"namespace"`
 	Version   string                   `json:"version,omitempty"`
-	Ready     bool                     `json:"ready"`
-	Replicas  int32                    `json:"replicas"`
-	Available int32                    `json:"available"`
 	Resources []WorkflowResourceStatus `json:"resources"`
 	Pods      []WorkflowPodInfo        `json:"pods,omitempty"`
 	Events    []WorkflowEventInfo      `json:"events,omitempty"`
+	Replicas  int32                    `json:"replicas"`
+	Available int32                    `json:"available"`
+	Ready     bool                     `json:"ready"`
 }
 
 func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.Scheduler, exoCtrl *exoskeleton.Controller) {
@@ -124,6 +139,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		Description: "Apply a set of Kubernetes manifests as a named deployment in a namespace. Uses release labels for tracking and garbage collection.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WorkflowApplyParams) (*mcp.CallToolResult, WorkflowApplyResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WorkflowApplyResult{}, err
+		}
+		if err := guard.CheckName(params.Name); err != nil {
 			return nil, WorkflowApplyResult{}, err
 		}
 
@@ -164,8 +182,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 				if proxyNS == "" {
 					proxyNS = defaultProxyNamespace
 				}
-				go func() {
-					bgCtx := context.Background()
+				go func() { //nolint:gosec,contextcheck // G118: goroutine intentionally outlives the request to pre-warm modules in the background
+					bgCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+					defer cancel()
 					if prewarmErr := k8s.PrewarmModules(bgCtx, client, proxyNS, deps); prewarmErr != nil {
 						slog.Warn("module pre-warm completed with errors", "error", prewarmErr)
 					}
@@ -180,6 +199,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		Description: "Remove all resources belonging to a named deployment in a namespace.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WorkflowRemoveParams) (*mcp.CallToolResult, WorkflowRemoveResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WorkflowRemoveResult{}, err
+		}
+		if err := guard.CheckName(params.Name); err != nil {
 			return nil, WorkflowRemoveResult{}, err
 		}
 		if sched != nil {
@@ -207,13 +229,16 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
 			return nil, WorkflowStatusResult{}, err
 		}
+		if err := guard.CheckName(params.Name); err != nil {
+			return nil, WorkflowStatusResult{}, err
+		}
 		result, err := handleWorkflowStatus(ctx, client, params)
 		return nil, result, err
 	})
 }
 
 // resolveGVR derives the GroupVersionResource from apiVersion and kind using the discovery client.
-func resolveGVR(ctx context.Context, client *k8s.Client, apiVersion, kind string) (schema.GroupVersionResource, error) {
+func resolveGVR(_ context.Context, client *k8s.Client, apiVersion, kind string) (schema.GroupVersionResource, error) {
 	_, resourceLists, err := client.Clientset.Discovery().ServerGroupsAndResources()
 	if err != nil && resourceLists == nil {
 		return schema.GroupVersionResource{}, fmt.Errorf("discovery failed: %w", err)
@@ -246,10 +271,116 @@ func resourceKey(gvr schema.GroupVersionResource, name string) string {
 	return fmt.Sprintf("%s/%s/%s", gvr.Group, gvr.Resource, name)
 }
 
+// ensurePSACompliance ensures Deployment, Job, and CronJob manifests have
+// PSA-compliant security contexts. Required fields are added only when absent
+// so user-specified values are preserved. This prevents rejection by PSA
+// restricted enforcement on managed namespaces.
+func ensurePSACompliance(manifests []map[string]any) {
+	for _, m := range manifests {
+		kind, _, _ := unstructured.NestedString(m, "kind")
+
+		var podSpecPath []string
+		switch kind {
+		case "Deployment", "Job":
+			podSpecPath = []string{"spec", "template", "spec"}
+		case "CronJob":
+			podSpecPath = []string{"spec", "jobTemplate", "spec", "template", "spec"}
+		default:
+			continue
+		}
+
+		ensurePodSpecPSA(m, podSpecPath)
+	}
+}
+
+// ensurePodSpecPSA sets PSA-restricted security context defaults on a PodSpec
+// at the given path. It only sets fields that are not already present.
+func ensurePodSpecPSA(obj map[string]any, podSpecPath []string) {
+	// Pod-level security context.
+	scPath := append(append([]string{}, podSpecPath...), "securityContext")
+	setIfAbsent(obj, true, append(append([]string{}, scPath...), "runAsNonRoot")...)
+	setIfAbsent(obj, "RuntimeDefault", append(append([]string{}, scPath...), "seccompProfile", "type")...)
+
+	// Container-level security contexts (containers and initContainers).
+	needsTmpVolume := false
+	for _, field := range []string{"containers", "initContainers"} {
+		containersRaw, found, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), field)...)
+		if !found {
+			continue
+		}
+
+		for i, cRaw := range containersRaw {
+			c, ok := cRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			prefix := []string{"securityContext"}
+			setIfAbsent(c, false, append(append([]string{}, prefix...), "allowPrivilegeEscalation")...)
+			setIfAbsent(c, true, append(append([]string{}, prefix...), "readOnlyRootFilesystem")...)
+			setIfAbsent(c, true, append(append([]string{}, prefix...), "runAsNonRoot")...)
+			setIfAbsent(c, []any{"ALL"}, append(append([]string{}, prefix...), "capabilities", "drop")...)
+			setIfAbsent(c, "RuntimeDefault", append(append([]string{}, prefix...), "seccompProfile", "type")...)
+
+			// Check if this container already has a /tmp volumeMount.
+			vms, _, _ := unstructured.NestedSlice(c, "volumeMounts")
+			containerHasTmp := false
+			for _, vm := range vms {
+				vmMap, ok := vm.(map[string]any)
+				if ok && vmMap["mountPath"] == "/tmp" {
+					containerHasTmp = true
+					needsTmpVolume = true
+				}
+			}
+
+			// Add /tmp volumeMount if readOnlyRootFilesystem is set and no /tmp mount exists.
+			roFS, _, _ := unstructured.NestedBool(c, "securityContext", "readOnlyRootFilesystem")
+			if roFS && !containerHasTmp {
+				vms = append(vms, map[string]any{
+					"name":      "tmp",
+					"mountPath": "/tmp",
+				})
+				_ = unstructured.SetNestedSlice(c, vms, "volumeMounts")
+				needsTmpVolume = true
+			}
+
+			containersRaw[i] = c
+		}
+		_ = unstructured.SetNestedSlice(obj, containersRaw, append(append([]string{}, podSpecPath...), field)...)
+	}
+
+	// Add tmp emptyDir volume if any container got a /tmp mount.
+	if needsTmpVolume {
+		volumes, _, _ := unstructured.NestedSlice(obj, append(append([]string{}, podSpecPath...), "volumes")...)
+		hasTmpVol := false
+		for _, v := range volumes {
+			vMap, ok := v.(map[string]any)
+			if ok && vMap["name"] == "tmp" {
+				hasTmpVol = true
+				break
+			}
+		}
+		if !hasTmpVol {
+			volumes = append(volumes, map[string]any{
+				"name":     "tmp",
+				"emptyDir": map[string]any{},
+			})
+			_ = unstructured.SetNestedSlice(obj, volumes, append(append([]string{}, podSpecPath...), "volumes")...)
+		}
+	}
+}
+
+// setIfAbsent sets a nested field only when it does not already exist.
+func setIfAbsent(obj map[string]any, value any, fields ...string) {
+	_, found, _ := unstructured.NestedFieldNoCopy(obj, fields...)
+	if !found {
+		_ = unstructured.SetNestedField(obj, value, fields...)
+	}
+}
+
 // handleWorkflowApply applies a set of Kubernetes manifests as a named deployment.
 //
 // ConfigMap data integrity note: large string values in ConfigMap data are NOT
-// truncated server-side. The manifest map[string]interface{} is wrapped directly
+// truncated server-side. The manifest map[string]any is wrapped directly
 // in unstructured.Unstructured and passed to the dynamic client without any JSON
 // round-trip or size limit in this function. If ConfigMap data appears truncated,
 // the cause is client-side (e.g. the LLM generating incomplete manifests), not
@@ -258,6 +389,9 @@ func handleWorkflowApply(ctx context.Context, client *k8s.Client, params Workflo
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowApplyResult{}, err
 	}
+
+	// Ensure all workload manifests have PSA-compliant security contexts.
+	ensurePSACompliance(params.Manifests)
 
 	created, updated, deleted := 0, 0, 0
 	appliedKeys := make(map[string]bool)
@@ -268,7 +402,7 @@ func handleWorkflowApply(ctx context.Context, client *k8s.Client, params Workflo
 		apiVersion := obj.GetAPIVersion()
 		kind := obj.GetKind()
 		if apiVersion == "" || kind == "" {
-			return WorkflowApplyResult{}, fmt.Errorf("manifest missing apiVersion or kind")
+			return WorkflowApplyResult{}, errors.New("manifest missing apiVersion or kind")
 		}
 
 		if !allowedKinds[kind] {
@@ -320,19 +454,6 @@ func handleWorkflowApply(ctx context.Context, client *k8s.Client, params Workflo
 	}
 
 	// Garbage collect: delete previously-labeled resources not in new manifest set
-	// We need to list resources across known types that may carry the release label
-	knownGVRs := []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-	}
-
 	labelSelector := fmt.Sprintf("%s=%s", releaseLabelKey, params.Name)
 	for _, gvr := range knownGVRs {
 		list, err := client.Dynamic.Resource(gvr).Namespace(params.Namespace).List(ctx, metav1.ListOptions{
@@ -366,17 +487,6 @@ func handleWorkflowRemove(ctx context.Context, client *k8s.Client, params Workfl
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowRemoveResult{}, err
 	}
-	knownGVRs := []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-	}
 
 	labelSelector := fmt.Sprintf("%s=%s", releaseLabelKey, params.Name)
 	deleted := 0
@@ -408,17 +518,6 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 	if err := k8s.CheckManagedNamespace(ctx, client, params.Namespace); err != nil {
 		return WorkflowStatusResult{}, err
 	}
-	knownGVRs := []schema.GroupVersionResource{
-		{Group: "apps", Version: "v1", Resource: "deployments"},
-		{Group: "", Version: "v1", Resource: "services"},
-		{Group: "", Version: "v1", Resource: "configmaps"},
-		{Group: "", Version: "v1", Resource: "secrets"},
-		{Group: "batch", Version: "v1", Resource: "jobs"},
-		{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
-		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
-	}
 
 	labelSelector := fmt.Sprintf("%s=%s", releaseLabelKey, params.Name)
 	resources := []WorkflowResourceStatus{}
@@ -433,7 +532,7 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 		for _, item := range list.Items {
 			ready, reason := resourceReadiness(item, gvr.Resource)
 			resources = append(resources, WorkflowResourceStatus{
-				Kind:   strings.ToTitle(gvr.Resource[:1]) + gvr.Resource[1:],
+				Kind:   item.GetKind(),
 				Name:   item.GetName(),
 				Ready:  ready,
 				Reason: reason,
@@ -450,9 +549,15 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 	// Get deployment replicas and version from the typed API for accurate status
 	deploy, err := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 	if err == nil {
-		result.Replicas = *deploy.Spec.Replicas
+		replicas := replicaCount(deploy.Spec.Replicas)
+		result.Replicas = replicas
 		result.Available = deploy.Status.AvailableReplicas
-		result.Ready = deploy.Status.AvailableReplicas >= *deploy.Spec.Replicas && *deploy.Spec.Replicas > 0
+		if deploy.Spec.Replicas != nil && replicas == 0 {
+			// Deliberately scaled to zero — the desired state is met.
+			result.Ready = true
+		} else {
+			result.Ready = deploy.Status.AvailableReplicas >= replicas
+		}
 		if v, ok := deploy.Labels["app.kubernetes.io/version"]; ok {
 			result.Version = v
 		}
@@ -482,7 +587,7 @@ func handleWorkflowStatus(ctx context.Context, client *k8s.Client, params Workfl
 		}
 
 		eventList, err := client.Clientset.CoreV1().Events(params.Namespace).List(ctx, metav1.ListOptions{
-			FieldSelector: fmt.Sprintf("involvedObject.name=%s", params.Name),
+			FieldSelector: "involvedObject.name=" + params.Name,
 		})
 		if err == nil {
 			for _, e := range eventList.Items {
@@ -504,9 +609,13 @@ func resourceReadiness(obj unstructured.Unstructured, resource string) (bool, st
 	switch resource {
 	case "deployments":
 		readyReplicas, _, _ := unstructured.NestedInt64(obj.Object, "status", "readyReplicas")
-		replicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "replicas")
-		if replicas == 0 {
-			replicas = 1
+		replicas, found, _ := unstructured.NestedInt64(obj.Object, "spec", "replicas")
+		if !found {
+			replicas = 1 // Kubernetes defaults omitted replicas to 1
+		}
+		if found && replicas == 0 {
+			// Deliberately scaled to zero — the desired state is met.
+			return true, ""
 		}
 		if readyReplicas >= replicas {
 			return true, ""
@@ -515,7 +624,7 @@ func resourceReadiness(obj unstructured.Unstructured, resource string) (bool, st
 	case "jobs":
 		conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
 		for _, c := range conditions {
-			cond, ok := c.(map[string]interface{})
+			cond, ok := c.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -552,7 +661,7 @@ type dependencyYAML struct {
 // extractModuleDeps inspects the manifests for a ConfigMap containing
 // workflow.yaml and parses jsr/npm entries from contract.dependencies.
 // Returns the unique set of module dependencies to pre-warm.
-func extractModuleDeps(manifests []map[string]interface{}) []k8s.ModuleDep {
+func extractModuleDeps(manifests []map[string]any) []k8s.ModuleDep {
 	for _, m := range manifests {
 		obj := &unstructured.Unstructured{Object: m}
 		if obj.GetKind() != "ConfigMap" {
@@ -606,7 +715,7 @@ func syncCronSchedule(ctx context.Context, client *k8s.Client, sched *scheduler.
 		return
 	}
 
-	if err := sched.Register(namespace, name, schedule); err != nil {
+	if err := sched.Register(namespace, name, schedule); err != nil { //nolint:contextcheck // Register is a cron-scheduler method that does not accept context
 		slog.Warn("failed to register cron schedule", "workflow", namespace+"/"+name, "error", err)
 	}
 }

@@ -14,14 +14,16 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 )
 
+const testKeyID = "test-key-1"
+
 // testKeycloakServer creates an httptest.Server that serves OIDC discovery
 // and JWKS endpoints using the given RSA key.
-func testKeycloakServer(t *testing.T, key *rsa.PrivateKey, keyID string) *httptest.Server {
+func testKeycloakServer(t *testing.T, key *rsa.PrivateKey) *httptest.Server {
 	t.Helper()
 
 	jwk := jose.JSONWebKey{
 		Key:       &key.PublicKey,
-		KeyID:     keyID,
+		KeyID:     testKeyID,
 		Algorithm: string(jose.RS256),
 		Use:       "sig",
 	}
@@ -33,20 +35,20 @@ func testKeycloakServer(t *testing.T, key *rsa.PrivateKey, keyID string) *httpte
 	var issuerURL string
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		discovery := map[string]interface{}{
-			"issuer":                 issuerURL,
-			"authorization_endpoint": issuerURL + "/protocol/openid-connect/auth",
-			"token_endpoint":         issuerURL + "/protocol/openid-connect/token",
-			"jwks_uri":               issuerURL + "/protocol/openid-connect/certs",
+		discovery := map[string]any{
+			"issuer":                                issuerURL,
+			"authorization_endpoint":                issuerURL + "/protocol/openid-connect/auth",
+			"token_endpoint":                        issuerURL + "/protocol/openid-connect/token",
+			"jwks_uri":                              issuerURL + "/protocol/openid-connect/certs",
 			"id_token_signing_alg_values_supported": []string{"RS256"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(discovery)
+		_ = json.NewEncoder(w).Encode(discovery)
 	})
 
 	mux.HandleFunc("/protocol/openid-connect/certs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(jwks)
+		_ = json.NewEncoder(w).Encode(jwks)
 	})
 
 	srv := httptest.NewServer(mux)
@@ -55,11 +57,11 @@ func testKeycloakServer(t *testing.T, key *rsa.PrivateKey, keyID string) *httpte
 }
 
 // signToken creates a signed JWT with the given claims using the provided key.
-func signToken(t *testing.T, key *rsa.PrivateKey, keyID string, claims map[string]interface{}) string {
+func signToken(t *testing.T, key *rsa.PrivateKey, claims map[string]any) string {
 	t.Helper()
 
 	signerOpts := jose.SignerOptions{}
-	signerOpts.WithHeader(jose.HeaderKey("kid"), keyID)
+	signerOpts.WithHeader(jose.HeaderKey("kid"), testKeyID)
 	signerOpts.WithType("JWT")
 
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, &signerOpts)
@@ -90,34 +92,33 @@ func TestOIDCValidator_ValidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := NewOIDCValidator(AuthConfig{
-		Enabled:  true,
+		Enabled:   true,
 		IssuerURL: srv.URL,
-		ClientID: "tentacular-mcp",
+		ClientID:  "tentacular-mcp",
 	})
 	if err != nil {
 		t.Fatalf("create validator: %v", err)
 	}
 
 	now := time.Now()
-	claims := map[string]interface{}{
-		"iss":                srv.URL,
-		"aud":                "tentacular-mcp",
-		"sub":                "user-123",
-		"email":              "user@example.com",
-		"name":               "Test User",
-		"azp":                "tentacular-mcp",
-		"identity_provider":  "google",
-		"iat":                jwt.NewNumericDate(now),
-		"exp":                jwt.NewNumericDate(now.Add(time.Hour)),
+	claims := map[string]any{
+		"iss":               srv.URL,
+		"aud":               "tentacular-mcp",
+		"sub":               "user-123",
+		"email":             "user@example.com",
+		"name":              "Test User",
+		"azp":               "tentacular-mcp",
+		"identity_provider": "google",
+		"iat":               jwt.NewNumericDate(now),
+		"exp":               jwt.NewNumericDate(now.Add(time.Hour)),
 	}
 
-	token := signToken(t, key, keyID, claims)
+	token := signToken(t, key, claims)
 
 	deployer, err := validator.ValidateToken(context.Background(), token)
 	if err != nil {
@@ -143,22 +144,21 @@ func TestOIDCValidator_ExpiredToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := NewOIDCValidator(AuthConfig{
-		Enabled:  true,
+		Enabled:   true,
 		IssuerURL: srv.URL,
-		ClientID: "tentacular-mcp",
+		ClientID:  "tentacular-mcp",
 	})
 	if err != nil {
 		t.Fatalf("create validator: %v", err)
 	}
 
 	past := time.Now().Add(-2 * time.Hour)
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"iss": srv.URL,
 		"aud": "tentacular-mcp",
 		"sub": "user-123",
@@ -166,7 +166,7 @@ func TestOIDCValidator_ExpiredToken(t *testing.T) {
 		"exp": jwt.NewNumericDate(past.Add(time.Hour)), // expired 1 hour ago
 	}
 
-	token := signToken(t, key, keyID, claims)
+	token := signToken(t, key, claims)
 
 	_, err = validator.ValidateToken(context.Background(), token)
 	if err == nil {
@@ -179,22 +179,21 @@ func TestOIDCValidator_WrongAudience(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := NewOIDCValidator(AuthConfig{
-		Enabled:  true,
+		Enabled:   true,
 		IssuerURL: srv.URL,
-		ClientID: "tentacular-mcp",
+		ClientID:  "tentacular-mcp",
 	})
 	if err != nil {
 		t.Fatalf("create validator: %v", err)
 	}
 
 	now := time.Now()
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"iss": srv.URL,
 		"aud": "wrong-client",
 		"sub": "user-123",
@@ -202,7 +201,7 @@ func TestOIDCValidator_WrongAudience(t *testing.T) {
 		"exp": jwt.NewNumericDate(now.Add(time.Hour)),
 	}
 
-	token := signToken(t, key, keyID, claims)
+	token := signToken(t, key, claims)
 
 	_, err = validator.ValidateToken(context.Background(), token)
 	if err == nil {
@@ -216,22 +215,21 @@ func TestOIDCValidator_KeycloakProviderFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	keyID := "test-key-1"
 
-	srv := testKeycloakServer(t, key, keyID)
+	srv := testKeycloakServer(t, key)
 	defer srv.Close()
 
 	validator, err := NewOIDCValidator(AuthConfig{
-		Enabled:  true,
+		Enabled:   true,
 		IssuerURL: srv.URL,
-		ClientID: "tentacular-mcp",
+		ClientID:  "tentacular-mcp",
 	})
 	if err != nil {
 		t.Fatalf("create validator: %v", err)
 	}
 
 	now := time.Now()
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"iss":   srv.URL,
 		"aud":   "tentacular-mcp",
 		"sub":   "user-456",
@@ -241,7 +239,7 @@ func TestOIDCValidator_KeycloakProviderFallback(t *testing.T) {
 		"exp":   jwt.NewNumericDate(now.Add(time.Hour)),
 	}
 
-	token := signToken(t, key, keyID, claims)
+	token := signToken(t, key, claims)
 
 	deployer, err := validator.ValidateToken(context.Background(), token)
 	if err != nil {

@@ -31,7 +31,7 @@ func DeployerFromContext(ctx context.Context) *exoskeleton.DeployerInfo {
 
 // LoadToken reads the bearer token from the given file path.
 func LoadToken(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from server configuration, not user input
 	if err != nil {
 		return "", fmt.Errorf("read token file %s: %w", path, err)
 	}

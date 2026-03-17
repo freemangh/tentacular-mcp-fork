@@ -5,16 +5,28 @@ import (
 	"fmt"
 )
 
+// Label and naming constants used across the exoskeleton subsystem.
+const (
+	// ExoskeletonLabel is the label key marking a Secret as exoskeleton-managed.
+	ExoskeletonLabel = "tentacular.io/exoskeleton"
+
+	// ReleaseLabel is the label key holding the workflow name.
+	ReleaseLabel = "tentacular.io/release"
+
+	// ExoskeletonSecretPrefix is the naming prefix for exoskeleton credential Secrets.
+	ExoskeletonSecretPrefix = "tentacular-exoskeleton-"
+)
+
 // BuildSecretManifest constructs a Kubernetes Secret manifest containing
 // exoskeleton credentials for a workflow deployment. Each enabled service
 // gets a JSON-encoded entry keyed by service name.
 //
 // The returned manifest is an unstructured map suitable for inclusion in
 // the wf_apply manifest list.
-func BuildSecretManifest(namespace, workflow string, creds map[string]interface{}) (map[string]interface{}, error) {
-	secretName := "tentacular-exoskeleton-" + workflow
+func BuildSecretManifest(namespace, workflow string, creds map[string]any) (map[string]any, error) {
+	secretName := ExoskeletonSecretPrefix + workflow
 
-	stringData := make(map[string]interface{})
+	stringData := make(map[string]any)
 	for svcName, svcCreds := range creds {
 		// Marshal per-service creds to a flat key-value map.
 		switch c := svcCreds.(type) {
@@ -60,15 +72,15 @@ func BuildSecretManifest(namespace, workflow string, creds map[string]interface{
 	stringData["tentacular-identity.namespace"] = namespace
 	stringData["tentacular-identity.workflow"] = workflow
 
-	return map[string]interface{}{
+	return map[string]any{
 		"apiVersion": "v1",
 		"kind":       "Secret",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      secretName,
 			"namespace": namespace,
-			"labels": map[string]interface{}{
-				"tentacular.io/release":     workflow,
-				"tentacular.io/exoskeleton": "true",
+			"labels": map[string]any{
+				ReleaseLabel:     workflow,
+				ExoskeletonLabel: "true",
 			},
 		},
 		"type":       "Opaque",

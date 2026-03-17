@@ -19,8 +19,8 @@ func CreateNamespace(ctx context.Context, client *Client, name string) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				ManagedByLabel:                          ManagedByValue,
-				"pod-security.kubernetes.io/enforce":    "restricted",
+				ManagedByLabel:                               ManagedByValue,
+				"pod-security.kubernetes.io/enforce":         "restricted",
 				"pod-security.kubernetes.io/enforce-version": "latest",
 			},
 		},

@@ -21,9 +21,9 @@ type WfRunParams struct {
 
 // WfRunResult is the result of wf_run.
 type WfRunResult struct {
+	Output     map[string]any `json:"output"`
 	Name       string         `json:"name"`
 	Namespace  string         `json:"namespace"`
-	Output     map[string]any `json:"output"`
 	DurationMs int64          `json:"duration_ms"`
 }
 
@@ -33,6 +33,9 @@ func registerRunTools(srv *mcp.Server, client *k8s.Client) {
 		Description: "Trigger a deployed workflow by POSTing directly to its /run endpoint via HTTP. The MCP server connects to the workflow's ClusterIP service; NetworkPolicy allows ingress from tentacular-system via namespaceSelector. Returns the JSON output from the workflow.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params WfRunParams) (*mcp.CallToolResult, WfRunResult, error) {
 		if err := guard.CheckNamespace(params.Namespace); err != nil {
+			return nil, WfRunResult{}, err
+		}
+		if err := guard.CheckName(params.Name); err != nil {
 			return nil, WfRunResult{}, err
 		}
 		result, err := handleWfRun(ctx, client, params)

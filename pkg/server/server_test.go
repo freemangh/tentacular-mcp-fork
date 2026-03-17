@@ -18,7 +18,7 @@ import (
 
 const testServerToken = "server-test-token-xyz"
 
-func newTestServer(t *testing.T) (*server.Server, *httptest.Server) {
+func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	cs := fake.NewClientset()
 	client := k8s.NewClientFromConfig(cs, nil, &rest.Config{Host: "https://fake:6443"}, nil)
@@ -32,11 +32,11 @@ func newTestServer(t *testing.T) (*server.Server, *httptest.Server) {
 
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
-	return srv, ts
+	return ts
 }
 
 func TestHealthEndpoint_Returns200(t *testing.T) {
-	_, ts := newTestServer(t)
+	ts := newTestServer(t)
 
 	resp, err := ts.Client().Get(ts.URL + "/healthz")
 	if err != nil {
@@ -50,7 +50,7 @@ func TestHealthEndpoint_Returns200(t *testing.T) {
 }
 
 func TestHealthEndpoint_JSONBody(t *testing.T) {
-	_, ts := newTestServer(t)
+	ts := newTestServer(t)
 
 	resp, err := ts.Client().Get(ts.URL + "/healthz")
 	if err != nil {
@@ -68,7 +68,7 @@ func TestHealthEndpoint_JSONBody(t *testing.T) {
 }
 
 func TestMCPEndpoint_RequiresAuth(t *testing.T) {
-	_, ts := newTestServer(t)
+	ts := newTestServer(t)
 
 	// POST to /mcp without auth should be 401.
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/mcp", nil)
@@ -84,7 +84,7 @@ func TestMCPEndpoint_RequiresAuth(t *testing.T) {
 }
 
 func TestMCPEndpoint_WithValidToken(t *testing.T) {
-	_, ts := newTestServer(t)
+	ts := newTestServer(t)
 
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/mcp", nil)
 	req.Header.Set("Authorization", "Bearer "+testServerToken)

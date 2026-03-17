@@ -2,6 +2,7 @@ package exoskeleton
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -10,14 +11,10 @@ import (
 
 // AuthConfig holds OIDC/Keycloak authentication configuration.
 type AuthConfig struct {
-	// Enabled is the master toggle for SSO authentication.
-	Enabled bool
-	// IssuerURL is the Keycloak realm URL used for OIDC discovery.
-	IssuerURL string
-	// ClientID is the OIDC client identifier.
-	ClientID string
-	// ClientSecret is the OIDC client secret.
+	IssuerURL    string
+	ClientID     string
 	ClientSecret string
+	Enabled      bool
 }
 
 // DeployerInfo contains identity information extracted from an OIDC token
@@ -43,13 +40,13 @@ type OIDCValidator struct {
 // validates tokens against the configured client ID.
 func NewOIDCValidator(cfg AuthConfig) (*OIDCValidator, error) {
 	if !cfg.Enabled {
-		return nil, fmt.Errorf("OIDC auth is not enabled")
+		return nil, errors.New("OIDC auth is not enabled")
 	}
 	if cfg.IssuerURL == "" {
-		return nil, fmt.Errorf("OIDC issuer URL is required")
+		return nil, errors.New("OIDC issuer URL is required")
 	}
 	if cfg.ClientID == "" {
-		return nil, fmt.Errorf("OIDC client ID is required")
+		return nil, errors.New("OIDC client ID is required")
 	}
 
 	ctx := context.Background()

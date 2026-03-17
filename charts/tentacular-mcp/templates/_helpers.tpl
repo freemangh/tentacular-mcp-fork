@@ -71,6 +71,14 @@ Returns existing secret name if set, otherwise the generated secret name.
 {{- end }}
 
 {{/*
+Namespace: use namespaceOverride if set, otherwise .Release.Namespace.
+This allows umbrella charts to place MCP resources in a specific namespace.
+*/}}
+{{- define "tentacular-mcp.namespace" -}}
+{{- default .Release.Namespace .Values.namespaceOverride }}
+{{- end }}
+
+{{/*
 ServiceAccount name.
 */}}
 {{- define "tentacular-mcp.serviceAccountName" -}}

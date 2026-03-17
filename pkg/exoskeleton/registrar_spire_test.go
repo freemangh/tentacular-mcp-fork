@@ -63,8 +63,8 @@ func TestSPIRERegisterCreatesResource(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := reg.Register(ctx, id, "test-ns"); err != nil {
-		t.Fatalf("Register: %v", err)
+	if regErr := reg.Register(ctx, id, "test-ns"); regErr != nil {
+		t.Fatalf("Register: %v", regErr)
 	}
 
 	// Verify the resource was created.
@@ -123,13 +123,13 @@ func TestSPIRERegisterUpdatesExisting(t *testing.T) {
 	ctx := context.Background()
 
 	// Register once.
-	if err := reg.Register(ctx, id, "test-ns"); err != nil {
-		t.Fatalf("Register (first): %v", err)
+	if regErr := reg.Register(ctx, id, "test-ns"); regErr != nil {
+		t.Fatalf("Register (first): %v", regErr)
 	}
 
 	// Register again (should update, not error).
-	if err := reg.Register(ctx, id, "test-ns"); err != nil {
-		t.Fatalf("Register (second): %v", err)
+	if regErr := reg.Register(ctx, id, "test-ns"); regErr != nil {
+		t.Fatalf("Register (second): %v", regErr)
 	}
 
 	// Verify still only one resource.
@@ -154,13 +154,13 @@ func TestSPIREUnregisterDeletesResource(t *testing.T) {
 	ctx := context.Background()
 
 	// Register first.
-	if err := reg.Register(ctx, id, "test-ns"); err != nil {
-		t.Fatalf("Register: %v", err)
+	if regErr := reg.Register(ctx, id, "test-ns"); regErr != nil {
+		t.Fatalf("Register: %v", regErr)
 	}
 
 	// Unregister.
-	if err := reg.Unregister(ctx, id, "test-ns"); err != nil {
-		t.Fatalf("Unregister: %v", err)
+	if unregErr := reg.Unregister(ctx, id, "test-ns"); unregErr != nil {
+		t.Fatalf("Unregister: %v", unregErr)
 	}
 
 	// Verify the resource is gone.
@@ -182,10 +182,10 @@ func TestSPIREUnregisterNonExistent(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Unregister something that doesn't exist should error.
+	// Unregister something that doesn't exist should be idempotent (no error).
 	err = reg.Unregister(ctx, id, "test-ns")
-	if err == nil {
-		t.Error("expected error when unregistering non-existent resource")
+	if err != nil {
+		t.Errorf("expected no error for non-existent resource, got: %v", err)
 	}
 }
 

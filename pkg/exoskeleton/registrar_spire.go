@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -48,30 +49,27 @@ func (r *SPIRERegistrar) Register(ctx context.Context, id Identity, namespace st
 	name := spireName(namespace, id.Workflow)
 
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "spire.spiffe.io/v1alpha1",
 			"kind":       "ClusterSPIFFEID",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": name,
-				"labels": map[string]interface{}{
+				"labels": map[string]any{
 					"tentacular.io/release":     id.Workflow,
 					"tentacular.io/exoskeleton": "true",
 				},
 			},
-			"spec": map[string]interface{}{
-				"className": r.className,
-				"hint":      id.Workflow,
-				"spiffeIDTemplate": fmt.Sprintf(
-					"spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/tentacles/%s",
-					"{{ index .PodMeta.Labels \"tentacular.io/release\" }}",
-				),
-				"namespaceSelector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+			"spec": map[string]any{
+				"className":        r.className,
+				"hint":             id.Workflow,
+				"spiffeIDTemplate": "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/tentacles/" + "{{ index .PodMeta.Labels \"tentacular.io/release\" }}",
+				"namespaceSelector": map[string]any{
+					"matchLabels": map[string]any{
 						"kubernetes.io/metadata.name": namespace,
 					},
 				},
-				"podSelector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+				"podSelector": map[string]any{
+					"matchLabels": map[string]any{
 						"tentacular.io/release": id.Workflow,
 					},
 				},
@@ -90,6 +88,8 @@ func (r *SPIRERegistrar) Register(ctx context.Context, id Identity, namespace st
 		}
 		slog.Info("spire: updated ClusterSPIFFEID", "name", name, "namespace", namespace, "workflow", id.Workflow)
 		return nil
+	} else if !k8serr.IsNotFound(err) {
+		return fmt.Errorf("get ClusterSPIFFEID %s: %w", name, err)
 	}
 
 	// Create new resource.
@@ -108,6 +108,9 @@ func (r *SPIRERegistrar) Unregister(ctx context.Context, id Identity, namespace 
 
 	err := r.dynamic.Resource(clusterSPIFFEIDGVR).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
 		return fmt.Errorf("delete ClusterSPIFFEID %s: %w", name, err)
 	}
 
@@ -116,7 +119,7 @@ func (r *SPIRERegistrar) Unregister(ctx context.Context, id Identity, namespace 
 }
 
 // Close is a no-op for the SPIRE registrar.
-func (r *SPIRERegistrar) Close() {}
+func (*SPIRERegistrar) Close() {}
 
 // spireName generates the sanitized ClusterSPIFFEID resource name:
 // tentacle-<namespace>-<workflow>. Uses the same sanitization as

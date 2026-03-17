@@ -3,7 +3,6 @@
 // workflow_meta_test.go covers the basic wf_list/wf_describe CRUD paths.
 // This file adds coverage for:
 //   - containsTag: CSV tag matching helper
-//   - derefInt32: nil-safe pointer dereference
 //   - wrapListError / wrapGetError: error message formatting
 //   - deploymentToListEntry: conversion with full metadata and nil annotations
 //   - handleWfList: owner filter, tag filter, tag filter with nil annotations
@@ -56,32 +55,39 @@ func TestContainsTagTrimSpaces(t *testing.T) {
 	}
 }
 
-// --- derefInt32 ---
+// --- replicaCount ---
 
-func TestDerefInt32Nil(t *testing.T) {
-	if derefInt32(nil) != 0 {
-		t.Error("expected 0 for nil pointer")
+func TestReplicaCountNil(t *testing.T) {
+	if replicaCount(nil) != 1 {
+		t.Error("expected 1 for nil pointer (Kubernetes default)")
 	}
 }
 
-func TestDerefInt32Value(t *testing.T) {
-	v := int32(3)
-	if derefInt32(&v) != 3 {
-		t.Errorf("expected 3, got %d", derefInt32(&v))
+func TestReplicaCountValue(t *testing.T) {
+	v := int32(5)
+	if replicaCount(&v) != 5 {
+		t.Errorf("expected 5, got %d", replicaCount(&v))
+	}
+}
+
+func TestReplicaCountZero(t *testing.T) {
+	v := int32(0)
+	if replicaCount(&v) != 0 {
+		t.Error("expected 0 for explicit zero")
 	}
 }
 
 // --- wrapListError / wrapGetError ---
 
 func TestWrapListErrorWithNamespace(t *testing.T) {
-	err := wrapListError("deployments", "my-ns", errFake)
+	err := wrapListError("my-ns", errFake)
 	if !strings.Contains(err.Error(), `namespace "my-ns"`) {
 		t.Errorf("expected namespace in error, got: %v", err)
 	}
 }
 
 func TestWrapListErrorAllNamespaces(t *testing.T) {
-	err := wrapListError("deployments", "", errFake)
+	err := wrapListError("", errFake)
 	if !strings.Contains(err.Error(), "all namespaces") {
 		t.Errorf("expected 'all namespaces' in error, got: %v", err)
 	}
@@ -91,7 +97,7 @@ var errFake = &fakeError{}
 
 type fakeError struct{}
 
-func (e *fakeError) Error() string { return "fake error" }
+func (*fakeError) Error() string { return "fake error" }
 
 // --- deploymentToListEntry ---
 
@@ -161,6 +167,131 @@ func TestDeploymentToListEntryNilAnnotations(t *testing.T) {
 	}
 	if entry.Ready {
 		t.Error("expected Ready=false when ReadyReplicas=0")
+	}
+}
+
+// --- isSystemNamespace ---
+
+func TestIsSystemNamespace(t *testing.T) {
+	tests := []struct {
+		annotations map[string]string
+		name        string
+		ns          string
+		want        bool
+	}{
+		{name: "tentacular-system", ns: "tentacular-system", want: true},
+		{name: "tentacular-support", ns: "tentacular-support", want: true},
+		{name: "tentacular-exoskeleton", ns: "tentacular-exoskeleton", want: true},
+		{name: "kube-system", ns: "kube-system", want: true},
+		{name: "kube-public", ns: "kube-public", want: true},
+		{name: "kube-node-lease", ns: "kube-node-lease", want: true},
+		{name: "default", ns: "default", want: true},
+		{name: "user namespace", ns: "my-workflows"},
+		{name: "annotated system", ns: "custom-infra", annotations: map[string]string{"tentacular.io/system": "true"}, want: true},
+		{name: "annotated non-system", ns: "my-ns", annotations: map[string]string{"tentacular.io/system": "false"}},
+		{name: "tent- prefix not blocked", ns: "tent-user"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isSystemNamespace(tt.ns, tt.annotations)
+			if got != tt.want {
+				t.Errorf("isSystemNamespace(%q, %v) = %v, want %v", tt.ns, tt.annotations, got, tt.want)
+			}
+		})
+	}
+}
+
+// --- wf_list system namespace filtering ---
+
+func TestWfListFiltersSystemNamespaces(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	// Create namespaces
+	userNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "user-workflows"},
+	}
+	systemNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "tentacular-system",
+			Annotations: map[string]string{"tentacular.io/system": "true"},
+		},
+	}
+	annotatedNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "custom-infra",
+			Annotations: map[string]string{"tentacular.io/system": "true"},
+		},
+	}
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, userNs, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, systemNs, metav1.CreateOptions{})
+	_, _ = client.Clientset.CoreV1().Namespaces().Create(ctx, annotatedNs, metav1.CreateOptions{})
+
+	// Create deployments in each namespace
+	for _, ns := range []string{"user-workflows", "tentacular-system", "custom-infra"} {
+		d := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "wf-" + ns,
+				Namespace: ns,
+				Labels:    map[string]string{k8s.ManagedByLabel: k8s.ManagedByValue},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "wf-" + ns}},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "wf-" + ns}},
+					Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "app", Image: "img:v1"}}},
+				},
+			},
+		}
+		_, _ = client.Clientset.AppsV1().Deployments(ns).Create(ctx, d, metav1.CreateOptions{})
+	}
+
+	// List across all namespaces (empty namespace param)
+	result, err := handleWfList(ctx, client, WfListParams{})
+	if err != nil {
+		t.Fatalf("handleWfList: %v", err)
+	}
+
+	// Should only contain user-workflows deployment
+	if len(result.Workflows) != 1 {
+		names := make([]string, len(result.Workflows))
+		for i, w := range result.Workflows {
+			names[i] = w.Namespace + "/" + w.Name
+		}
+		t.Fatalf("expected 1 workflow, got %d: %v", len(result.Workflows), names)
+	}
+	if result.Workflows[0].Namespace != "user-workflows" {
+		t.Errorf("expected namespace user-workflows, got %q", result.Workflows[0].Namespace)
+	}
+}
+
+func TestWfListDoesNotFilterExplicitNamespace(t *testing.T) {
+	client := newWfTestClient()
+	ctx := context.Background()
+
+	d := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-wf",
+			Namespace: "ns-a",
+			Labels:    map[string]string{k8s.ManagedByLabel: k8s.ManagedByValue},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "my-wf"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "my-wf"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "app", Image: "img:v1"}}},
+			},
+		},
+	}
+	_, _ = client.Clientset.AppsV1().Deployments("ns-a").Create(ctx, d, metav1.CreateOptions{})
+
+	// Explicit namespace - no system filtering applies
+	result, err := handleWfList(ctx, client, WfListParams{Namespace: "ns-a"})
+	if err != nil {
+		t.Fatalf("handleWfList: %v", err)
+	}
+	if len(result.Workflows) != 1 {
+		t.Fatalf("expected 1 workflow, got %d", len(result.Workflows))
 	}
 }
 

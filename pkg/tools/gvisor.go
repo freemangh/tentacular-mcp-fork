@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -21,10 +22,10 @@ type GVisorCheckParams struct{}
 
 // GVisorCheckResult is the result of gvisor_check.
 type GVisorCheckResult struct {
-	Available    bool   `json:"available"`
 	RuntimeClass string `json:"runtime_class,omitempty"`
 	Handler      string `json:"handler,omitempty"`
 	Guidance     string `json:"guidance,omitempty"`
+	Available    bool   `json:"available"`
 }
 
 // GVisorAnnotateNsParams are the parameters for gvisor_annotate_ns.
@@ -46,9 +47,9 @@ type GVisorVerifyParams struct {
 
 // GVisorVerifyResult is the result of gvisor_verify.
 type GVisorVerifyResult struct {
-	Verified     bool   `json:"verified"`
 	Output       string `json:"output"`
 	RuntimeClass string `json:"runtime_class"`
+	Verified     bool   `json:"verified"`
 }
 
 func registerGVisorTools(srv *mcp.Server, client *k8s.Client) {
@@ -117,7 +118,7 @@ func handleGVisorAnnotateNs(ctx context.Context, client *k8s.Client, params GVis
 		return GVisorAnnotateNsResult{}, fmt.Errorf("check gVisor availability: %w", err)
 	}
 	if !checkResult.Available {
-		return GVisorAnnotateNsResult{}, fmt.Errorf("gVisor RuntimeClass not found in cluster; install gVisor before applying")
+		return GVisorAnnotateNsResult{}, errors.New("gVisor RuntimeClass not found in cluster; install gVisor before applying")
 	}
 
 	// Patch namespace annotation
@@ -153,7 +154,7 @@ func handleGVisorVerify(ctx context.Context, client *k8s.Client, params GVisorVe
 		return GVisorVerifyResult{}, fmt.Errorf("check gVisor availability: %w", err)
 	}
 	if !checkResult.Available {
-		return GVisorVerifyResult{}, fmt.Errorf("gVisor RuntimeClass not found in cluster")
+		return GVisorVerifyResult{}, errors.New("gVisor RuntimeClass not found in cluster")
 	}
 
 	runtimeClassName := checkResult.RuntimeClass
@@ -208,7 +209,7 @@ func handleGVisorVerify(ctx context.Context, client *k8s.Client, params GVisorVe
 	}
 
 	// Cleanup pod in defer (best-effort)
-	defer func() {
+	defer func() { //nolint:contextcheck // cleanup goroutine intentionally outlives the request context
 		delCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = client.Clientset.CoreV1().Pods(params.Namespace).Delete(delCtx, created.Name, metav1.DeleteOptions{})
@@ -217,9 +218,9 @@ func handleGVisorVerify(ctx context.Context, client *k8s.Client, params GVisorVe
 	// Wait up to 60 seconds for pod to complete
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
-		p, err := client.Clientset.CoreV1().Pods(params.Namespace).Get(ctx, created.Name, metav1.GetOptions{})
-		if err != nil {
-			return GVisorVerifyResult{}, fmt.Errorf("get verification pod status: %w", err)
+		p, getErr := client.Clientset.CoreV1().Pods(params.Namespace).Get(ctx, created.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return GVisorVerifyResult{}, fmt.Errorf("get verification pod status: %w", getErr)
 		}
 		if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
 			break

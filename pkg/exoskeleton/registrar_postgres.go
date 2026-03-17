@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,7 +37,7 @@ func NewPostgresRegistrar(ctx context.Context, cfg PostgresConfig) (*PostgresReg
 		sslMode = "disable"
 	}
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database, sslMode)
+		url.QueryEscape(cfg.User), url.QueryEscape(cfg.Password), cfg.Host, cfg.Port, cfg.Database, sslMode)
 	pool, err := pgxpool.New(ctx, connStr)
 	if err != nil {
 		return nil, fmt.Errorf("postgres admin connect: %w", err)
@@ -78,7 +79,7 @@ func (r *PostgresRegistrar) Register(ctx context.Context, id Identity) (*Postgre
 				ALTER ROLE %s WITH PASSWORD '%s';
 			END IF;
 		END $$`,
-		role, pgIdent(role), escapeLiteral(password),
+		escapeLiteral(role), pgIdent(role), escapeLiteral(password),
 		pgIdent(role), escapeLiteral(password),
 	)
 	if _, err := tx.Exec(ctx, createRole); err != nil {
@@ -158,7 +159,7 @@ func (r *PostgresRegistrar) Unregister(ctx context.Context, id Identity) error {
 		return fmt.Errorf("drop schema %s: %w", schema, err)
 	}
 
-	dropRole := fmt.Sprintf("DROP ROLE IF EXISTS %s", pgIdent(role))
+	dropRole := "DROP ROLE IF EXISTS " + pgIdent(role)
 	if _, err := tx.Exec(ctx, dropRole); err != nil {
 		return fmt.Errorf("drop role %s: %w", role, err)
 	}
@@ -194,15 +195,18 @@ func pgIdent(s string) string {
 	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }
 
-// escapeLiteral escapes single quotes in a Postgres string literal.
+// escapeLiteral escapes single quotes and backslashes in a Postgres string literal.
 func escapeLiteral(s string) string {
-	result := ""
+	var b strings.Builder
 	for _, c := range s {
-		if c == '\'' {
-			result += "''"
-		} else {
-			result += string(c)
+		switch c {
+		case '\'':
+			b.WriteString("''")
+		case '\\':
+			b.WriteString(`\\`)
+		default:
+			b.WriteRune(c)
 		}
 	}
-	return result
+	return b.String()
 }

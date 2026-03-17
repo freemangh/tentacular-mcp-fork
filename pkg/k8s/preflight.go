@@ -11,9 +11,9 @@ import (
 // CheckResult holds the result of a single preflight check.
 type CheckResult struct {
 	Name        string `json:"name"`
-	Passed      bool   `json:"passed"`
 	Warning     string `json:"warning,omitempty"`
 	Remediation string `json:"remediation,omitempty"`
+	Passed      bool   `json:"passed"`
 }
 
 // RunPreflightChecks runs a series of validation checks for the given namespace
@@ -22,7 +22,7 @@ func RunPreflightChecks(ctx context.Context, client *Client, namespace string) (
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 
-	var results []CheckResult
+	results := make([]CheckResult, 0, 4)
 
 	results = append(results, checkAPIReachability(ctx, client))
 	results = append(results, checkNamespaceExists(ctx, client, namespace))
@@ -32,7 +32,7 @@ func RunPreflightChecks(ctx context.Context, client *Client, namespace string) (
 	return results, nil
 }
 
-func checkAPIReachability(ctx context.Context, client *Client) CheckResult {
+func checkAPIReachability(_ context.Context, client *Client) CheckResult {
 	_, err := client.Clientset.Discovery().ServerVersion()
 	if err != nil {
 		return CheckResult{
@@ -52,7 +52,7 @@ func checkNamespaceExists(ctx context.Context, client *Client, namespace string)
 			Name:        "namespace-exists",
 			Passed:      false,
 			Warning:     fmt.Sprintf("namespace %q not found: %v", namespace, err),
-			Remediation: fmt.Sprintf("Create the namespace with: kubectl create namespace %s", namespace),
+			Remediation: "Create the namespace with: kubectl create namespace " + namespace,
 		}
 	}
 	return CheckResult{Name: "namespace-exists", Passed: true}

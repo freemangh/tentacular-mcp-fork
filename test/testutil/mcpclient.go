@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,8 +14,8 @@ import (
 // under test.
 type MCPTestClient struct {
 	server *httptest.Server
-	token  string
 	client *http.Client
+	token  string
 }
 
 // NewMCPTestClient creates a test client pointed at the given httptest.Server.
@@ -29,7 +30,7 @@ func NewMCPTestClient(srv *httptest.Server, token string) *MCPTestClient {
 
 // Get performs an authenticated GET to the given path.
 func (c *MCPTestClient) Get(path string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodGet, c.server.URL+path, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, c.server.URL+path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -40,13 +41,13 @@ func (c *MCPTestClient) Get(path string) (*http.Response, error) {
 }
 
 // PostJSON performs an authenticated POST with a JSON body to the given path.
-func (c *MCPTestClient) PostJSON(path string, body interface{}) (*http.Response, error) {
+func (c *MCPTestClient) PostJSON(path string, body any) (*http.Response, error) {
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.server.URL+path, bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.server.URL+path, bytes.NewReader(b))
 	if err != nil {
 		return nil, err
 	}

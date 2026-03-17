@@ -10,32 +10,32 @@ import (
 
 // makeConfigMapManifest returns a ConfigMap manifest wrapping the given
 // workflow.yaml content.
-func makeConfigMapManifest(wfYAML string) map[string]interface{} {
-	return map[string]interface{}{
+func makeConfigMapManifest(wfYAML string) map[string]any {
+	return map[string]any{
 		"apiVersion": "v1",
 		"kind":       "ConfigMap",
-		"metadata":   map[string]interface{}{"name": "test-code"},
-		"data": map[string]interface{}{
+		"metadata":   map[string]any{"name": "test-code"},
+		"data": map[string]any{
 			"workflow.yaml": wfYAML,
 		},
 	}
 }
 
 // makeDeploymentManifest returns a Deployment manifest with the given args.
-func makeDeploymentManifest(args []string) map[string]interface{} {
-	iArgs := make([]interface{}, len(args))
+func makeDeploymentManifest(args []string) map[string]any {
+	iArgs := make([]any, len(args))
 	for i, a := range args {
 		iArgs[i] = a
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"apiVersion": "apps/v1",
 		"kind":       "Deployment",
-		"metadata":   map[string]interface{}{"name": "test"},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{
-						map[string]interface{}{
+		"metadata":   map[string]any{"name": "test"},
+		"spec": map[string]any{
+			"template": map[string]any{
+				"spec": map[string]any{
+					"containers": []any{
+						map[string]any{
 							"name":  "deno",
 							"image": "denoland/deno:latest",
 							"args":  iArgs,
@@ -62,9 +62,9 @@ nodes:
     path: nodes/ingest.ts
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{
 			Host:     "postgres-postgresql.tentacular-exoskeleton.svc.cluster.local",
 			Port:     "5432",
@@ -81,7 +81,7 @@ nodes:
 	}
 
 	// Extract the updated workflow.yaml.
-	data, ok := cm["data"].(map[string]interface{})
+	data, ok := cm["data"].(map[string]any)
 	if !ok {
 		t.Fatal("expected data map")
 	}
@@ -91,14 +91,14 @@ nodes:
 	}
 
 	// Parse and verify enriched fields.
-	var wf map[string]interface{}
+	var wf map[string]any
 	if err := yaml.Unmarshal([]byte(enrichedYAML), &wf); err != nil {
 		t.Fatalf("parse enriched yaml: %v", err)
 	}
 
-	contract := wf["contract"].(map[string]interface{})
-	deps := contract["dependencies"].(map[string]interface{})
-	pg := deps["tentacular-postgres"].(map[string]interface{})
+	contract := wf["contract"].(map[string]any)
+	deps := contract["dependencies"].(map[string]any)
+	pg := deps["tentacular-postgres"].(map[string]any)
 
 	if pg["host"] != "postgres-postgresql.tentacular-exoskeleton.svc.cluster.local" {
 		t.Errorf("expected enriched host, got %v", pg["host"])
@@ -127,11 +127,11 @@ nodes:
 	if wf["version"] != "1.0" {
 		t.Errorf("expected version preserved, got %v", wf["version"])
 	}
-	triggers, ok := wf["triggers"].([]interface{})
+	triggers, ok := wf["triggers"].([]any)
 	if !ok || len(triggers) != 1 {
 		t.Errorf("expected triggers preserved, got %v", wf["triggers"])
 	}
-	nodes, ok := wf["nodes"].(map[string]interface{})
+	nodes, ok := wf["nodes"].(map[string]any)
 	if !ok {
 		t.Error("expected nodes preserved")
 	}
@@ -149,9 +149,9 @@ contract:
       protocol: nats
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-nats": &NATSCreds{
 			URL:           "nats://nats.tentacular-exoskeleton.svc.cluster.local:4222",
 			Token:         "tok123",
@@ -164,15 +164,15 @@ contract:
 		t.Fatalf("enrichContractDeps: %v", err)
 	}
 
-	data := cm["data"].(map[string]interface{})
-	var wf map[string]interface{}
+	data := cm["data"].(map[string]any)
+	var wf map[string]any
 	if err := yaml.Unmarshal([]byte(data["workflow.yaml"].(string)), &wf); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 
-	contract := wf["contract"].(map[string]interface{})
-	deps := contract["dependencies"].(map[string]interface{})
-	nats := deps["tentacular-nats"].(map[string]interface{})
+	contract := wf["contract"].(map[string]any)
+	deps := contract["dependencies"].(map[string]any)
+	nats := deps["tentacular-nats"].(map[string]any)
 
 	if nats["host"] != "nats.tentacular-exoskeleton.svc.cluster.local" {
 		t.Errorf("expected nats host, got %v", nats["host"])
@@ -194,9 +194,9 @@ contract:
       protocol: s3
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-rustfs": &RustFSCreds{
 			Endpoint:  "http://rustfs-svc.tentacular-exoskeleton.svc.cluster.local:9000",
 			AccessKey: "ak123",
@@ -212,15 +212,15 @@ contract:
 		t.Fatalf("enrichContractDeps: %v", err)
 	}
 
-	data := cm["data"].(map[string]interface{})
-	var wf map[string]interface{}
+	data := cm["data"].(map[string]any)
+	var wf map[string]any
 	if err := yaml.Unmarshal([]byte(data["workflow.yaml"].(string)), &wf); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 
-	contract := wf["contract"].(map[string]interface{})
-	deps := contract["dependencies"].(map[string]interface{})
-	rustfs := deps["tentacular-rustfs"].(map[string]interface{})
+	contract := wf["contract"].(map[string]any)
+	deps := contract["dependencies"].(map[string]any)
+	rustfs := deps["tentacular-rustfs"].(map[string]any)
 
 	if rustfs["host"] != "rustfs-svc.tentacular-exoskeleton.svc.cluster.local" {
 		t.Errorf("expected rustfs host, got %v", rustfs["host"])
@@ -245,16 +245,16 @@ contract:
       protocol: redis
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
-	creds := map[string]interface{}{}
+	creds := map[string]any{}
 
 	if err := enrichContractDeps(manifests, creds); err != nil {
 		t.Fatalf("enrichContractDeps: %v", err)
 	}
 
 	// Should be unchanged.
-	data := cm["data"].(map[string]interface{})
+	data := cm["data"].(map[string]any)
 	if strings.Contains(data["workflow.yaml"].(string), "host:") {
 		t.Error("expected no enrichment for non-tentacular deps")
 	}
@@ -277,9 +277,9 @@ contract:
       host: api.example.com
 `
 	cm := makeConfigMapManifest(wfYAML)
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{
 			Host:     "pg.exo.svc",
 			Port:     "5432",
@@ -310,33 +310,33 @@ contract:
 		t.Fatalf("enrichContractDeps: %v", err)
 	}
 
-	data := cm["data"].(map[string]interface{})
-	var wf map[string]interface{}
+	data := cm["data"].(map[string]any)
+	var wf map[string]any
 	if err := yaml.Unmarshal([]byte(data["workflow.yaml"].(string)), &wf); err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 
-	contract := wf["contract"].(map[string]interface{})
-	deps := contract["dependencies"].(map[string]interface{})
+	contract := wf["contract"].(map[string]any)
+	deps := contract["dependencies"].(map[string]any)
 
 	// Check all three are enriched.
-	pg := deps["tentacular-postgres"].(map[string]interface{})
+	pg := deps["tentacular-postgres"].(map[string]any)
 	if pg["host"] != "pg.exo.svc" {
 		t.Errorf("pg host: %v", pg["host"])
 	}
 
-	nats := deps["tentacular-nats"].(map[string]interface{})
+	nats := deps["tentacular-nats"].(map[string]any)
 	if nats["host"] != "nats.exo.svc" {
 		t.Errorf("nats host: %v", nats["host"])
 	}
 
-	rustfs := deps["tentacular-rustfs"].(map[string]interface{})
+	rustfs := deps["tentacular-rustfs"].(map[string]any)
 	if rustfs["host"] != "rustfs.exo.svc" {
 		t.Errorf("rustfs host: %v", rustfs["host"])
 	}
 
 	// Verify non-tentacular dep is unchanged.
-	api := deps["some-api"].(map[string]interface{})
+	api := deps["some-api"].(map[string]any)
 	if api["host"] != "api.example.com" {
 		t.Errorf("expected some-api host preserved, got %v", api["host"])
 	}
@@ -348,9 +348,9 @@ func TestPatchDeploymentAllowNet(t *testing.T) {
 		"--allow-net=api.example.com:443",
 		"main.ts",
 	})
-	manifests := []map[string]interface{}{dep}
+	manifests := []map[string]any{dep}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{
 			Host: "pg.exo.svc",
 			Port: "5432",
@@ -362,8 +362,8 @@ func TestPatchDeploymentAllowNet(t *testing.T) {
 
 	patchDeploymentAllowNet(manifests, creds)
 
-	containers, _, _ := getContainers(dep)
-	container := containers[0].(map[string]interface{})
+	containers := getContainers(dep)
+	container := containers[0].(map[string]any)
 	args, _ := toStringSlice(container["args"])
 
 	found := false
@@ -392,9 +392,9 @@ func TestPatchDeploymentAllowNet_NoFlag(t *testing.T) {
 		"--allow-net",
 		"main.ts",
 	})
-	manifests := []map[string]interface{}{dep}
+	manifests := []map[string]any{dep}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{
 			Host: "pg.exo.svc",
 			Port: "5432",
@@ -404,8 +404,8 @@ func TestPatchDeploymentAllowNet_NoFlag(t *testing.T) {
 	// --allow-net without = means broad access; should NOT be patched.
 	patchDeploymentAllowNet(manifests, creds)
 
-	containers, _, _ := getContainers(dep)
-	container := containers[0].(map[string]interface{})
+	containers := getContainers(dep)
+	container := containers[0].(map[string]any)
 	args, _ := toStringSlice(container["args"])
 
 	for _, arg := range args {
@@ -417,9 +417,9 @@ func TestPatchDeploymentAllowNet_NoFlag(t *testing.T) {
 
 func TestPatchDeploymentAllowNet_NoDeployment(t *testing.T) {
 	cm := makeConfigMapManifest("name: test")
-	manifests := []map[string]interface{}{cm}
+	manifests := []map[string]any{cm}
 
-	creds := map[string]interface{}{
+	creds := map[string]any{
 		"tentacular-postgres": &PostgresCreds{Host: "pg", Port: "5432"},
 	}
 
@@ -430,7 +430,7 @@ func TestPatchDeploymentAllowNet_NoDeployment(t *testing.T) {
 func TestAnnotateDeployer(t *testing.T) {
 	dep := makeDeploymentManifest([]string{"run", "main.ts"})
 	cm := makeConfigMapManifest("name: test")
-	manifests := []map[string]interface{}{cm, dep}
+	manifests := []map[string]any{cm, dep}
 
 	cfg := &Config{Enabled: true}
 	ctrl := &Controller{cfg: cfg}
@@ -470,7 +470,7 @@ func TestAnnotateDeployer(t *testing.T) {
 
 func TestAnnotateDeployer_NilEmail(t *testing.T) {
 	dep := makeDeploymentManifest([]string{"run"})
-	manifests := []map[string]interface{}{dep}
+	manifests := []map[string]any{dep}
 
 	cfg := &Config{Enabled: true}
 	ctrl := &Controller{cfg: cfg}
@@ -532,17 +532,17 @@ nodes:
 `
 	cm := makeConfigMapManifest(wfYAML)
 	dep := makeDeploymentManifest([]string{"run", "--allow-net=redis.default.svc:6379", "main.ts"})
-	manifests := []map[string]interface{}{cm, dep}
+	manifests := []map[string]any{cm, dep}
 
 	// No creds - nothing to enrich.
-	creds := map[string]interface{}{}
+	creds := map[string]any{}
 	if err := enrichContractDeps(manifests, creds); err != nil {
 		t.Fatalf("enrichContractDeps: %v", err)
 	}
 	patchDeploymentAllowNet(manifests, creds)
 
 	// Verify workflow.yaml unchanged (no tentacular deps to enrich).
-	data := cm["data"].(map[string]interface{})
+	data := cm["data"].(map[string]any)
 	enrichedYAML := data["workflow.yaml"].(string)
 	// The original YAML should still be there (not re-serialized since
 	// no tentacular deps were modified).
@@ -551,8 +551,8 @@ nodes:
 	}
 
 	// Verify --allow-net unchanged.
-	containers, _, _ := getContainers(dep)
-	container := containers[0].(map[string]interface{})
+	containers := getContainers(dep)
+	container := containers[0].(map[string]any)
 	args, _ := toStringSlice(container["args"])
 	for _, arg := range args {
 		if arg == "--allow-net=redis.default.svc:6379" {
@@ -563,19 +563,19 @@ nodes:
 }
 
 // getContainers is a test helper to extract containers from a deployment.
-func getContainers(dep map[string]interface{}) ([]interface{}, bool, error) {
-	spec, ok := dep["spec"].(map[string]interface{})
+func getContainers(dep map[string]any) []any {
+	spec, ok := dep["spec"].(map[string]any)
 	if !ok {
-		return nil, false, nil
+		return nil
 	}
-	tmpl, ok := spec["template"].(map[string]interface{})
+	tmpl, ok := spec["template"].(map[string]any)
 	if !ok {
-		return nil, false, nil
+		return nil
 	}
-	podSpec, ok := tmpl["spec"].(map[string]interface{})
+	podSpec, ok := tmpl["spec"].(map[string]any)
 	if !ok {
-		return nil, false, nil
+		return nil
 	}
-	containers, ok := podSpec["containers"].([]interface{})
-	return containers, ok, nil
+	containers, _ := podSpec["containers"].([]any)
+	return containers
 }

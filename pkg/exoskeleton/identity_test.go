@@ -1,6 +1,7 @@
 package exoskeleton
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -124,14 +125,14 @@ func TestCompileIdentityDeterminism(t *testing.T) {
 
 func TestCompileIdentityEmptyNamespace(t *testing.T) {
 	_, err := CompileIdentity("", "workflow")
-	if err != ErrEmptyNamespace {
+	if !errors.Is(err, ErrEmptyNamespace) {
 		t.Errorf("expected ErrEmptyNamespace, got %v", err)
 	}
 }
 
 func TestCompileIdentityEmptyWorkflow(t *testing.T) {
 	_, err := CompileIdentity("namespace", "")
-	if err != ErrEmptyWorkflow {
+	if !errors.Is(err, ErrEmptyWorkflow) {
 		t.Errorf("expected ErrEmptyWorkflow, got %v", err)
 	}
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 )
 
@@ -53,7 +55,7 @@ func TestRunWorkflowDirectHTTP(t *testing.T) {
 		t.Errorf("expected payload {\"filter\":\"ai\"}, got %s", capturedBody)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("failed to parse output: %v", err)
 	}
@@ -131,6 +133,73 @@ func TestRunWorkflowNonTwoxxStatusReturnsError(t *testing.T) {
 	}
 	if err.Error() == "" {
 		t.Error("expected non-empty error message")
+	}
+}
+
+// TestRunWorkflowRetriesOnDialError verifies that dial errors are retried until
+// the context is canceled, and that the call succeeds once the server is up.
+func TestRunWorkflowRetriesOnDialError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	var attempts atomic.Int32
+	client := &Client{
+		HTTP: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				n := attempts.Add(1)
+				if n < 3 {
+					// Simulate connection refused for the first two attempts.
+					return nil, &net.OpError{Op: "dial", Err: &net.AddrError{Err: "connection refused"}}
+				}
+				req.URL.Scheme = "http"
+				req.URL.Host = server.Listener.Addr().String()
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		},
+	}
+
+	output, err := RunWorkflow(context.Background(), client, "ns", "wf", nil)
+	if err != nil {
+		t.Fatalf("expected success after retries, got: %v", err)
+	}
+	if attempts.Load() != 3 {
+		t.Errorf("expected 3 attempts, got %d", attempts.Load())
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("failed to parse output: %v", err)
+	}
+	if result["status"] != "ok" {
+		t.Errorf("expected status=ok, got %v", result["status"])
+	}
+}
+
+// TestRunWorkflowContextCancelledDuringRetry verifies that a canceled context
+// stops the retry loop and returns an error.
+func TestRunWorkflowContextCancelledDuringRetry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var attempts atomic.Int32
+	client := &Client{
+		HTTP: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				attempts.Add(1)
+				cancel() // cancel after first attempt
+				return nil, &net.OpError{Op: "dial", Err: &net.AddrError{Err: "connection refused"}}
+			}),
+		},
+	}
+
+	_, err := RunWorkflow(ctx, client, "ns", "wf", nil)
+	if err == nil {
+		t.Fatal("expected error after context cancellation")
+	}
+	if attempts.Load() != 1 {
+		t.Errorf("expected 1 attempt before cancel, got %d", attempts.Load())
 	}
 }
 
