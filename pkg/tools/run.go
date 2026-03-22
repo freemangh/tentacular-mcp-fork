@@ -51,6 +51,9 @@ func registerRunTools(srv *mcp.Server, client *k8s.Client, eval *authz.Evaluator
 			return nil, WfRunResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfRunResult{}, err
+		}
 		dep, getErr := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 		if getErr == nil {
 			if d := eval.Check(deployer, dep.Annotations, authz.Execute); !d.Allowed {

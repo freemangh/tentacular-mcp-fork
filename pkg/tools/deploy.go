@@ -171,6 +171,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 
 		// Extract deployer identity from request context (set by auth middleware).
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WorkflowApplyResult{}, err
+		}
 
 		// Authz check for UPDATE path: fetch existing Deployment annotations.
 		// CREATE path checks namespace Write permission (creating a tentacle requires namespace Write).
@@ -259,6 +262,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 			return nil, WorkflowRemoveResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WorkflowRemoveResult{}, err
+		}
 		dep, getErr := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 		if getErr == nil {
 			if d := eval.Check(deployer, dep.Annotations, authz.Write); !d.Allowed {
@@ -303,6 +309,9 @@ func registerDeployTools(srv *mcp.Server, client *k8s.Client, sched *scheduler.S
 			return nil, WorkflowStatusResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WorkflowStatusResult{}, err
+		}
 		dep, getErr := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Name, metav1.GetOptions{})
 		if getErr == nil {
 			if d := eval.Check(deployer, dep.Annotations, authz.Read); !d.Allowed {

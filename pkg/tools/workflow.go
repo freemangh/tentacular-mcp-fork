@@ -136,6 +136,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfPodsResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfPodsResult{}, err
+		}
 		if err := checkNamespaceAuthz(ctx, client, params.Namespace, deployer, eval, authz.Read); err != nil {
 			return nil, WfPodsResult{}, err
 		}
@@ -161,6 +164,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfLogsResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfLogsResult{}, err
+		}
 		if err := checkNamespaceAuthz(ctx, client, params.Namespace, deployer, eval, authz.Read); err != nil {
 			return nil, WfLogsResult{}, err
 		}
@@ -183,6 +189,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfEventsResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfEventsResult{}, err
+		}
 		if err := checkNamespaceAuthz(ctx, client, params.Namespace, deployer, eval, authz.Read); err != nil {
 			return nil, WfEventsResult{}, err
 		}
@@ -205,6 +214,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfJobsResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfJobsResult{}, err
+		}
 		if err := checkNamespaceAuthz(ctx, client, params.Namespace, deployer, eval, authz.Read); err != nil {
 			return nil, WfJobsResult{}, err
 		}
@@ -230,6 +242,9 @@ func registerWorkflowTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfRestartResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfRestartResult{}, err
+		}
 		dep, getErr := client.Clientset.AppsV1().Deployments(params.Namespace).Get(ctx, params.Deployment, metav1.GetOptions{})
 		if getErr == nil {
 			if d := eval.Check(deployer, dep.Annotations, authz.Execute); !d.Allowed {

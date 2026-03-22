@@ -113,6 +113,9 @@ func registerDiscoverTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			}
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfListResult{}, err
+		}
 		result, err := handleWfList(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})
@@ -135,6 +138,9 @@ func registerDiscoverTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfDescribeResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfDescribeResult{}, err
+		}
 		result, err := handleWfDescribe(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})

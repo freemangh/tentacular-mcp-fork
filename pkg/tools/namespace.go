@@ -127,6 +127,9 @@ func registerNamespaceTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eva
 			return nil, NsCreateResult{}, errors.New("mode and share are mutually exclusive; provide one or the other")
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsCreateResult{}, err
+		}
 		result, err := handleNsCreate(ctx, client, eval, params, deployer)
 		return nil, result, err
 	})
@@ -146,6 +149,9 @@ func registerNamespaceTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eva
 			return nil, NsDeleteResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsDeleteResult{}, err
+		}
 		result, err := handleNsDelete(ctx, client, eval, params, deployer)
 		return nil, result, err
 	})
@@ -165,6 +171,9 @@ func registerNamespaceTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eva
 			return nil, NsGetResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsGetResult{}, err
+		}
 		result, err := handleNsGet(ctx, client, eval, params, deployer)
 		return nil, result, err
 	})
@@ -181,6 +190,9 @@ func registerNamespaceTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eva
 		},
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params NsListParams) (*mcp.CallToolResult, NsListResult, error) {
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsListResult{}, err
+		}
 		result, err := handleNsList(ctx, client, eval, deployer)
 		return nil, result, err
 	})
@@ -203,6 +215,9 @@ func registerNamespaceTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eva
 			return nil, NsUpdateResult{}, errors.New("mode and share are mutually exclusive; provide one or the other")
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsUpdateResult{}, err
+		}
 		result, err := handleNsUpdate(ctx, client, eval, params, deployer)
 		return nil, result, err
 	})
@@ -327,15 +342,19 @@ func handleNsDelete(ctx context.Context, client *k8s.Client, eval *authz.Evaluat
 	}
 
 	// Authz check: caller must have Write permission on the namespace.
+	ann := ns.Annotations
+	if ann == nil {
+		ann = map[string]string{}
+	}
+	if d := eval.Check(deployer, ann, authz.Write); !d.Allowed {
+		subject := ""
+		if deployer != nil {
+			subject = deployer.Subject
+		}
+		slog.Info("ns_delete authz denied", "namespace", params.Name, "subject", subject, "reason", d.Reason)
+		return NsDeleteResult{}, fmt.Errorf("permission denied: %s", d.Reason)
+	}
 	if deployer != nil {
-		ann := ns.Annotations
-		if ann == nil {
-			ann = map[string]string{}
-		}
-		if d := eval.Check(deployer, ann, authz.Write); !d.Allowed {
-			slog.Info("ns_delete authz denied", "namespace", params.Name, "subject", deployer.Subject, "reason", d.Reason)
-			return NsDeleteResult{}, fmt.Errorf("permission denied: %s", d.Reason)
-		}
 		slog.Info("ns_delete authz allowed", "namespace", params.Name, "subject", deployer.Subject)
 	}
 
@@ -353,13 +372,17 @@ func handleNsGet(ctx context.Context, client *k8s.Client, eval *authz.Evaluator,
 	}
 
 	// Authz check: caller must have Read permission on the namespace.
-	if deployer != nil {
+	{
 		ann := ns.Annotations
 		if ann == nil {
 			ann = map[string]string{}
 		}
 		if d := eval.Check(deployer, ann, authz.Read); !d.Allowed {
-			slog.Info("ns_get authz denied", "namespace", params.Name, "subject", deployer.Subject, "reason", d.Reason)
+			subject := ""
+			if deployer != nil {
+				subject = deployer.Subject
+			}
+			slog.Info("ns_get authz denied", "namespace", params.Name, "subject", subject, "reason", d.Reason)
 			return NsGetResult{}, fmt.Errorf("permission denied: %s", d.Reason)
 		}
 	}
@@ -435,11 +458,13 @@ func handleNsUpdate(ctx context.Context, client *k8s.Client, eval *authz.Evaluat
 	}
 
 	// Authz check: caller must have Write permission on the namespace.
-	if deployer != nil {
-		if err := checkNamespaceAuthz(ctx, client, params.Name, deployer, eval, authz.Write); err != nil {
-			slog.Info("ns_update authz denied", "namespace", params.Name, "subject", deployer.Subject)
-			return NsUpdateResult{}, err
+	if err := checkNamespaceAuthz(ctx, client, params.Name, deployer, eval, authz.Write); err != nil {
+		subject := ""
+		if deployer != nil {
+			subject = deployer.Subject
 		}
+		slog.Info("ns_update authz denied", "namespace", params.Name, "subject", subject)
+		return NsUpdateResult{}, err
 	}
 
 	updated := []string{}
@@ -572,10 +597,8 @@ func handleNsList(ctx context.Context, client *k8s.Client, eval *authz.Evaluator
 		if ann == nil {
 			ann = map[string]string{}
 		}
-		if deployer != nil {
-			if d := eval.Check(deployer, ann, authz.Read); !d.Allowed {
-				continue
-			}
+		if d := eval.Check(deployer, ann, authz.Read); !d.Allowed {
+			continue
 		}
 
 		item := NsListItem{
