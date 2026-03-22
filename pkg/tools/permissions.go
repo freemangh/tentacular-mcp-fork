@@ -115,6 +115,9 @@ func registerPermissionsTools(srv *mcp.Server, client *k8s.Client, eval *authz.E
 			return nil, PermissionsGetResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, PermissionsGetResult{}, err
+		}
 		result, err := handlePermissionsGet(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})
@@ -143,6 +146,9 @@ func registerPermissionsTools(srv *mcp.Server, client *k8s.Client, eval *authz.E
 			return nil, PermissionsSetResult{}, errors.New("at least one of group, share, or mode must be provided")
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, PermissionsSetResult{}, err
+		}
 		result, err := handlePermissionsSet(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})
@@ -162,6 +168,9 @@ func registerPermissionsTools(srv *mcp.Server, client *k8s.Client, eval *authz.E
 			return nil, NsPermissionsGetResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsPermissionsGetResult{}, err
+		}
 		result, err := handleNsPermissionsGet(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})
@@ -187,6 +196,9 @@ func registerPermissionsTools(srv *mcp.Server, client *k8s.Client, eval *authz.E
 			return nil, NsPermissionsSetResult{}, errors.New("mode and share are mutually exclusive; provide one or the other")
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, NsPermissionsSetResult{}, err
+		}
 		result, err := handleNsPermissionsSet(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})

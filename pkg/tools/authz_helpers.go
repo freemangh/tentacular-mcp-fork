@@ -12,6 +12,24 @@ import (
 	"github.com/randybias/tentacular-mcp/pkg/k8s"
 )
 
+// errNoDeployer is the sentinel error returned when a tool handler requires
+// deployer identity but the request context has none (unauthenticated).
+var errNoDeployer = fmt.Errorf("authentication required: no deployer identity in request context")
+
+// requireDeployer returns errNoDeployer when deployer is nil and authz is
+// enabled. Tool handlers that use deployer identity should call this at the
+// top of their handler to fail fast on unauthenticated requests.
+// When the evaluator is nil or disabled, nil deployer is allowed (authz off).
+func requireDeployer(deployer *exoskeleton.DeployerInfo, eval *authz.Evaluator) error {
+	if deployer != nil {
+		return nil
+	}
+	if eval == nil || !eval.Enabled {
+		return nil
+	}
+	return errNoDeployer
+}
+
 // checkNamespaceAuthz evaluates whether a deployer can perform an action on a namespace.
 // It reads the namespace's authz annotations and checks permission bits.
 // If the namespace has no owner-sub annotation, it allows the action (pre-authz namespace).

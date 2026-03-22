@@ -92,6 +92,9 @@ func registerWfHealthTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfHealthResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfHealthResult{}, err
+		}
 		result, err := handleWfHealth(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})
@@ -111,6 +114,9 @@ func registerWfHealthTools(srv *mcp.Server, client *k8s.Client, eval *authz.Eval
 			return nil, WfHealthNsResult{}, err
 		}
 		deployer := auth.DeployerFromContext(ctx)
+		if err := requireDeployer(deployer, eval); err != nil {
+			return nil, WfHealthNsResult{}, err
+		}
 		result, err := handleWfHealthNs(ctx, client, params, deployer, eval)
 		return nil, result, err
 	})
