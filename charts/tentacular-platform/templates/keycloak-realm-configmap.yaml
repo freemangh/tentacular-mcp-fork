@@ -6,7 +6,11 @@ on startup via the --import-realm flag.
 */}}
 {{- if .Values.keycloak.enabled }}
 {{- $kcHost := .Values.keycloak.hostname | default (printf "tentacular-keycloak.%s" .Values.global.domain) }}
-{{- $mcpHost := .Values.ingress.mcp.hostname | default (printf "tentacular-mcp.%s" .Values.global.domain) }}
+{{- $mcpHost := "" }}
+{{- if and .Values.ingress .Values.ingress.mcp }}
+{{- $mcpHost = .Values.ingress.mcp.hostname }}
+{{- end }}
+{{- $mcpHost = $mcpHost | default (printf "tentacular-mcp.%s" .Values.global.domain) }}
 {{- $kcScheme := ternary "https" "http" .Values.ingress.tls.enabled }}
 {{- $realm := .Values.keycloak.realm | default "tentacular" }}
 {{- $clientID := .Values.exoskeletonAuth.clientID | default "tentacular-mcp" }}

@@ -3,6 +3,8 @@
 #   -f charts/tentacular-platform/ci/prod-values.yaml \
 #   -f charts/tentacular-platform/ci/aws-values.yaml \
 #   -n tentacular-system --create-namespace \
+#   --set global.domain=<your-domain> \
+#   --set tls.clusterIssuers.email=admin@<your-domain> \
 #   --set postgresql.auth.password="$(openssl rand -hex 16)" \
 #   --set nats.config.merge.authorization.token="$(openssl rand -hex 16)" \
 #   --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
@@ -11,7 +13,10 @@
 #   --set exoskeletonAuth.clientSecret="$(openssl rand -hex 32)"
 #
 # This file is meant to be layered ON TOP of prod-values.yaml.
-# It overrides only the AWS and environment-specific settings.
+# It overrides only the AWS-specific settings.
+# Hostnames are auto-derived from global.domain:
+#   - tentacular-mcp.<domain>
+#   - tentacular-keycloak.<domain>
 #
 # Prerequisites:
 #   1. nginx ingress controller with NLB:
@@ -22,28 +27,23 @@
 #   2. cert-manager installed
 #   3. Default StorageClass set (e.g., ebs-csi-default-sc)
 #   4. DNS records pointing to the NLB:
-#      - tentacular-mcp.example.com
-#      - tentacular-keycloak.example.com
+#      - tentacular-mcp.<your-domain>
+#      - tentacular-keycloak.<your-domain>
 
-global:
-  domain: example.com
+# All hostnames are derived from global.domain (set via --set global.domain=<your-domain>)
+# No explicit hostname overrides needed in this file.
 
 tls:
   clusterIssuers:
     create: true
-    email: admin@example.com
+    # Set via --set tls.clusterIssuers.email=admin@<your-domain>
     production: true
   certificates:
     mcp:
       create: true
       secretName: tentacular-mcp-tls
 
-keycloak:
-  hostname: tentacular-keycloak.example.com
-
 ingress:
-  mcp:
-    hostname: tentacular-mcp.example.com
   tls:
     enabled: true
     secretName: tentacular-mcp-tls
