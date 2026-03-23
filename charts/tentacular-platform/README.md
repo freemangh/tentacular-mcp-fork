@@ -1,6 +1,6 @@
 # Tentacular Platform Helm Chart
 
-Umbrella Helm chart for the complete Tentacular platform. Deploys the MCP server, PostgreSQL, NATS, esm-sh module proxy, namespace management, network policies, and configurable ingress in a single `helm install`.
+Umbrella Helm chart for the complete Tentacular platform. Deploys the MCP server, PostgreSQL, NATS, Keycloak, esm-sh module proxy, namespace management, network policies, and configurable ingress in a single `helm install`.
 
 ## Exoskeleton Subsystem (Phase 1)
 
@@ -9,7 +9,7 @@ The platform includes the exoskeleton subsystem for automated backing-service li
 - **Identity compiler** -- deterministic namespace/credential identity from workflow name
 - **Registrars** -- PostgreSQL (role/schema), NATS (account/JetStream), RustFS (bucket/policy), SPIRE (ClusterSPIFFEID)
 - **Credential injection** -- auto-generated Kubernetes Secrets with connection strings
-- **SSO/OIDC auth** -- optional Keycloak integration with deployer provenance
+- **SSO/OIDC auth** -- Keycloak integration with deployer provenance (realm and client auto-created on first boot)
 - **MCP tools** -- `exo_status` (health), `exo_registration` (credential lookup), `exo_list` (enumerate registrations)
 
 When `exoskeleton.enabled: true`, the umbrella chart generates a Secret (`tentacular-exoskeleton-config`) containing all `TENTACULAR_*` environment variables and loads them into the MCP server via `envFrom`.
@@ -19,8 +19,9 @@ When `exoskeleton.enabled: true`, the umbrella chart generates a Secret (`tentac
 - Kubernetes 1.28+
 - Helm 3.x
 - kubectl configured for your cluster
-- nginx ingress controller (recommended for production; for AWS, use NLB as the controller's Service type)
-- Istio (optional, if using `istio` ingress mode)
+- cert-manager installed (for TLS via Let's Encrypt)
+- nginx ingress controller (recommended; for AWS, use NLB as the controller's Service type)
+- Istio (optional, experimental `istio` ingress mode)
 
 ## Quick Start
 
@@ -40,9 +41,9 @@ kubectl get pods -n tentacular-exoskeleton
 kubectl get pods -n tentacular-support
 ```
 
-### Production
+### Production (cloud-agnostic)
 
-Production uses persistent storage, TLS via cert-manager, and nginx Ingress. Credentials must be provided via `--set`.
+Production uses persistent storage, TLS via cert-manager, nginx Ingress, Keycloak for OIDC, and full exoskeleton backing services. All credentials are generated at install time.
 
 **Step 1: Install cert-manager** (skip if already installed):
 
@@ -53,32 +54,109 @@ helm install cert-manager jetstack/cert-manager \
   -n cert-manager --create-namespace --set crds.enabled=true
 ```
 
-cert-manager must be installed **before** the platform chart because the chart creates ClusterIssuer and Certificate resources that require cert-manager CRDs.
+**Step 2: Install nginx ingress controller** (skip if already installed):
 
-**Step 2: Install the platform:**
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx --create-namespace
+```
+
+**Step 3: Install the platform:**
 
 ```bash
 helm dependency update charts/tentacular-platform/
+KC_DB_PASS="$(openssl rand -hex 16)"
 helm install tentacular charts/tentacular-platform/ \
   -f charts/tentacular-platform/ci/prod-values.yaml \
   -n tentacular-system --create-namespace \
-  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
   --set postgresql.auth.password="$(openssl rand -hex 16)" \
-  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)"
+  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)" \
+  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
+  --set keycloak.admin.password="$(openssl rand -hex 16)" \
+  --set keycloakx.database.password="$KC_DB_PASS" \
+  --set keycloakx.database.hostname="tentacular-postgresql.tentacular-exoskeleton.svc.cluster.local" \
+  --set exoskeletonAuth.clientSecret="$(openssl rand -hex 32)"
 ```
 
-**Without TLS** (no cert-manager required):
+### AWS (K8s on EC2 with NLB)
+
+For AWS deployments, layer the `aws-values.yaml` overlay on top of `prod-values.yaml`. This sets the domain, TLS, and Keycloak hostnames for your environment.
+
+**Step 1: Install cert-manager** (skip if already installed):
 
 ```bash
+helm repo add jetstack https://charts.jetstack.io
+helm install cert-manager jetstack/cert-manager \
+  -n cert-manager --create-namespace --set crds.enabled=true
+```
+
+**Step 2: Install nginx ingress controller with NLB:**
+
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx --create-namespace \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"=internet-facing
+```
+
+**Step 3: Create DNS records** pointing to the NLB:
+```
+tentacular-mcp.<your-domain>      → <NLB hostname>
+tentacular-keycloak.<your-domain> → <NLB hostname>
+```
+
+Get the NLB hostname with:
+```bash
+kubectl get svc -n ingress-nginx ingress-nginx-controller \
+  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+```
+
+**Step 4: Install the platform:**
+
+```bash
+helm dependency update charts/tentacular-platform/
+KC_DB_PASS="$(openssl rand -hex 16)"
 helm install tentacular charts/tentacular-platform/ \
   -f charts/tentacular-platform/ci/prod-values.yaml \
+  -f charts/tentacular-platform/ci/aws-values.yaml \
   -n tentacular-system --create-namespace \
-  --set tls.clusterIssuers.create=false \
-  --set tls.certificates.mcp.create=false \
-  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
   --set postgresql.auth.password="$(openssl rand -hex 16)" \
-  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)"
+  --set nats.config.merge.authorization.token="$(openssl rand -hex 16)" \
+  --set tentacular-mcp.auth.token="$(openssl rand -hex 32)" \
+  --set keycloak.admin.password="$(openssl rand -hex 16)" \
+  --set keycloakx.database.password="$KC_DB_PASS" \
+  --set keycloakx.database.hostname="tentacular-postgresql.tentacular-exoskeleton.svc.cluster.local" \
+  --set keycloakx.proxy.mode=xforwarded \
+  --set-json 'keycloakx.command=["/opt/keycloak/bin/kc.sh","start","--hostname-strict=false","--import-realm"]' \
+  --set exoskeletonAuth.clientSecret="$(openssl rand -hex 32)"
 ```
+
+**Step 5: Verify:**
+
+```bash
+# Check all pods
+kubectl get pods -n tentacular-system
+kubectl get pods -n tentacular-exoskeleton
+kubectl get pods -n tentacular-support
+
+# Check TLS certificates
+kubectl get certificate -A
+
+# Test MCP health
+curl https://tentacular-mcp.<your-domain>/healthz
+
+# Test Keycloak
+curl https://tentacular-keycloak.<your-domain>/auth/realms/tentacular/.well-known/openid-configuration
+
+# Test with tntc CLI
+tntc cluster check -e <your-env>
+```
+
+> **Note:** Keycloak takes ~60-90 seconds on first boot (Quarkus build phase + realm import).
+> The MCP server will restart a few times while waiting for Keycloak OIDC discovery to become available.
+> Both stabilize automatically.
 
 ## Ingress Modes
 
@@ -90,6 +168,19 @@ The `ingress.mode` field controls how the platform is exposed externally.
 | `nodeport` | Expose MCP via NodePort | Simple/test clusters, SSH tunnel, VPN access |
 | `ingress` | Standard Kubernetes Ingress resource (cloud-agnostic) | nginx, Traefik, or any K8s ingress controller |
 | `istio` | **(Experimental)** Istio Gateway + VirtualService + DestinationRule | Clusters with Istio service mesh (includes `Mcp-Session-Id` consistent hash) |
+
+### MCP Session Affinity
+
+For multi-replica MCP deployments, the MCP Streamable HTTP transport uses the `Mcp-Session-Id` header for session routing. Configure session affinity via ingress annotations:
+
+**nginx:**
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$http_mcp_session_id"
+```
+
+**Istio** (automatic via DestinationRule when `ingress.mode: istio`).
 
 ### Examples
 
@@ -106,28 +197,6 @@ ingress:
 ingress:
   mode: ingress
   className: nginx
-  mcp:
-    hostname: mcp.example.com
-  tls:
-    enabled: true
-    secretName: mcp-tls
-```
-
-**AWS (nginx + NLB):**
-
-Install nginx ingress controller with NLB first:
-```bash
-helm install ingress-nginx ingress-nginx/ingress-nginx \
-  -n ingress-nginx --create-namespace \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"=internet-facing
-```
-
-Then use the standard ingress mode:
-```yaml
-ingress:
-  mode: ingress
-  className: nginx
   controllerNamespace: ingress-nginx
   mcp:
     hostname: tentacular-mcp.example.com
@@ -138,12 +207,12 @@ ingress:
     nginx.ingress.kubernetes.io/upstream-hash-by: "$http_mcp_session_id"
 ```
 
-**Istio:**
+**Istio (experimental):**
 ```yaml
 ingress:
   mode: istio
   mcp:
-    hostname: mcp.example.com
+    hostname: tentacular-mcp.example.com
   tls:
     enabled: true
     secretName: tentacular-tls
@@ -163,34 +232,31 @@ ingress:
 | `namespaces.support.name` | string | `"tentacular-support"` | Support namespace name |
 | `networkPolicies.enabled` | bool | `true` | Enable default-deny network policies |
 | `postgresql.enabled` | bool | `true` | Enable PostgreSQL deployment |
-| `postgresql.auth.database` | string | `"tentacular"` | Database name |
-| `postgresql.auth.username` | string | `"tentacular_admin"` | Admin username |
 | `postgresql.auth.password` | string | `""` | Admin password (required) |
+| `postgresql.tls.enabled` | bool | `false` | Enable PostgreSQL TLS (cert-manager) |
 | `nats.enabled` | bool | `true` | Enable NATS deployment |
 | `nats.config.jetstream.enabled` | bool | `true` | Enable JetStream |
 | `cert-manager.enabled` | bool | `false` | Enable cert-manager (most clusters have it pre-installed) |
 | `tls.clusterIssuers.create` | bool | `false` | Create Let's Encrypt ClusterIssuer |
 | `tls.clusterIssuers.email` | string | `""` | Email for Let's Encrypt registration |
-| `tls.clusterIssuers.production` | bool | `true` | Use production LE server (false = staging) |
-| `tls.certificates.mcp.create` | bool | `false` | Create MCP TLS Certificate |
-| `tls.certificates.auth.create` | bool | `false` | Create auth TLS Certificate |
 | `tentacular-mcp.enabled` | bool | `true` | Enable MCP server deployment |
 | `tentacular-mcp.auth.token` | string | `""` | MCP auth token (required) |
 | `exoskeleton.enabled` | bool | `true` | Enable exoskeleton subsystem |
+| `exoskeletonAuth.enabled` | bool | `false` | Enable OIDC authentication (Keycloak) |
+| `exoskeletonAuth.clientID` | string | `"tentacular-mcp"` | OIDC client ID |
+| `exoskeletonAuth.clientSecret` | string | `""` | OIDC client secret (required when enabled) |
+| `keycloak.enabled` | bool | `false` | Enable Keycloak deployment |
+| `keycloak.realm` | string | `"tentacular"` | Keycloak realm name |
+| `keycloak.admin.user` | string | `"admin"` | Keycloak admin username |
+| `keycloak.admin.password` | string | `""` | Keycloak admin password (required when enabled) |
+| `keycloak.hostname` | string | `""` | Keycloak hostname (e.g., tentacular-keycloak.example.com) |
 | `esm-sh.enabled` | bool | `true` | Enable esm-sh proxy |
 | `ingress.mode` | string | `"none"` | Ingress mode (none/nodeport/ingress/istio) |
 | `ingress.mcp.hostname` | string | `""` | MCP endpoint hostname |
-| `ingress.auth.enabled` | bool | `false` | Enable auth endpoint routing |
-| `ingress.auth.hostname` | string | `""` | Auth endpoint hostname |
+| `ingress.controllerNamespace` | string | `""` | Ingress controller namespace (for NetworkPolicy) |
 | `ingress.tls.enabled` | bool | `false` | Enable TLS termination |
-| `ingress.tls.secretName` | string | `""` | TLS secret name |
-| `ingress.className` | string | `""` | Ingress class (traefik, nginx, alb) |
+| `ingress.className` | string | `""` | Ingress class (nginx, traefik, etc.) |
 | `ingress.annotations` | object | `{}` | Freeform annotations for Ingress |
-| `ingress.istio.gateway.name` | string | `"tentacular-gateway"` | Istio Gateway name |
-| `ingress.nodeport.mcp` | int | `30080` | NodePort number for MCP |
-| `rustfs.enabled` | bool | `false` | Enable RustFS (not yet implemented) |
-| `keycloak.enabled` | bool | `false` | Enable Keycloak (not yet implemented) |
-| `spire.enabled` | bool | `false` | Enable SPIRE (not yet implemented) |
 
 ## Component Toggles
 
@@ -198,22 +264,22 @@ Every component can be independently enabled or disabled:
 
 | Component | Toggle | Default | Notes |
 |-----------|--------|---------|-------|
-| PostgreSQL | `postgresql.enabled` | `true` | Bitnami PostgreSQL subchart |
+| PostgreSQL | `postgresql.enabled` | `true` | Bitnami PostgreSQL with optional TLS |
 | NATS | `nats.enabled` | `true` | NATS with JetStream |
+| Keycloak | `keycloak.enabled` | `false` | Quarkus Keycloak (codecentric/keycloakx) with auto realm import |
 | cert-manager | `cert-manager.enabled` | `false` | Only if not pre-installed |
 | MCP Server | `tentacular-mcp.enabled` | `true` | Tentacular MCP server |
 | esm-sh | `esm-sh.enabled` | `true` | ES module proxy |
 | Network Policies | `networkPolicies.enabled` | `true` | Default-deny with allow rules |
 | RustFS | `rustfs.enabled` | `false` | Future: S3-compatible storage |
-| Keycloak | `keycloak.enabled` | `false` | Future: IAM |
 | SPIRE | `spire.enabled` | `false` | Future: Workload identity |
 
 ## Storage
 
 PostgreSQL and NATS require persistent storage. In production clusters with a
-StorageClass provisioner this works out of the box. For **dev/test clusters
-without a provisioner** (e.g., k0s, kind, bare minikube), the CI value files
-disable PVCs and fall back to `emptyDir`:
+StorageClass provisioner this works out of the box (uses cluster default). For
+**dev/test clusters without a provisioner** (e.g., kind, bare minikube), the CI
+value files disable PVCs and fall back to `emptyDir`:
 
 ```yaml
 postgresql:
@@ -232,14 +298,31 @@ nats:
 > **Note:** This is acceptable for development only. Production deployments
 > must use persistent storage.
 
+## PostgreSQL TLS
+
+Production deployments enable PostgreSQL TLS using cert-manager self-signed certificates.
+Do not use `tls.autoGenerated: true` -- the Bitnami init image (`bitnami/os-shell`) is
+behind Broadcom's paywall since August 2025. Instead, the chart creates a cert-manager
+`Issuer` + `Certificate` that populates the TLS Secret.
+
+```yaml
+postgresql:
+  tls:
+    enabled: true
+    autoGenerated: false
+    certificatesSecret: tentacular-postgresql-tls
+    certFilename: tls.crt
+    certKeyFilename: tls.key
+```
+
 ## Example Values Files
 
 Pre-built profiles are available in `ci/`:
 
 - `ci/test-values.yaml` - CI testing (all defaults, minimal resources)
 - `ci/dev-values.yaml` - Development (NodePort, minimal resources, emptyDir storage)
-- `ci/prod-values.yaml` - Production (nginx Ingress, TLS, higher resources)
-- `ci/aws-values.yaml` - AWS (ALB + Istio, ACM certificates)
+- `ci/prod-values.yaml` - Production (nginx Ingress, TLS, Keycloak, full exoskeleton)
+- `ci/aws-values.yaml` - AWS overlay (layered on prod-values, sets domain and hostnames)
 - `ci/tls-values.yaml` - TLS resources only (for testing cert-manager integration)
 
 ## Upgrade
@@ -250,10 +333,14 @@ helm upgrade tentacular charts/tentacular-platform/ \
   -f your-values.yaml
 ```
 
+> **Warning:** Do not use `helm upgrade --reuse-values -f ci/prod-values.yaml` --
+> the `CHANGE-ME` placeholders in value files will overwrite your generated secrets.
+> Either omit `-f` when using `--reuse-values`, or pass all secrets via `--set`.
+
 ## Uninstall
 
 ```bash
-helm uninstall tentacular
+helm uninstall tentacular -n tentacular-system
 
 # Namespaces with finalizers may need manual cleanup
 kubectl delete namespace tentacular-system tentacular-exoskeleton tentacular-support
