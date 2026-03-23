@@ -49,6 +49,7 @@ type WfListEntry struct {
 	Name        string `json:"name"`
 	Namespace   string `json:"namespace"`
 	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
 	Owner       string `json:"owner,omitempty"`
 	Group       string `json:"group,omitempty"`
 	Mode        string `json:"mode,omitempty"`
@@ -345,6 +346,7 @@ func deploymentToListEntry(dep appsv1.Deployment) WfListEntry {
 		Name:        dep.Name,
 		Namespace:   dep.Namespace,
 		Version:     dep.Labels[k8s.VersionLabel],
+		Description: authz.GetAnnotation(ann, "tentacular.io/description"),
 		Owner:       ownerInfo.OwnerEmail,
 		Group:       ownerInfo.Group,
 		Mode:        ownerInfo.Mode.String(),

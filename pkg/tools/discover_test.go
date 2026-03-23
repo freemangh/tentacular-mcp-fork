@@ -128,6 +128,7 @@ func TestDeploymentToListEntryAllFields(t *testing.T) {
 				"tentacular.io/owner-email": "alice@example.com",
 				"tentacular.io/group":       "platform",
 				"tentacular.io/environment": "prod",
+				"tentacular.io/description": "My cool workflow",
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -154,6 +155,9 @@ func TestDeploymentToListEntryAllFields(t *testing.T) {
 	}
 	if entry.Group != "platform" {
 		t.Errorf("Group: got %q, want %q", entry.Group, "platform")
+	}
+	if entry.Description != "My cool workflow" {
+		t.Errorf("Description: got %q, want %q", entry.Description, "My cool workflow")
 	}
 	if entry.Environment != "prod" {
 		t.Errorf("Environment: got %q, want %q", entry.Environment, "prod")
