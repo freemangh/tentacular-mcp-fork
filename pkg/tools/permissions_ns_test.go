@@ -24,6 +24,7 @@ func seedNamespaceForPerms(t *testing.T, client *k8s.Client, name, ownerSub, own
 	t.Helper()
 	ctx := context.Background()
 	ann := map[string]string{
+		authz.AnnotationOwner:      ownerEmail,
 		authz.AnnotationOwnerSub:   ownerSub,
 		authz.AnnotationOwnerEmail: ownerEmail,
 		authz.AnnotationGroup:      group,
@@ -139,6 +140,7 @@ func TestNsPermissionsGet_WithDefaults(t *testing.T) {
 				k8s.ManagedByLabel: k8s.ManagedByValue,
 			},
 			Annotations: map[string]string{
+				authz.AnnotationOwner:        "x@example.com",
 				authz.AnnotationOwnerSub:     "sub-x",
 				authz.AnnotationMode:         "rwx------",
 				authz.AnnotationDefaultGroup: "ci-team",

@@ -72,6 +72,7 @@ func TestNsDelete_NilDeployer_AuthzEnabled_Denied(t *testing.T) {
 				k8s.ManagedByLabel: k8s.ManagedByValue,
 			},
 			Annotations: map[string]string{
+				authz.AnnotationOwner:    "owner@example.com",
 				authz.AnnotationOwnerSub: "sub-owner",
 				authz.AnnotationMode:     "rwx------",
 			},
@@ -97,6 +98,7 @@ func TestNsGet_NilDeployer_AuthzEnabled_Denied(t *testing.T) {
 				k8s.ManagedByLabel: k8s.ManagedByValue,
 			},
 			Annotations: map[string]string{
+				authz.AnnotationOwner:    "owner@example.com",
 				authz.AnnotationOwnerSub: "sub-owner",
 				authz.AnnotationMode:     "rwx------",
 			},
@@ -145,6 +147,7 @@ func TestNsList_NilDeployer_AuthzEnabled_FiltersAll(t *testing.T) {
 				k8s.ManagedByLabel: k8s.ManagedByValue,
 			},
 			Annotations: map[string]string{
+				authz.AnnotationOwner:    "owner@example.com",
 				authz.AnnotationOwnerSub: "sub-owner",
 				authz.AnnotationMode:     "rwx------",
 			},
@@ -170,8 +173,9 @@ func TestWfDescribe_NilDeployer_AuthzEnabled_Denied(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "desc-nil-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "desc-nil-ns", "owner@example.com", "", "rwx------")
 	dep := makeTestDeployment("desc-nil-wf", "desc-nil-ns", map[string]string{
+		authz.AnnotationOwner:    "owner@example.com",
 		authz.AnnotationOwnerSub: "sub-owner",
 		authz.AnnotationMode:     "rwx------",
 	})
@@ -188,8 +192,9 @@ func TestPermissionsGet_NilDeployer_AuthzEnabled_Denied(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "perm-nil-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "perm-nil-ns", "owner@example.com", "", "rwx------")
 	dep := makeTestDeployment("perm-nil-wf", "perm-nil-ns", map[string]string{
+		authz.AnnotationOwner:    "owner@example.com",
 		authz.AnnotationOwnerSub: "sub-owner",
 		authz.AnnotationMode:     "rwx------",
 	})

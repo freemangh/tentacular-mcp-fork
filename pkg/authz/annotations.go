@@ -3,10 +3,14 @@ package authz
 // Annotation key constants for authz-related Deployment annotations.
 // All authz annotations use the tentacular.io/* domain.
 const (
-	// AnnotationOwnerSub is the OIDC subject of the deployer (used for owner identity check).
+	// AnnotationOwner is the primary identity anchor for ownership (email address).
+	// Authz evaluates owner match against this annotation.
+	AnnotationOwner = "tentacular.io/owner"
+
+	// AnnotationOwnerSub is the OIDC subject of the deployer (audit/secondary, not used for access checks).
 	AnnotationOwnerSub = "tentacular.io/owner-sub"
 
-	// AnnotationOwnerEmail is the email of the deployer (display only).
+	// AnnotationOwnerEmail is the email of the deployer (display only, legacy — prefer AnnotationOwner).
 	AnnotationOwnerEmail = "tentacular.io/owner-email"
 
 	// AnnotationOwnerName is the display name of the deployer (display only).
@@ -87,6 +91,7 @@ func GetAnnotation(annotations map[string]string, newKey string) string {
 // fields to be stamped onto a Deployment at deploy time.
 func WriteOwnerAnnotations(ownerSub, ownerEmail, ownerName, group string, mode Mode) map[string]string {
 	return map[string]string{
+		AnnotationOwner:      ownerEmail,
 		AnnotationOwnerSub:   ownerSub,
 		AnnotationOwnerEmail: ownerEmail,
 		AnnotationOwnerName:  ownerName,
@@ -99,6 +104,7 @@ func WriteOwnerAnnotations(ownerSub, ownerEmail, ownerName, group string, mode M
 // fields to be stamped onto a Namespace at creation time.
 func WriteNamespaceAnnotations(ownerSub, ownerEmail, ownerName, group string, mode Mode, defaultGroup string, defaultMode Mode) map[string]string {
 	annotations := map[string]string{
+		AnnotationOwner:      ownerEmail,
 		AnnotationOwnerSub:   ownerSub,
 		AnnotationOwnerEmail: ownerEmail,
 		AnnotationOwnerName:  ownerName,

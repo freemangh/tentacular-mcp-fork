@@ -346,8 +346,9 @@ func TestWfList_AuthzDeny_SkipsResource(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	createOwnedNamespaceWithMode(ctx, client, "authz-ns", "sub-owner", "rwxr--r--")
+	createOwnedNamespaceWithMode(ctx, client, "authz-ns", "owner@example.com", "rwxr--r--")
 	dep := makeTestDeployment("private-wf", "authz-ns", map[string]string{
+		"tentacular.io/owner":     "owner@example.com",
 		"tentacular.io/owner-sub": "sub-owner",
 		"tentacular.io/mode":      "rwx------",
 	})
@@ -369,14 +370,15 @@ func TestWfList_AuthzAllow_Owner(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	createOwnedNamespace(ctx, client, "authz-ns2", "sub-owner")
+	createOwnedNamespace(ctx, client, "authz-ns2", "owner@example.com")
 	dep := makeTestDeployment("my-wf", "authz-ns2", map[string]string{
+		"tentacular.io/owner":     "owner@example.com",
 		"tentacular.io/owner-sub": "sub-owner",
 		"tentacular.io/mode":      "rwx------",
 	})
 	_, _ = client.Clientset.AppsV1().Deployments("authz-ns2").Create(ctx, dep, metav1.CreateOptions{})
 
-	owner := &exoskeleton.DeployerInfo{Subject: "sub-owner", Email: "o@example.com", Provider: "keycloak"}
+	owner := &exoskeleton.DeployerInfo{Subject: "sub-owner", Email: "owner@example.com", Provider: "keycloak"}
 	eval := authz.NewEvaluator(authz.DefaultMode)
 
 	result, err := handleWfList(ctx, client, WfListParams{Namespace: "authz-ns2"}, owner, eval)
@@ -393,6 +395,7 @@ func TestWfDescribe_AuthzDeny(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("locked-wf", "authz-ns3", map[string]string{
+		"tentacular.io/owner":     "owner@example.com",
 		"tentacular.io/owner-sub": "sub-owner",
 		"tentacular.io/mode":      "rwx------",
 	})
@@ -415,6 +418,7 @@ func TestWfDescribe_BearerToken_Bypasses_Authz(t *testing.T) {
 	ctx := context.Background()
 
 	dep := makeTestDeployment("locked-wf2", "authz-ns4", map[string]string{
+		"tentacular.io/owner":     "owner@example.com",
 		"tentacular.io/owner-sub": "sub-owner",
 		"tentacular.io/mode":      "rwx------",
 	})

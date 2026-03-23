@@ -37,12 +37,13 @@ func oidcDeployerNs(sub, email string, groups ...string) *exoskeleton.DeployerIn
 }
 
 // nsWithAuthz creates a managed namespace with authz annotations.
-func nsWithAuthz(t *testing.T, client *k8s.Client, name, ownerSub, group, mode string) {
+func nsWithAuthz(t *testing.T, client *k8s.Client, name, ownerEmail, group, mode string) {
 	t.Helper()
 	ctx := context.Background()
 	ann := map[string]string{}
-	if ownerSub != "" {
-		ann[authz.AnnotationOwnerSub] = ownerSub
+	if ownerEmail != "" {
+		ann[authz.AnnotationOwner] = ownerEmail
+		ann[authz.AnnotationOwnerSub] = "sub-" + ownerEmail // audit only
 	}
 	if group != "" {
 		ann[authz.AnnotationGroup] = group
@@ -177,7 +178,7 @@ func TestCheckNamespaceAuthz_BearerToken_Bypass(t *testing.T) {
 	ctx := context.Background()
 
 	// Namespace with strict private mode.
-	nsWithAuthz(t, client, "strict-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "strict-ns", "owner@example.com", "", "rwx------")
 
 	bearer := bearerInfo()
 	eval := nsEval()
@@ -193,7 +194,7 @@ func TestCheckNamespaceAuthz_NilDeployer_Denies(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "strict-ns2", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "strict-ns2", "owner@example.com", "", "rwx------")
 
 	eval := nsEval()
 
@@ -208,7 +209,7 @@ func TestCheckNamespaceAuthz_NilEval_Allows(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "strict-ns3", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "strict-ns3", "owner@example.com", "", "rwx------")
 
 	stranger := oidcDeployerNs("sub-stranger", "s@example.com")
 
@@ -272,7 +273,7 @@ func TestCheckNamespaceAuthz_Owner_Allowed(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "owner-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "owner-ns", "owner@example.com", "", "rwx------")
 
 	owner := oidcDeployerNs("sub-owner", "owner@example.com")
 	eval := nsEval()
@@ -287,7 +288,7 @@ func TestCheckNamespaceAuthz_GroupMember_Allowed(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "group-ns", "sub-owner", "platform", "rwxr-x---")
+	nsWithAuthz(t, client, "group-ns", "owner@example.com", "platform", "rwxr-x---")
 
 	member := oidcDeployerNs("sub-member", "member@example.com", "platform")
 	eval := nsEval()
@@ -302,7 +303,7 @@ func TestCheckNamespaceAuthz_Stranger_Denied(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "private-ns", "sub-owner", "platform", "rwx------")
+	nsWithAuthz(t, client, "private-ns", "owner@example.com", "platform", "rwx------")
 
 	stranger := oidcDeployerNs("sub-stranger", "s@example.com", "other-team")
 	eval := nsEval()
@@ -317,7 +318,7 @@ func TestCheckNamespaceAuthz_Write_OwnerAllowed(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "write-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "write-ns", "owner@example.com", "", "rwx------")
 
 	owner := oidcDeployerNs("sub-owner", "owner@example.com")
 	eval := nsEval()
@@ -332,7 +333,7 @@ func TestCheckNamespaceAuthz_Write_StrangerDenied(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "write-private-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "write-private-ns", "owner@example.com", "", "rwx------")
 
 	stranger := oidcDeployerNs("sub-stranger", "s@example.com")
 	eval := nsEval()
@@ -352,7 +353,7 @@ func TestWfPods_NsAuthzDenied(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "pod-private-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "pod-private-ns", "owner@example.com", "", "rwx------")
 
 	stranger := oidcDeployerNs("sub-stranger", "s@example.com")
 	eval := nsEval()
@@ -367,7 +368,7 @@ func TestWfEvents_NsAuthzAllowsGroupMember(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "events-ns", "sub-owner", "dev-team", "rwxr-x---")
+	nsWithAuthz(t, client, "events-ns", "owner@example.com", "dev-team", "rwxr-x---")
 
 	member := oidcDeployerNs("sub-member", "m@example.com", "dev-team")
 	eval := nsEval()
@@ -384,7 +385,7 @@ func TestWfApply_NsWriteCheck_AllowsOwner(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "apply-ns", "sub-alice", "", "rwx------")
+	nsWithAuthz(t, client, "apply-ns", "alice@example.com", "", "rwx------")
 
 	owner := oidcDeployerNs("sub-alice", "alice@example.com")
 	eval := nsEval()
@@ -399,7 +400,7 @@ func TestWfApply_NsWriteCheck_DeniesStranger(t *testing.T) {
 	client := newNsTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "apply-private-ns", "sub-alice", "", "rwx------")
+	nsWithAuthz(t, client, "apply-private-ns", "alice@example.com", "", "rwx------")
 
 	stranger := oidcDeployerNs("sub-bob", "bob@example.com")
 	eval := nsEval()
@@ -415,7 +416,7 @@ func TestWfApply_NsWriteCheck_AllowsPublicWrite(t *testing.T) {
 	ctx := context.Background()
 
 	// Public-write namespace: rwxrwxrwx
-	nsWithAuthz(t, client, "public-ns", "sub-alice", "", "rwxrwxrwx")
+	nsWithAuthz(t, client, "public-ns", "alice@example.com", "", "rwxrwxrwx")
 
 	stranger := oidcDeployerNs("sub-bob", "bob@example.com")
 	eval := nsEval()
@@ -434,7 +435,7 @@ func TestWfList_NsReadFilter_HidesPrivateNs(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "private-list-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "private-list-ns", "owner@example.com", "", "rwx------")
 
 	stranger := oidcDeployerNs("sub-stranger", "s@example.com")
 	eval := nsEval()
@@ -449,7 +450,7 @@ func TestWfList_NsReadFilter_AllowsOwner(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "owner-list-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "owner-list-ns", "owner@example.com", "", "rwx------")
 
 	owner := oidcDeployerNs("sub-owner", "owner@example.com")
 	eval := nsEval()
@@ -464,7 +465,7 @@ func TestWfList_NsReadFilter_AllowsGroupMember(t *testing.T) {
 	client := newWfTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "group-list-ns", "sub-owner", "dev-team", "rwxr-x---")
+	nsWithAuthz(t, client, "group-list-ns", "owner@example.com", "dev-team", "rwxr-x---")
 
 	member := oidcDeployerNs("sub-member", "m@example.com", "dev-team")
 	eval := nsEval()
@@ -481,9 +482,9 @@ func TestWfList_CrossNs_FiltersInaccessibleNamespaces(t *testing.T) {
 	ctx := context.Background()
 
 	// Namespace accessible to alice.
-	nsWithAuthz(t, client, "alice-ns", "sub-alice", "", "rwx------")
+	nsWithAuthz(t, client, "alice-ns", "alice@example.com", "", "rwx------")
 	// Namespace not accessible to alice (owned by bob, private).
-	nsWithAuthz(t, client, "bob-ns", "sub-bob", "", "rwx------")
+	nsWithAuthz(t, client, "bob-ns", "bob@example.com", "", "rwx------")
 
 	alice := oidcDeployerNs("sub-alice", "alice@example.com")
 	eval := nsEval()
@@ -506,7 +507,7 @@ func TestWfHealthNs_NsAuthzDenied(t *testing.T) {
 	client := newWfHealthTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "health-private-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "health-private-ns", "owner@example.com", "", "rwx------")
 
 	stranger := oidcDeployerNs("sub-stranger", "s@example.com")
 	eval := nsEval()
@@ -521,7 +522,7 @@ func TestWfHealthNs_NsAuthzAllowed_BearerToken(t *testing.T) {
 	client := newWfHealthTestClient()
 	ctx := context.Background()
 
-	nsWithAuthz(t, client, "health-bearer-ns", "sub-owner", "", "rwx------")
+	nsWithAuthz(t, client, "health-bearer-ns", "owner@example.com", "", "rwx------")
 
 	eval := nsEval()
 
