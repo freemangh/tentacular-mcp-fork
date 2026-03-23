@@ -249,8 +249,8 @@ func handlePermissionsSet(ctx context.Context, client *k8s.Client, params Permis
 	// change group/mode. Generic Write permission is not sufficient — this prevents
 	// group members from hijacking ownership metadata.
 	if eval != nil && eval.Enabled && deployer != nil && deployer.Provider != "bearer-token" {
-		ownerSub := ann[authz.AnnotationOwnerSub]
-		if ownerSub != "" && deployer.Subject != ownerSub {
+		owner := ann[authz.AnnotationOwner]
+		if owner != "" && deployer.Email != owner {
 			return PermissionsSetResult{}, errors.New("permission denied: only the owner may change permissions")
 		}
 	}
@@ -364,8 +364,8 @@ func handleNsPermissionsSet(ctx context.Context, client *k8s.Client, params NsPe
 	// ns_permissions_set is owner-only: only the original owner (or bearer-token) may
 	// change permissions.
 	if eval != nil && eval.Enabled && deployer != nil && deployer.Provider != "bearer-token" {
-		ownerSub := ann[authz.AnnotationOwnerSub]
-		if ownerSub != "" && deployer.Subject != ownerSub {
+		owner := ann[authz.AnnotationOwner]
+		if owner != "" && deployer.Email != owner {
 			return NsPermissionsSetResult{}, errors.New("permission denied: only the owner may change namespace permissions")
 		}
 	}

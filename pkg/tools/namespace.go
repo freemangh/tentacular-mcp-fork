@@ -522,8 +522,8 @@ func handleNsUpdate(ctx context.Context, client *k8s.Client, eval *authz.Evaluat
 		if eval != nil && eval.Enabled && deployer != nil && deployer.Provider != "bearer-token" {
 			ns, getErr := client.Clientset.CoreV1().Namespaces().Get(ctx, params.Name, metav1.GetOptions{})
 			if getErr == nil {
-				ownerSub := ns.Annotations[authz.AnnotationOwnerSub]
-				if ownerSub != "" && deployer.Subject != ownerSub {
+				owner := ns.Annotations[authz.AnnotationOwner]
+				if owner != "" && deployer.Email != owner {
 					return NsUpdateResult{}, errors.New("permission denied: only the namespace owner may change group or mode")
 				}
 			}

@@ -384,7 +384,7 @@ func (*Controller) AnnotateDeployer(manifests []map[string]any, p AnnotateDeploy
 		if p.IsUpdate {
 			// Carry forward ownership annotations from existing deployment.
 			ownershipKeys := []string{
-				"tentacular.io/owner-sub", "tentacular.io/owner-email",
+				"tentacular.io/owner", "tentacular.io/owner-sub", "tentacular.io/owner-email",
 				"tentacular.io/owner-name", "tentacular.io/group",
 				"tentacular.io/mode", "tentacular.io/created-at",
 			}
@@ -397,8 +397,8 @@ func (*Controller) AnnotateDeployer(manifests []map[string]any, p AnnotateDeploy
 			// the caller is the owner or bearer-token. This prevents group members
 			// with Write access from changing permissions via wf_apply --group/--share.
 			isOwnerOrBearer := p.Deployer.Provider == "bearer-token" ||
-				p.ExistingAnnotations["tentacular.io/owner-sub"] == "" ||
-				(p.Deployer.Subject != "" && p.Deployer.Subject == p.ExistingAnnotations["tentacular.io/owner-sub"])
+				p.ExistingAnnotations["tentacular.io/owner"] == "" ||
+				(p.Deployer.Email != "" && p.Deployer.Email == p.ExistingAnnotations["tentacular.io/owner"])
 			if isOwnerOrBearer {
 				if p.Group != "" {
 					ann["tentacular.io/group"] = p.Group
@@ -414,8 +414,9 @@ func (*Controller) AnnotateDeployer(manifests []map[string]any, p AnnotateDeploy
 		} else {
 			// CREATE: stamp ownership and creation time.
 			ann["tentacular.io/created-at"] = now
-			// Only stamp owner-sub if non-empty to prevent matching empty-subject callers.
-			// Bearer-token deploys intentionally leave owner-sub empty (pre-authz resource).
+			// owner is the primary identity anchor (email-based).
+			ann["tentacular.io/owner"] = p.Deployer.Email
+			// owner-sub is retained for audit/secondary purposes only.
 			if p.Deployer.Subject != "" {
 				ann["tentacular.io/owner-sub"] = p.Deployer.Subject
 			}

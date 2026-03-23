@@ -53,6 +53,7 @@ func createOwnedNamespaceWithMode(ctx context.Context, client *k8s.Client, name,
 				k8s.ManagedByLabel: k8s.ManagedByValue,
 			},
 			Annotations: map[string]string{
+				"tentacular.io/owner":     ownerSub,
 				"tentacular.io/owner-sub": ownerSub,
 				"tentacular.io/mode":      mode,
 			},
