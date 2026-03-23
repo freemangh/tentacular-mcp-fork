@@ -330,6 +330,11 @@ keycloakx:
     - "/opt/keycloak/bin/kc.sh"
     - "start"
     - "--hostname-strict=false"
+  # -- Admin credentials are injected via extraEnvFrom referencing a Secret
+  # created by the platform chart (templates/keycloak-admin-secret.yaml).
+  extraEnvFrom: |
+    - secretRef:
+        name: tentacular-keycloak-admin
   # -- Use external PostgreSQL (the platform's bundled instance)
   database:
     vendor: postgres
