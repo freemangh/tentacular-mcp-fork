@@ -23,7 +23,7 @@ spec:
     name: {{ $issuerName }}
     kind: ClusterIssuer
   dnsNames:
-    - {{ printf "mcp.%s" (required "global.domain is required when tls.certificates.mcp.create is true" .Values.global.domain) }}
+    - {{ .Values.ingress.mcp.hostname | default (printf "tentacular-mcp.%s" .Values.global.domain) }}
 {{- end }}
 {{- if and .Values.tls.certificates.mcp.create .Values.tls.certificates.auth.create }}
 ---
@@ -42,5 +42,22 @@ spec:
     name: {{ $issuerName }}
     kind: ClusterIssuer
   dnsNames:
-    - {{ printf "auth.%s" (required "global.domain is required when tls.certificates.auth.create is true" .Values.global.domain) }}
+    - {{ .Values.ingress.auth.hostname | default (printf "tentacular-auth.%s" .Values.global.domain) }}
+{{- end }}
+{{- if and .Values.keycloak.enabled .Values.ingress.tls.enabled .Values.tls.clusterIssuers.create }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "tentacular-platform.fullname" . }}-keycloak
+  namespace: {{ include "tentacular-platform.namespace.exoskeleton" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  secretName: tentacular-keycloak-tls
+  issuerRef:
+    name: {{ $issuerName }}
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ .Values.keycloak.hostname | default (printf "tentacular-keycloak.%s" .Values.global.domain) }}
 {{- end }}

@@ -7,9 +7,45 @@ metadata:
   labels:
     {{- include "tentacular-platform.labels" . | nindent 4 }}
 data:
-  init-admin-role.sql: |
-    -- Grant CREATEROLE to the tentacular admin user so the MCP server
-    -- can provision per-tentacle roles and schemas at runtime.
-    -- ALTER ROLE is idempotent and safe to re-run.
-    ALTER ROLE "{{ .Values.postgresql.auth.username | default "tentacular_admin" | replace "\"" "\"\"" }}" CREATEROLE;
+  {{- $adminUser := .Values.postgresql.auth.username | default "tentacular_admin" }}
+  init-tentacular.sh: |
+    #!/bin/bash
+    set -e
+    echo "==> Running tentacular platform init scripts..."
+
+    # Grant CREATEROLE to the tentacular admin user so the MCP server
+    # can provision per-tentacle roles and schemas at runtime.
+    PGPASSWORD="${POSTGRESQL_POSTGRES_PASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+      --username postgres --dbname postgres <<-'EOSQL'
+    ALTER ROLE "{{ $adminUser | replace "\"" "\"\"" }}" CREATEROLE;
+    EOSQL
+    echo "==> Granted CREATEROLE to {{ $adminUser }}"
+
+    {{- if and .Values.keycloak.enabled (not (index .Values "keycloakx" "postgresql" "enabled")) }}
+    {{- $kcUser := .Values.keycloakx.database.username | default "keycloak" }}
+    {{- $kcPass := .Values.keycloakx.database.password | default "keycloak" }}
+    {{- $kcDB := .Values.keycloakx.database.database | default "keycloak" }}
+
+    # Create Keycloak role and database (idempotent).
+    PGPASSWORD="${POSTGRESQL_POSTGRES_PASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+      --username postgres --dbname postgres <<-'EOSQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ $kcUser }}') THEN
+        EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', '{{ $kcUser }}', '{{ $kcPass }}');
+      END IF;
+    END
+    $$;
+    EOSQL
+    echo "==> Created role {{ $kcUser }}"
+
+    PGPASSWORD="${POSTGRESQL_POSTGRES_PASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+      --username postgres --dbname postgres <<-'EOSQL'
+    SELECT 'CREATE DATABASE {{ $kcDB }} OWNER {{ $kcUser }}'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ $kcDB }}');\gexec
+    EOSQL
+    echo "==> Created database {{ $kcDB }}"
+    {{- end }}
+
+    echo "==> Tentacular platform init complete."
 {{- end }}

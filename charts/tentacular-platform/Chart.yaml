@@ -40,6 +40,14 @@ dependencies:
     version: "v1.20.0"
     repository: https://charts.jetstack.io
     condition: cert-manager.enabled
+  - name: keycloakx
+    # Codecentric Keycloakx (Quarkus-based modern Keycloak) - local fork
+    # Patched to support namespaceOverride for umbrella chart deployments.
+    # Uses official quay.io/keycloak/keycloak image.
+    # Upstream: https://github.com/codecentric/helm-charts/tree/master/charts/keycloakx
+    version: "7.1.9"
+    repository: "file://../../charts/keycloakx"
+    condition: keycloak.enabled
   - name: tentacular-mcp
     # Local reference for development; for releases use:
     # repository: oci://ghcr.io/randybias/tentacular-mcp/charts

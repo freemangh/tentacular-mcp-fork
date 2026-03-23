@@ -19,8 +19,8 @@ When `exoskeleton.enabled: true`, the umbrella chart generates a Secret (`tentac
 - Kubernetes 1.28+
 - Helm 3.x
 - kubectl configured for your cluster
-- Istio (if using `istio` or `alb-istio` ingress modes)
-- AWS Load Balancer Controller (if using ALB ingress)
+- nginx ingress controller (recommended for production; for AWS, use NLB as the controller's Service type)
+- Istio (optional, if using `istio` ingress mode)
 
 ## Quick Start
 
@@ -88,9 +88,8 @@ The `ingress.mode` field controls how the platform is exposed externally.
 |------|-------------|-------------|
 | `none` | No external exposure; use `kubectl port-forward` | Local development, debugging |
 | `nodeport` | Expose MCP via NodePort | Simple/test clusters, SSH tunnel, VPN access |
-| `ingress` | Standard Kubernetes Ingress resource | Traefik, nginx-ingress, or AWS ALB Ingress Controller |
-| `istio` | Istio Gateway + VirtualService | Clusters with Istio service mesh |
-| `alb-istio` | AWS ALB fronting Istio ingress gateway | AWS deployments with Istio |
+| `ingress` | Standard Kubernetes Ingress resource (cloud-agnostic) | nginx, Traefik, or any K8s ingress controller |
+| `istio` | **(Experimental)** Istio Gateway + VirtualService + DestinationRule | Clusters with Istio service mesh (includes `Mcp-Session-Id` consistent hash) |
 
 ### Examples
 
@@ -114,17 +113,29 @@ ingress:
     secretName: mcp-tls
 ```
 
-**AWS ALB:**
+**AWS (nginx + NLB):**
+
+Install nginx ingress controller with NLB first:
+```bash
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx --create-namespace \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-scheme"=internet-facing
+```
+
+Then use the standard ingress mode:
 ```yaml
 ingress:
   mode: ingress
-  className: alb
+  className: nginx
+  controllerNamespace: ingress-nginx
   mcp:
-    hostname: mcp.example.com
+    hostname: tentacular-mcp.example.com
+  tls:
+    enabled: true
+    secretName: tentacular-mcp-tls
   annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:..."
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$http_mcp_session_id"
 ```
 
 **Istio:**
@@ -167,7 +178,7 @@ ingress:
 | `tentacular-mcp.auth.token` | string | `""` | MCP auth token (required) |
 | `exoskeleton.enabled` | bool | `true` | Enable exoskeleton subsystem |
 | `esm-sh.enabled` | bool | `true` | Enable esm-sh proxy |
-| `ingress.mode` | string | `"none"` | Ingress mode (none/nodeport/ingress/istio/alb-istio) |
+| `ingress.mode` | string | `"none"` | Ingress mode (none/nodeport/ingress/istio) |
 | `ingress.mcp.hostname` | string | `""` | MCP endpoint hostname |
 | `ingress.auth.enabled` | bool | `false` | Enable auth endpoint routing |
 | `ingress.auth.hostname` | string | `""` | Auth endpoint hostname |
