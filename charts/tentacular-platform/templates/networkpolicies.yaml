@@ -208,6 +208,32 @@ spec:
 Allow ingress from tentacular-system to tentacular-exoskeleton
 (MCP server needs to reach backing services like PostgreSQL, NATS).
 */}}
+{{/*
+Allow intra-namespace traffic within tentacular-exoskeleton.
+Backing services (Keycloak, NATS, etc.) need to reach PostgreSQL within the
+same namespace. Default-deny blocks all traffic including intra-namespace.
+*/}}
+{{- if .Values.namespaces.exoskeleton.create }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-exoskeleton-internal
+  namespace: {{ include "tentacular-platform.namespace.exoskeleton" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+---
+{{- end }}
 {{- if and .Values.namespaces.system.create .Values.namespaces.exoskeleton.create }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -322,5 +348,149 @@ spec:
     - ports:
         - protocol: TCP
           port: 8080
+---
+{{- end }}
+{{/*
+Allow ingress to the MCP pod on port 8080 from the ingress controller namespace.
+Required when using ingress mode (nginx, traefik, etc.) with default-deny policies.
+The ingress controller runs in a separate namespace (e.g., ingress-nginx) because
+tentacular-system enforces the "restricted" Pod Security Standard, which is
+incompatible with ingress controllers that need NET_BIND_SERVICE capability.
+Set ingress.controllerNamespace to the namespace where the controller runs.
+*/}}
+{{- if and .Values.namespaces.system.create (eq .Values.ingress.mode "ingress") .Values.ingress.controllerNamespace }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-mcp-controller
+  namespace: {{ include "tentacular-platform.namespace.system" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tentacular-mcp
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.ingress.controllerNamespace }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+{{- end }}
+{{/*
+Allow ingress to the MCP pod on port 8080 from the istio-system namespace.
+Required when using istio mode with default-deny policies.
+The Istio ingress gateway runs in istio-system and forwards traffic to backend pods.
+*/}}
+{{- if and .Values.namespaces.system.create (eq .Values.ingress.mode "istio") }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-mcp-istio
+  namespace: {{ include "tentacular-platform.namespace.system" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tentacular-mcp
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+{{- end }}
+{{/*
+Allow ingress to Keycloak from the ingress controller namespace.
+Keycloak runs in the exoskeleton namespace and needs to be reachable
+by the ingress controller for OIDC endpoints and admin console.
+*/}}
+{{- if and .Values.keycloak.enabled .Values.namespaces.exoskeleton.create (eq .Values.ingress.mode "ingress") .Values.ingress.controllerNamespace }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-keycloak-controller
+  namespace: {{ include "tentacular-platform.namespace.exoskeleton" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keycloakx
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.ingress.controllerNamespace }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+{{- end }}
+{{/*
+Allow ingress to cert-manager ACME HTTP-01 solver pods from the cert-manager namespace.
+cert-manager performs a self-check by querying the solver pod before telling Let's Encrypt
+to validate. The solver pods are created in the same namespace as the Certificate resource.
+Port 8089 is the default solver port.
+*/}}
+{{- if and .Values.tls.clusterIssuers.create .Values.namespaces.system.create }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-solver
+  namespace: {{ include "tentacular-platform.namespace.system" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8089
+  egress:
+    - {}
+---
+{{- end }}
+{{- if and .Values.tls.clusterIssuers.create .Values.namespaces.exoskeleton.create }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-solver
+  namespace: {{ include "tentacular-platform.namespace.exoskeleton" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8089
+  egress:
+    - {}
 {{- end }}
 {{- end }}

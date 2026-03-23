@@ -8,8 +8,11 @@ dependencies:
 - name: cert-manager
   repository: https://charts.jetstack.io
   version: v1.20.0
+- name: keycloakx
+  repository: file://../../charts/keycloakx
+  version: 7.1.9
 - name: tentacular-mcp
   repository: file://../tentacular-mcp
   version: 0.1.0
-digest: sha256:bf9e098cc6309e0786b36d37eba573a1d01e91a2bac41a588fc399f1cb3ca943
-generated: "2026-03-13T12:46:49.676034593+02:00"
+digest: sha256:5ab9ad18e2cb801896e5f0402f0d15b8297a04b55fbe82a14791f56ce4bb2eea
+generated: "2026-03-20T16:12:16.817802+02:00"

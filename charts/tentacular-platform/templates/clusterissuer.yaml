@@ -19,7 +19,8 @@ spec:
       name: {{ include "tentacular-platform.fullname" . }}-letsencrypt-production
     solvers:
       - http01:
-          ingress: {}
+          ingress:
+            ingressClassName: {{ .Values.ingress.className | default "nginx" }}
 {{- end }}
 {{- if not .Values.tls.clusterIssuers.production }}
 ---
@@ -37,6 +38,7 @@ spec:
       name: {{ include "tentacular-platform.fullname" . }}-letsencrypt-staging
     solvers:
       - http01:
-          ingress: {}
+          ingress:
+            ingressClassName: {{ .Values.ingress.className | default "nginx" }}
 {{- end }}
 {{- end }}
