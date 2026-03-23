@@ -315,6 +315,101 @@ postgresql:
     certKeyFilename: tls.key
 ```
 
+## Keycloak User Management
+
+When `keycloak.enabled: true`, the chart deploys Keycloak and auto-creates the `tentacular`
+realm with the `tentacular-mcp` OIDC client. Users can then authenticate via `tntc login`.
+
+### Adding Local Users
+
+Use the Keycloak admin API to create users. First, get an admin token:
+
+```bash
+KC_URL="https://tentacular-keycloak.<your-domain>"
+KC_ADMIN_PASS="$(kubectl get secret tentacular-keycloak-admin \
+  -n tentacular-exoskeleton -o jsonpath='{.data.KEYCLOAK_ADMIN_PASSWORD}' | base64 -d)"
+
+TOKEN=$(curl -sk "$KC_URL/auth/realms/master/protocol/openid-connect/token" \
+  -d "client_id=admin-cli" -d "username=admin" -d "password=$KC_ADMIN_PASS" \
+  -d "grant_type=password" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+```
+
+Then create a user:
+
+```bash
+curl -sk -X POST "$KC_URL/auth/admin/realms/tentacular/users" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "jdoe",
+    "email": "jdoe@example.com",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "enabled": true,
+    "emailVerified": true,
+    "credentials": [{
+      "type": "password",
+      "value": "change-me-on-first-login",
+      "temporary": true
+    }]
+  }'
+```
+
+Or use the Keycloak admin console at `https://tentacular-keycloak.<your-domain>/auth/admin/`.
+
+### Authenticating with tntc
+
+Configure OIDC in `~/.tentacular/config.yaml`:
+
+```yaml
+environments:
+  my-env:
+    mcp_endpoint: https://tentacular-mcp.<your-domain>/mcp
+    namespace: tentacular-dev
+    oidc_issuer: https://tentacular-keycloak.<your-domain>/auth/realms/tentacular
+    oidc_client_id: tentacular-mcp
+    oidc_client_secret: <from exoskeletonAuth.clientSecret>
+```
+
+Then authenticate:
+
+```bash
+tntc login -e my-env     # Opens browser for Keycloak login
+tntc whoami -e my-env    # Verify identity
+tntc cluster check -e my-env  # Test MCP connectivity with OIDC token
+```
+
+### Federating External Identity Providers
+
+Keycloak supports identity brokering -- users can sign in with Google, GitHub, or any
+OIDC/SAML provider alongside local accounts. The MCP server automatically detects the
+upstream provider from the Keycloak `identity_provider` token claim.
+
+**Google:**
+
+1. Create OAuth credentials in [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+   - Application type: Web application
+   - Authorized redirect URI: `https://tentacular-keycloak.<your-domain>/auth/realms/tentacular/broker/google/endpoint`
+2. In Keycloak admin console, go to **Identity Providers > Add provider > Google**
+3. Enter your Google Client ID and Client Secret
+4. Users can now click "Sign in with Google" on the Keycloak login page
+
+**GitHub:**
+
+1. Create an OAuth App in [GitHub Developer Settings](https://github.com/settings/developers):
+   - Authorization callback URL: `https://tentacular-keycloak.<your-domain>/auth/realms/tentacular/broker/github/endpoint`
+2. In Keycloak admin console, go to **Identity Providers > Add provider > GitHub**
+3. Enter your GitHub Client ID and Client Secret
+
+**Any OIDC provider:**
+
+1. In Keycloak admin console, go to **Identity Providers > Add provider > OpenID Connect v1.0**
+2. Set the Discovery endpoint (or configure manually)
+3. Set Client ID and Client Secret from the external provider
+
+All federated users appear in the tentacular realm and can use `tntc login` -- the device
+authorization flow redirects through Keycloak, which presents all configured sign-in options.
+
 ## Example Values Files
 
 Pre-built profiles are available in `ci/`:
