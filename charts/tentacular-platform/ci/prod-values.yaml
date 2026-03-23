@@ -143,7 +143,8 @@ keycloak:
     user: admin
     # CHANGE: Use a strong admin password
     password: "CHANGE-ME-keycloak-admin"
-  hostname: tentacular-keycloak.tentacular.example.com
+  # hostname auto-derived from global.domain: tentacular-keycloak.<domain>
+  hostname: ""
   ingress:
     enabled: true
 
@@ -175,7 +176,8 @@ ingress:
   className: nginx
   controllerNamespace: ingress-nginx
   mcp:
-    hostname: tentacular-mcp.tentacular.example.com
+    # hostname auto-derived from global.domain: tentacular-mcp.<domain>
+    hostname: ""
   tls:
     enabled: true
     secretName: tentacular-mcp-tls

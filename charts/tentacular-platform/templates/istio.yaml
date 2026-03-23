@@ -1,5 +1,5 @@
 {{- if eq .Values.ingress.mode "istio" }}
-{{- $mcpHost := .Values.ingress.mcp.hostname | default (printf "mcp.%s" .Values.global.domain) -}}
+{{- $mcpHost := .Values.ingress.mcp.hostname | default (printf "tentacular-mcp.%s" .Values.global.domain) -}}
 {{- $gatewayName := .Values.ingress.istio.gateway.name | default "tentacular-gateway" -}}
 ---
 apiVersion: networking.istio.io/v1

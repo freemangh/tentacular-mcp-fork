@@ -18,14 +18,14 @@ spec:
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:
-        - {{ .Values.ingress.mcp.hostname | default (printf "mcp.%s" .Values.global.domain) }}
+        - {{ .Values.ingress.mcp.hostname | default (printf "tentacular-mcp.%s" .Values.global.domain) }}
         {{- if .Values.ingress.auth.enabled }}
         - {{ .Values.ingress.auth.hostname | default (printf "auth.%s" .Values.global.domain) }}
         {{- end }}
       secretName: {{ .Values.ingress.tls.secretName | default "tentacular-tls" }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.mcp.hostname | default (printf "mcp.%s" .Values.global.domain) }}
+    - host: {{ .Values.ingress.mcp.hostname | default (printf "tentacular-mcp.%s" .Values.global.domain) }}
       http:
         paths:
           - path: /
