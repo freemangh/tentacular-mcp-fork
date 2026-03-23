@@ -1,0 +1,54 @@
+{{/*
+Keycloak realm import ConfigMap.
+Contains the tentacular realm definition with the tentacular-mcp OIDC client.
+Mounted into the Keycloak pod at /opt/keycloak/data/import/ and imported
+on startup via the --import-realm flag.
+*/}}
+{{- if .Values.keycloak.enabled }}
+{{- $kcHost := .Values.keycloak.hostname | default (printf "tentacular-keycloak.%s" .Values.global.domain) }}
+{{- $mcpHost := .Values.ingress.mcp.hostname | default (printf "tentacular-mcp.%s" .Values.global.domain) }}
+{{- $kcScheme := ternary "https" "http" .Values.ingress.tls.enabled }}
+{{- $realm := .Values.keycloak.realm | default "tentacular" }}
+{{- $clientID := .Values.exoskeletonAuth.clientID | default "tentacular-mcp" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tentacular-keycloak-realm
+  namespace: {{ include "tentacular-platform.namespace.exoskeleton" . }}
+  labels:
+    {{- include "tentacular-platform.labels" . | nindent 4 }}
+data:
+  tentacular-realm.json: |
+    {
+      "realm": {{ $realm | quote }},
+      "enabled": true,
+      "displayName": "Tentacular",
+      "loginWithEmailAllowed": true,
+      "registrationAllowed": false,
+      "resetPasswordAllowed": true,
+      "sslRequired": "external",
+      "clients": [
+        {
+          "clientId": {{ $clientID | quote }},
+          "name": "Tentacular MCP Server",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "secret": {{ .Values.exoskeletonAuth.clientSecret | default "" | quote }},
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": true,
+          "authorizationServicesEnabled": false,
+          "attributes": {
+            "oauth2.device.authorization.grant.enabled": "true",
+            "oauth2.device.polling.interval": "5"
+          },
+          "redirectUris": [
+            "{{ $kcScheme }}://{{ $mcpHost }}/*"
+          ],
+          "webOrigins": ["+"],
+          "defaultClientScopes": ["openid", "email", "profile"]
+        }
+      ]
+    }
+{{- end }}

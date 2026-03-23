@@ -325,16 +325,28 @@ keycloakx:
     pullPolicy: IfNotPresent
   # -- Keycloak start command (required for Keycloak 26.x Quarkus image).
   # The subcommand and flags must be in the command array, not args.
+  # --import-realm imports the tentacular realm from /opt/keycloak/data/import/
+  # on first boot; skips if realm already exists.
   # See: https://github.com/codecentric/helm-charts/tree/master/charts/keycloakx#tldr
   command:
     - "/opt/keycloak/bin/kc.sh"
     - "start"
     - "--hostname-strict=false"
+    - "--import-realm"
   # -- Admin credentials are injected via extraEnvFrom referencing a Secret
   # created by the platform chart (templates/keycloak-admin-secret.yaml).
   extraEnvFrom: |
     - secretRef:
         name: tentacular-keycloak-admin
+  # -- Mount realm import JSON from ConfigMap
+  extraVolumes: |
+    - name: realm-import
+      configMap:
+        name: tentacular-keycloak-realm
+  extraVolumeMounts: |
+    - name: realm-import
+      mountPath: /opt/keycloak/data/import
+      readOnly: true
   # -- Use external PostgreSQL (the platform's bundled instance)
   database:
     vendor: postgres
